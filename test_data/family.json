@@ -1,0 +1,184 @@
+[
+    {
+        "subject": {
+            "name": "jan",
+            "family-name": "raak",
+            "iri": "person/raak-jan",
+            "hobby": "photography,reading,horses,wine"
+        },
+        "object": {
+            "name": "isabella clara rosina godena",
+            "family-name": "horst",
+            "iri": "person/horst-isabella-clara-rosina-godena",
+            "hobby": "cooking,reading,gardening,wine,dogs"
+        },
+        "predicate": {
+            "type": "marriage",
+            "on": "1974/11/23",
+            "graph": "bi",
+            "tertiary": [
+                {
+                    "object": {
+                        "name": "marloes",
+                        "family-name": "raak",
+                        "iri": "person/raak-marloes",
+                        "dob": "1978-12-09"
+                    },
+                    "predicate": {
+                        "type": "daughter-of",
+                        "on": "1978/09/12"
+                    }
+                },
+                {
+                    "object": {
+                        "name": "vincent",
+                        "family-name": "raak",
+                        "iri": "person/raak-vincent",
+                        "dob": "1983-11-17"
+                    },
+                    "predicate": {
+                        "type": "son-of",
+                        "on": "1983/11/17"
+                    }
+                }
+            ]
+        }
+    },
+    {
+        "subject": {
+            "name": "martin",
+            "family-name": "van-scheijen",
+            "iri": "person/van-scheijen-martin"
+        },
+        "object": {
+            "name": "jolanda",
+            "family-name": "raak",
+            "iri": "person/raak-jolanda"
+        },
+        "predicate": {
+            "type": "marriage",
+            "on": "1986/05/18",
+            "graph": "bi",
+            "tertiary": [
+                {
+                    "object": {
+                        "name": "quint",
+                        "family-name": "van-scheijen",
+                        "iri": "person/van-scheijen-quint"
+                    },
+                    "predicate": {
+                        "type": "son-of"
+                    }
+                }
+            ]
+        }
+    },
+    {
+        "subject": {
+            "name": "reinder jacob",
+            "family-name": "raak",
+            "iri": "person/raak-reinder-jacob"
+        },
+        "object": {
+            "name": "francina adriana",
+            "family-name": "sjoukens",
+            "iri": "person/sjoukens-francina-adriana"
+        },
+        "predicate": {
+            "type": "marriage",
+            "on": "1953/04/29",
+            "graph": "bi"
+        }
+    },
+    {
+        "subject": {
+            "name": "willem",
+            "family-name": "horst",
+            "iri": "person/horst-willem"
+        },
+        "object": {
+            "name": "isabella clara rosina godena",
+            "family-name": "loevesijn",
+            "nickname": "bep",
+            "iri": "person/loevesijn-isabella-clara-rosina-godena"
+        },
+        "predicate": {
+            "type": "marriage",
+            "on": "1955/09/21",
+            "graph": "bi"
+        }
+    },
+    {
+        "subject": {
+            "name": "jan",
+            "family-name": "sjoukens",
+            "dob": "1887",
+            "deceased": "1965",
+            "iri": "person/sjoukens-jan"
+        },
+        "object": {
+            "name": "klaziena",
+            "family-name": "kwak",
+            "dob": "1891",
+            "deceased": "1964",
+            "iri": "person/kwak-klaziena-wilhelmina"
+        },
+        "predicate": {
+            "type": "marriage",
+            "graph": "bi",
+            "on": "1914-07-01",
+            "location": "vlaardingen"
+        }
+    },
+    {
+        "subject": {
+            "name": "michael",
+            "family-name": "schuurman",
+            "iri": "person/schuurman-michael"
+        },
+        "object": "person/raak-marloes",
+        "predicate": {
+            "type": "marriage",
+            "on": "2012/12/12",
+            "dissolved": "2014/09/01",
+            "graph": "bi",
+            "tertiary": [
+                {
+                    "object": {
+                        "name": "danique",
+                        "family-name": "schuurman",
+                        "iri": "person/schuurman-danique"
+                    },
+                    "predicate": {
+                        "type": "son-of",
+                        "on": "2003/02/01"
+                    }
+                },
+                {
+                    "object": {
+                        "name": "luciano",
+                        "family-name": "schuurman",
+                        "iri": "person/schuurman-luciano"
+                    },
+                    "predicate": {
+                        "type": "son-of",
+                        "on": "2005/02/01"
+                    }
+                }
+            ]
+            }
+        },
+        {
+            "subject": {
+                "name": "jefrey",
+                "family-name": "vanhartingsvelt",
+                "iri": "person/vanhartingsvelt-jefrey"
+            },
+            "object": "person/raak-marloes",
+            "predicate": {
+                "type": "marriage",
+                "on": "2015/07/13",
+                "graph": "bi"
+            }
+        }
+    ]

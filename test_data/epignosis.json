@@ -1,0 +1,28 @@
+[
+    {
+        "subject": {
+            "type": "component",
+            "iri": "prizma-2"
+        },
+        "object": {
+            "type": "feature",
+            "iri": "epignosis"
+        },
+        "predicate": {
+            "type": "based-on",
+            "inverse": "implemented-by"
+        }
+    },
+    {
+        "subject": {
+            "iri": "epignosis-2"
+        },
+        "object": {
+            "type": "feature",
+            "iri": "mindbt-2"
+        },
+        "predicate": {
+            "type": "concept"
+        }
+    }
+]

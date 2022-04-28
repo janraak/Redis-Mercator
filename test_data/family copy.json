@@ -1,0 +1,31 @@
+[
+        {
+            "name": "jan",
+            "family-name": "sjoukens",
+            "dob": "1922",
+            "deceased": "1920",
+            "iri": "person/sjoukens-jan"
+        },        {
+            "name": "job",
+            "family-name": "sjoukens",
+            "dob": "1925",
+            "deceased": "1994",
+            "iri": "person/sjoukens-job"
+        },        
+        {
+            "name": "ineke",
+            "family-name": "mooij",
+            "iri": "person/mooij-ineke"
+        },
+        {
+            "name": "arjan",
+            "family-name": "mooij",
+            "iri": "person/mooij-arjan"
+        },
+        {
+            "name": "mary",
+            "family-name": "mooij",
+            "iri": "person/mooij-mary"
+        }
+
+    ]
