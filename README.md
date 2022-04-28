@@ -18,6 +18,35 @@ Redis Mercator provides alternative views and traversals on your Redis data, off
 
 The following modules are part of the **Mercator** suite and can be loaded into Redis using the *MODULE LOAD* command.
 
+
+```mermaid
+flowchart TD;
+    id0(((Application)));
+    id1[(REDIS Server - DATABASE)];
+    id2[[rxIndexer]];
+    id3[(REDIS Server - INDEX)];
+    id4[[rxFetch]];
+    id5[[rxQuery]];
+    id6[[rxRule]];
+    id7[[rxGraphDB]];
+    id8(((DB Admin)));
+    id1-->|intercepts|id2;
+    id2-->|index updates|id4;
+    id4-->|index updates|id3;
+    id0-->|set query commands|id5;
+    id0-->|graph query commands|id5;
+    id5-->|atomic set queries|id4;
+    id5-->|graph traversal lookups|id1;
+    id5-->|graph update phrases|id1;
+    id4-->|atomic set queries|id3;
+    id0-->|rule setup commands|id6;
+    id6-->|rule expressions|id5;
+    id2-->|modified key trigger commands|id6;
+    id0-->|graph triplets in JSON|id7;
+    id7-->|triplets to redis mapping|id1;
+    id8-->|reindex commands|id2;
+```
+
 ## rxIndexer.so
 
 The rxIndexer module add *Full Text Ind3exing* to Redis *String*, *Has* and *List* keys. 
@@ -62,17 +91,32 @@ After the completion of any ***WRITE*** Redis command:
     
 The  *Graph* query may contain *WRITE* actions, like adding a property or Edge.
 
-## graphdb.so 
+## rxGraphdb.so 
 
-The graphdb module makes it possible to load a JSON document with triplets as vertices and edges to a Redis database.
+The rxGraphdb module makes it possible to load a JSON document with triplets as vertices and edges to a Redis database.
 
 1) Every Vertex is mapped to a Redis Hash Object.
 2) Every Edge is mapped to a Redis Hash Object.
-3) Every **Edge** consists of four directed graphs. All directed graphs mapped to SET objects. Each 
-  a) Vertex: *subject* to Edge
-  b) Edge to Vertex: *object*
-  a) Vertex: *object* to Edge
-  b) Edge to Vertex: *subject*
+3) Every **Edge** consists of four directed graphs. All directed graphs mapped to SET objects. 
+
+```mermaid
+graph LR;
+    id0(((Vertex: Subject)));
+    id1(((Edge)));
+    id2(((Vertex: Object)));
+    id3(((Edge)));
+    id4(((Vertex: Subject)));
+    id5(((Vertex: Object)));
+    id6(((Vertex: Object)));
+    id0-->|from_to_predicate|id1;
+    id1-->|from_to_predicate|id2;
+    id2-->|to_from_predicate|id1;
+    id1-->|to_from_predicate|id0;
+    id1-.->id6;
+    id1-.->id3;
+    id4===id3;
+    id3===id5;
+```
 
 Nested *Triplets* are allowed.
 
@@ -98,4 +142,12 @@ The Query parser and executors in C.
 
 The Query parser and executors in C++.
 The Query dialects may be extended with custom elements from Redis Modules.
+
+# C vs C++ vs Rust
+
+Initially the indexer and query language and engine were developed in C. After an AWS/IAM prototype module was developed in Rust I attempted to move the code to Rust. After a while I stopped and continued further developments in C++.
+
+## Rust
+
+Allthough the Rust is an appealing language but I missed:
 
