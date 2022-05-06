@@ -482,18 +482,18 @@ int reindex(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         sdstoupper(arg);
         if (sdscmp(arg, sdsnew("STATUS")) == 0)
         {
-            response = sdscatfmt(response, "Indexer is:                 %s\n", indexer_state ? "Active" : "Not Active");
-            response = sdscatfmt(response, "ReIndexing is:              %s\n", reindex_iterator ? "Active" : "Not Active");
-            response = sdscatfmt(response, "ReIndexing stats:\n");
-            response = sdscatfmt(response, "Total no of keys:           %i\n", reindex_total_no_of_keys);
-            response = sdscatfmt(response, "Total no of keys processed: %i\n", reindex_processed_no_of_keys);
-            response = sdscatfmt(response, "Total no of keys skipped:   %i\n", reindex_skipped_no_of_keys);
-            response = sdscatfmt(response, "\n");
-            response = sdscatfmt(response, "Total reindexing time:      %ims\n", reindex_latency / 1000);
-            response = sdscatfmt(response, "\n");
-            response = sdscatfmt(response, "Total no of timer slots:    %i\n", reindex_no_of_slots);
-            response = sdscatfmt(response, "Total no of timer expires:  %i\n", reindex_yielded_no_of_keys);
-            response = sdscatfmt(response, "Total no of queue throttles:%i\n", reindex_qthrottleded_no_of_keys);
+            response = sdscatfmt(response, "Indexer is:                 %s\r", indexer_state ? "Active" : "Not Active");
+            response = sdscatfmt(response, "ReIndexing is:              %s\r", reindex_iterator ? "Active" : "Not Active");
+            response = sdscatfmt(response, "ReIndexing stats:\r");
+            response = sdscatfmt(response, "Total no of keys:           %i\r", reindex_total_no_of_keys);
+            response = sdscatfmt(response, "Total no of keys processed: %i\r", reindex_processed_no_of_keys);
+            response = sdscatfmt(response, "Total no of keys skipped:   %i\r", reindex_skipped_no_of_keys);
+            response = sdscatfmt(response, "\r");
+            response = sdscatfmt(response, "Total reindexing time:      %ims\r", reindex_latency / 1000);
+            response = sdscatfmt(response, "\r");
+            response = sdscatfmt(response, "Total no of timer slots:    %i\r", reindex_no_of_slots);
+            response = sdscatfmt(response, "Total no of timer expires:  %i\r", reindex_yielded_no_of_keys);
+            response = sdscatfmt(response, "Total no of queue throttles:%i\r", reindex_qthrottleded_no_of_keys);
             return RedisModule_ReplyWithSimpleString(ctx, response);
         }
     }

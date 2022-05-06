@@ -61,6 +61,8 @@ enum eTokenType
 
     CSjiboleth *newQueryEngine();
     CSjiboleth *newGremlinEngine();
+    CSjiboleth *newJsonEngine();
+    CSjiboleth *newTextEngine();
     CSjiboleth *releaseParser(CSjiboleth *s);
 
     CParsedExpression *parseQ(CSjiboleth *s, const char *query);

@@ -72,8 +72,7 @@ SHOBJ_CFLAGS+= -I ../../src
 
 DEBUG += -g -ggdb
 
-# all: helloworld.so hellotype.so helloblock.so testmodule.so hellocluster.so hellotimer.so hellodict.so hellohook.so helloacl.so  rxIndexer.so rxQuery.so rxFetch.sorxSuite.xo parser.xo token.xo queryEngine.xo sentenceProcessor.xo
-all:  sentenceProcessor.xo simpleQueue.xo indexIntercepts.xo rxSuite.xo  rxSuiteHelpers.xo parser.xo token.xo queryEngine.xo rxIndexer.so rxQuery.so rxFetch.so rxRule.xo  rxRule.so rxSuite.h rxSuite.c sjiboleth.xo sjiboleth.so rxGraphdb.so
+all:  sentenceProcessor.xo simpleQueue.xo indexIntercepts.xo rxSuite.xo  rxSuiteHelpers.xo parser.xo token.xo queryEngine.xo rxIndexer.so rxQuery.so rxFetch.so rxRule.xo  rxRule.so sjiboleth.xo sjiboleth.so rxGraphdb.so
 
 .c.xo: 
 	$(CC) -I.. -I. $(CFLAGS) $(SHOBJ_CFLAGS)  -isystem -DUSE_JEMALLOC  -I../deps/hiredis -I../deps/linenoise -I../../deps/lua/src -I/usr/include -fPIC -c $< -o $@
@@ -101,19 +100,26 @@ sjibolethWrapper.so: sjibolethWrapper.cpp sjiboleth.h   rxSuite.xo
 
 sjibolethWrapper.xo: sjibolethWrapper.cpp sjiboleth.h 
 
-rxRule.so: ../../src/redismodule.h rxRule.cpp rule.hpp    rxSuite.xo  rxSuiteHelpers.xo  queryEngine.xo  parser.xo token.xo   sjiboleth.so  sjibolethWrapper.xo
-	g++ -shared -g -ggdb -o rxRule.so  $(SHOBJ_CFLAGS)  -fPIC rxRule.cpp rxSuiteHelpers.xo rxSuite.xo  queryEngine.xo  parser.xo token.xo  sjiboleth.so  sjibolethWrapper.xo 
+rxRule.so: ../../src/redismodule.h rxRule.cpp rule.hpp    rxSuite.xo  rxSuiteHelpers.xo   sjiboleth.so  sjibolethWrapper.xo
+	g++ -shared -g -ggdb -o rxRule.so  $(SHOBJ_CFLAGS)  -fPIC rxRule.cpp rxSuiteHelpers.xo rxSuite.xo  sjiboleth.so  sjibolethWrapper.xo 
 
 makefile:
 	echo "build complete"
 
-rxRule.xo: ../../src/redismodule.h rxRule.cpp rxRule.h queryEngine.c queryEngine.h  parser.c parser.h token.c token.h queryEngine.c queryEngine.h  sentenceProcessor.c sentenceProcessor.h rule.hpp  sjibolethWrapper.xo  sjiboleth.xo
+rxRule.xo: ../../src/redismodule.h rxRule.cpp rxRule.hpp queryEngine.c queryEngine.h  rule.hpp  sjibolethWrapper.xo  sjiboleth.xo
+	g++ -shared -g -ggdb -o rxRule.so  $(SHOBJ_CFLAGS)  -fPIC rxRule.cpp rxSuiteHelpers.xo rxSuite.xo  sjiboleth.so  sjibolethWrapper.xo 
 
 rxIndexer.xo: ../../src/redismodule.h rxIndexer.c rxIndexer.h queryEngine.c queryEngine.h  parser.c parser.h token.c token.h queryEngine.c queryEngine.h  sentenceProcessor.c sentenceProcessor.h simpleQueue.h   sjiboleth.so  sjibolethWrapper.xo 
 
-rxQuery.xo: ../../src/redismodule.h rxQuery.c rxQuery.h parser.c parser.h token.c token.h queryEngine.c queryEngine.h  sentenceProcessor.c sentenceProcessor.h  queryEngine.so
+# rxQuery.xo: ../../src/redismodule.h rxQuery.cpp rxQuery.h rxSuiteHelpers.xo rxSuite.xo  sjiboleth.so  sjibolethWrapper.xo 
+# 	g++ -shared -g -ggdb -o rxQuery.so  $(SHOBJ_CFLAGS)  -fPIC rxQuery.cpp rxSuiteHelpers.xo rxSuite.xo  sjiboleth.so  sjibolethWrapper.xo 
 
-rxFetch.xo: ../../src/redismodule.h rxFetch.c rxFetch.h token.c token.h 
+
+rxQuery.so: ../../src/redismodule.h rxQuery.cpp rxQuery.hpp rule.hpp  rxSuite.xo  rxSuiteHelpers.xo  sjiboleth.so  sjibolethWrapper.xo
+	g++ -shared -g -ggdb -o rxQuery.so  $(SHOBJ_CFLAGS)  -fPIC rxQuery.cpp rxSuiteHelpers.xo rxSuite.xo sjiboleth.so  sjibolethWrapper.xo 
+
+rxFetch.so: ../../src/redismodule.h rxFetch.cpp rxFetch.hpp command-duplexer.hpp  rxFetch-duplexer.hpp  rxIndex.hpp rxSuiteHelpers.xo  
+	g++ -shared -g -ggdb -o rxFetch.so  $(SHOBJ_CFLAGS)  -fPIC rxFetch.cpp rxSuiteHelpers.xo   rxSuite.xo  
 
 queryEngine.xo:       ../../src/redismodule.h  queryEngine.c       queryEngine.h       parser.c  token.c parser.h token.h 
 
@@ -141,13 +147,6 @@ queryEngine.so:
 rxIndexer.so: rxIndexer.xo
 	 $(LD) -o $@ $< rxSuite.xo  rxSuiteHelpers.xo parser.xo  token.xo sentenceProcessor.xo queryEngine.xo indexIntercepts.xo simpleQueue.xo $(SHOBJ_LDFLAGS) $(LIBS) -lc  
 	#  $(LD) -o $@ $< rxSuite.xo  rxSuiteHelpers.xo parser.xo  token.xo sentenceProcessor.xo queryEngine.xo indexIntercepts.xo simpleQueue.xo $(SHOBJ_LDFLAGS) $(LIBS) -lc  -LqueryEngine.so
-
-rxFetch.so: rxFetch.xo
-	$(LD) -o $@ $<   token.xo $(SHOBJ_LDFLAGS) $(LIBS) -lc
-
-rxQuery.so: rxQuery.xo rxSuite.xo  rxSuiteHelpers.xo parser.xo token.xo queryEngine.xo  sjiboleth.xo
-	# $(LD) -o $@ $< rxSuite.so parser.so token.so queryEngine.xo $(SHOBJ_LDFLAGS) $(LIBS) -lc  -LqueryEngine.so
-	$(LD) -o $@ $< rxSuite.xo  rxSuiteHelpers.xo parser.xo token.xo queryEngine.xo   sjiboleth.so  sjibolethWrapper.xo  $(SHOBJ_LDFLAGS) $(LIBS) -lc 
 
 clean:
 	rm -rf *.xo *.so

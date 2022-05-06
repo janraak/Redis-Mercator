@@ -10,6 +10,8 @@ install:
 
 test:
 	# cd src && $(MAKE) $@
+	# /home/pi/redis/redis-6.0.10/src/redis-server --bind 0.0.0.0 --dbfilename data.rdb --maxmemory 6G &
+	python3 sys_tests/rxfetch.py 
 	python3 sys_tests/gremlin_001.py 
 
 valgrind:

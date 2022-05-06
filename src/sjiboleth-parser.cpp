@@ -215,6 +215,28 @@ void ParsedExpression::show(const char *query)
     // }
 }
 
+void ParsedExpression::Show(const char *query)
+{
+    // if (p->show_debug_info)
+    // {
+    printf("expression: %d entries\n", this->expression->Size());
+    printf("side_track: %ld entries\n", this->side_track->len);
+    // }
+    // listRelease(side_track);
+    // if (p->show_debug_info)
+    // {
+    printf("parsed: %s %d tokens\n", query, this->expression->Size());
+    this->expression->StartHead();
+    ParserToken *t;
+    int j = 0;
+    while ((t = this->expression->Next()) != NULL)
+    {
+        printf("Parse: %d %d %s\n", j, t->TokenType(), t->Token());
+        ++j;
+    }
+    // }
+}
+
 sds ParsedExpression::ToString()
 {
     sds result = sdsempty();

@@ -3,7 +3,7 @@
  *            against a Redis Database
  */
 #define REDISMODULE_EXPERIMENTAL_API
-#include "rxQuery.h"
+#include "rxQuery.hpp"
 #include <string>
 
 using std::string;

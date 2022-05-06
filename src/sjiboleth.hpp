@@ -126,7 +126,7 @@ public:
     friend class ParsedExpression;
 };
 
-class QueryDialect : Sjiboleth
+class QueryDialect : public Sjiboleth
 {
 protected:
     virtual bool registerDefaultSyntax();
@@ -136,7 +136,7 @@ public:
 
 class GremlinDialect : public Sjiboleth
 {
-protected:
+public:
     virtual bool registerDefaultSyntax();
 
 public:
@@ -148,16 +148,19 @@ public:
     GremlinDialect();
 };
 
-class JsonDialect : Sjiboleth
+class JsonDialect : public Sjiboleth
 {
-protected:
+public:
     virtual bool registerDefaultSyntax();
+    JsonDialect();
 };
 
-class TextDialect : Sjiboleth
+class TextDialect : public Sjiboleth
 {
-protected:
+public:
     virtual bool registerDefaultSyntax();
+
+    TextDialect();
 };
 
 class SilNikParowy;
@@ -193,6 +196,7 @@ public:
     int writeErrors(RedisModuleCtx *ctx);
 
     void show(const char *query);
+    void Show(const char *query);
     ParsedExpression(Sjiboleth *dialect);
 
     sds ToString();

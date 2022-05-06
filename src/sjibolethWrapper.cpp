@@ -33,6 +33,18 @@ CSjiboleth *newQueryEngine()
     return (CSjiboleth *)qd;
 }
 
+CSjiboleth *newJsonEngine()
+{
+    JsonDialect *qd = new JsonDialect();
+    return (CSjiboleth *)qd;
+}
+
+CSjiboleth *newTextEngine()
+{
+    TextDialect *qd = new TextDialect();
+    return (CSjiboleth *)qd;
+}
+
 CSjiboleth *newGremlinEngine()
 {
     GremlinDialect *qd = new GremlinDialect();
