@@ -1,5 +1,7 @@
 #include "sjiboleth.hpp"
 #include "sjiboleth.h"
+#include "sjiboleth-fablok.hpp"
+
 #include <cstring>
 
 #include <setjmp.h>
@@ -145,31 +147,31 @@ void fphandler(int sig)
     longjmp(ExecuteExceptionReturnMark, -1);
 }
 
-int ParserToken::Execute(CSilNikParowy *eO, CParsedExpression *pO, CParserToken *tO, CStack *stackO)
+int ParserToken::Execute(CParserToken *tO, CStack *stackO)
 {
     int rc = -1;
-    signal(SIGFPE, (void (*)(int))fphandler);
-    signal(SIGILL, (void (*)(int))fphandler);
-    signal(SIGSEGV, (void (*)(int))fphandler);
+    // signal(SIGFPE, (void (*)(int))fphandler);
+    // signal(SIGILL, (void (*)(int))fphandler);
+    // signal(SIGSEGV, (void (*)(int))fphandler);
     
-    ParserToken::ExecuteExceptionReturn = 0;
-    ParserToken::ExecuteExceptionReturn = setjmp(ExecuteExceptionReturnMark);
+    // ParserToken::ExecuteExceptionReturn = 0;
+    // ParserToken::ExecuteExceptionReturn = setjmp(ExecuteExceptionReturnMark);
 
-    if (ParserToken::ExecuteExceptionReturn == 0)
-    {
-        ParserToken::ExecuteExceptionReturn = 0;
-        rc = this->opf(eO, pO, tO, stackO);
-        goto done;
-    }
-    else
-    {
-        printf("Captured signal\n");
-        rc = -1;
-    }
-done:
-    signal(SIGFPE, SIG_DFL);
-    signal(SIGILL, SIG_DFL);
-    signal(SIGSEGV, SIG_DFL);
+    // if (ParserToken::ExecuteExceptionReturn == 0)
+    // {
+    //     ParserToken::ExecuteExceptionReturn = 0;
+        rc = this->opf(tO, stackO);
+//         goto done;
+//     }
+//     else
+//     {
+//         printf("Captured signal\n");
+//         rc = -1;
+//     }
+// done:
+//     signal(SIGFPE, SIG_DFL);
+//     signal(SIGILL, SIG_DFL);
+//     signal(SIGSEGV, SIG_DFL);
     return rc;
 }
 
@@ -263,3 +265,18 @@ const char *Sjiboleth::defaultOperator()
 {
     return this->default_operator;
 }
+
+SilNikParowy *Sjiboleth::GetEngine(){
+    // FOR NOW!
+    return new SilNikParowy();
+}
+
+SilNikParowy *GremlinDialect::GetEngine(){
+    return new SilNikParowy();
+}
+
+SilNikParowy *QueryDialect::GetEngine(){
+    return new SilNikParowy();
+}
+
+

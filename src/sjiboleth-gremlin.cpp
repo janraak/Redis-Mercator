@@ -31,7 +31,7 @@ static FaBlok *getAllKeysByField(int dbNo, const char *regex, int on_matched, sd
 
 int breadthFirstSearch(FaBlok *leaders, list *patterns, FaBlok *kd, int traverse_direction, short filter_only, rax *terminators, rax *includes, rax *excludes);
 
-static int redis_HSET(SilNikParowy *p, const char *key, const char *field, const char *value)
+static int redis_HSET(SilNikParowy_Kontekst *p, const char *key, const char *field, const char *value)
 {
     RedisModuleCallReply *reply = RedisModule_Call(
         p->module_contex,
@@ -45,7 +45,7 @@ static int redis_HSET(SilNikParowy *p, const char *key, const char *field, const
     return C_OK;
 }
 
-static int redis_SADD(SilNikParowy *p, const char *key, const char *member)
+static int redis_SADD(SilNikParowy_Kontekst *p, const char *key, const char *member)
 {
     RedisModuleCallReply *reply = RedisModule_Call(
         p->module_contex,
@@ -61,7 +61,7 @@ static int redis_SADD(SilNikParowy *p, const char *key, const char *member)
 SJIBOLETH_HANDLER(GremlinDialect::executeMatch)
 {
     STACK_CHECK(1);
-    if (p->IsMemoized("matchIncludes") && p->IsMemoized("matchExcludes"))
+    if (stack->IsMemoized("matchIncludes") && stack->IsMemoized("matchExcludes"))
     {
         ERROR("Cannot use an exclude and an include filter together!");
     }
@@ -95,7 +95,8 @@ SJIBOLETH_HANDLER(GremlinDialect::executeMatch)
         while (raxNext(&leadersIterator))
         {
             sds leader = sdsnewlen(leadersIterator.key, leadersIterator.key_len);
-            if (sdscharcount(leader, ':') < 2){
+            if (sdscharcount(leader, ':') < 2)
+            {
                 from->InsertKey(leadersIterator.key, leadersIterator.key_len, leadersIterator.data);
 
                 raxSeek(&terminatorsIterator, "^", NULL, 0);
@@ -105,7 +106,7 @@ SJIBOLETH_HANDLER(GremlinDialect::executeMatch)
                     if (sdscharcount(terminator, ':') < 2)
                     {
                         to->InsertKey(terminatorsIterator.key, terminatorsIterator.key_len, terminatorsIterator.data);
-                        breadthFirstSearch(from, NULL, result, GRAPH_TRAVERSE_INOUT, 1, &to->keyset, (rax *)p->Recall("matchIncludes"), (rax *)p->Recall("matchExcludes"));
+                        breadthFirstSearch(from, NULL, result, GRAPH_TRAVERSE_INOUT, 1, &to->keyset, (rax *)stack->Recall("matchIncludes"), (rax *)stack->Recall("matchExcludes"));
                     }
                     to->RemoveKey(terminatorsIterator.key, terminatorsIterator.key_len);
                     sdsfree(terminator);
@@ -127,24 +128,23 @@ SJIBOLETH_HANDLER(GremlinDialect::executeMatch)
         PushResult(pl, stack);
 
     FaBlok::Delete(pl);
-    if (p->IsMemoized("matchIncludes"))
+    if (stack->IsMemoized("matchIncludes"))
     {
-        rax *set = (rax *)p->Forget((char *)"matchIncludes");
+        rax *set = (rax *)stack->Forget((char *)"matchIncludes");
         raxFree(set);
     }
-    if (p->IsMemoized("matchExcludes"))
+    if (stack->IsMemoized("matchExcludes"))
     {
-        rax *set = (rax *)p->Forget((char *)"matchExcludes");
+        rax *set = (rax *)stack->Forget((char *)"matchExcludes");
         raxFree(set);
     }
 }
 END_SJIBOLETH_HANDLER(GremlinDialect::executeMatch)
 
-
 SJIBOLETH_HANDLER(GremlinDialect::executeNomatch)
 {
     STACK_CHECK(1);
-    if (p->IsMemoized("matchIncludes") && p->IsMemoized("matchExcludes"))
+    if (stack->IsMemoized("matchIncludes") && stack->IsMemoized("matchExcludes"))
     {
         ERROR("Cannot use an exclude and an include filter together!");
     }
@@ -175,21 +175,22 @@ SJIBOLETH_HANDLER(GremlinDialect::executeNomatch)
         while (raxNext(&leadersIterator))
         {
             sds leader = sdsnewlen(leadersIterator.key, leadersIterator.key_len);
-            if (sdscharcount(leader, ':') < 2){
-            from->InsertKey(leadersIterator.key, leadersIterator.key_len, leadersIterator.data);
-
-            raxSeek(&terminatorsIterator, "^", NULL, 0);
-            while (raxNext(&terminatorsIterator))
+            if (sdscharcount(leader, ':') < 2)
             {
-                sds terminator = sdsnewlen(terminatorsIterator.key, terminatorsIterator.key_len);
-                if (sdscharcount(terminator, ':') < 2)
+                from->InsertKey(leadersIterator.key, leadersIterator.key_len, leadersIterator.data);
+
+                raxSeek(&terminatorsIterator, "^", NULL, 0);
+                while (raxNext(&terminatorsIterator))
                 {
-                    to->InsertKey(terminatorsIterator.key, terminatorsIterator.key_len, terminatorsIterator.data);
-                    breadthFirstSearch(from, NULL, matches_for_leader, GRAPH_TRAVERSE_INOUT, 1, &to->keyset, (rax *)p->Recall("matchIncludes"), (rax *)p->Recall("matchExcludes"));
+                    sds terminator = sdsnewlen(terminatorsIterator.key, terminatorsIterator.key_len);
+                    if (sdscharcount(terminator, ':') < 2)
+                    {
+                        to->InsertKey(terminatorsIterator.key, terminatorsIterator.key_len, terminatorsIterator.data);
+                        breadthFirstSearch(from, NULL, matches_for_leader, GRAPH_TRAVERSE_INOUT, 1, &to->keyset, (rax *)stack->Recall("matchIncludes"), (rax *)stack->Recall("matchExcludes"));
+                    }
+                    to->RemoveKey(terminatorsIterator.key, terminatorsIterator.key_len);
+                    sdsfree(terminator);
                 }
-               to->RemoveKey(terminatorsIterator.key, terminatorsIterator.key_len);
-                sdsfree(terminator);
-            }
             }
             from->RemoveKey(leadersIterator.key, leadersIterator.key_len);
             raxStop(&terminatorsIterator);
@@ -210,14 +211,14 @@ SJIBOLETH_HANDLER(GremlinDialect::executeNomatch)
         PushResult(pl, stack);
 
     FaBlok::Delete(pl);
-    if (p->IsMemoized("matchIncludes"))
+    if (stack->IsMemoized("matchIncludes"))
     {
-        rax *set = (rax *)p->Forget((char *)"matchIncludes");
+        rax *set = (rax *)stack->Forget((char *)"matchIncludes");
         raxFree(set);
     }
-    if (p->IsMemoized("matchExcludes"))
+    if (stack->IsMemoized("matchExcludes"))
     {
-        rax *set = (rax *)p->Forget((char *)"matchExcludes");
+        rax *set = (rax *)stack->Forget((char *)"matchExcludes");
         raxFree(set);
     }
 }
@@ -225,7 +226,6 @@ END_SJIBOLETH_HANDLER(GremlinDialect::executeNomatch)
 
 // SJIBOLETH_HANDLER(executeNomatch_ORG)
 // {
-//     rxUNUSED(p);
 //     rxUNUSED(t);
 //     STACK_CHECK(1);
 
@@ -234,7 +234,7 @@ END_SJIBOLETH_HANDLER(GremlinDialect::executeNomatch)
 //     {
 //         while (pl->parameter_list->Size() >= 2)
 //         {
-//             Sjiboleth::executeNotIn(pO, eO, tO, pl->parameter_list);
+//             Sjiboleth::executeNotIn(pO, tO, pl->parameter_list);
 //         }
 
 //         PushResult(pl->parameter_list->Pop(), stack);
@@ -247,7 +247,7 @@ END_SJIBOLETH_HANDLER(GremlinDialect::executeNomatch)
 
 SJIBOLETH_HANDLER(GremlinDialect::executeGremlinMatchInExclude)
 {
-    rxUNUSED(eO);
+
     STACK_CHECK(1);
     rax *filter = raxNew();
     FaBlok *pl = stack->Pop();
@@ -256,22 +256,22 @@ SJIBOLETH_HANDLER(GremlinDialect::executeGremlinMatchInExclude)
         while (pl->parameter_list->HasEntries())
         {
             FaBlok *f = pl->parameter_list->Dequeue();
-            raxInsert(filter, (UCHAR *)f->setname, sdslen(f->setname), p, NULL);
+            raxInsert(filter, (UCHAR *)f->setname, sdslen(f->setname), stack, NULL);
             FaBlok::Delete(f);
         }
     }
     else
     {
-        raxInsert(filter, (UCHAR *)pl->setname, sdslen(pl->setname), p, NULL);
+        raxInsert(filter, (UCHAR *)pl->setname, sdslen(pl->setname), stack, NULL);
     }
     FaBlok::Delete(pl);
     if (toupper(t->Token()[0]) == 'I')
     {
-        p->Memoize("matchIncludes", filter);
+        stack->Memoize("matchIncludes", filter);
     }
     else
     {
-        p->Memoize("matchExcludes", filter);
+        stack->Memoize("matchExcludes", filter);
     }
 }
 END_SJIBOLETH_HANDLER(GremlinDialect::executeGremlinMatchInExclude)
@@ -298,9 +298,7 @@ END_SJIBOLETH_HANDLER(GremlinDialect::executeGremlinMatchInExclude)
 
 SJIBOLETH_HANDLER(GremlinDialect::executeAllVertices)
 {
-    rxUNUSED(p);
     rxUNUSED(t);
-    rxUNUSED(eO);
 
     FaBlok *kd = NULL;
     if (stack->HasEntries())
@@ -314,12 +312,15 @@ SJIBOLETH_HANDLER(GremlinDialect::executeAllVertices)
             list *patterns = listCreate();
             int key_or_pattern_mode = 2;
             auto *key_entry = rxFindKey(0, ad->setname);
-            if(key_entry != NULL){
+            if (key_entry != NULL)
+            {
                 key_or_pattern_mode = 4;
                 kd->AddKey(ad->AsSds(), key_entry);
                 setname = sdsnew("Keys: ");
                 setname = sdscat(setname, ad->AsSds());
-            }else{
+            }
+            else
+            {
                 setname = sdsdup(ad->AsSds());
                 setname = sdscat(setname, " in");
             }
@@ -328,17 +329,20 @@ SJIBOLETH_HANDLER(GremlinDialect::executeAllVertices)
                 FaBlok *vd = kd->parameter_list->Dequeue();
                 setname = sdscat(setname, " ");
                 setname = sdscat(setname, vd->AsSds());
-                if(key_or_pattern_mode == 2)
+                if (key_or_pattern_mode == 2)
                     patterns = listAddNodeTail(patterns, strdup(vd->AsSds()));
-                else{
+                else
+                {
                     key_entry = rxFindKey(0, vd->setname);
                     kd->AddKey(vd->AsSds(), key_entry);
                 }
             }
-            if(key_or_pattern_mode == 2){
+            if (key_or_pattern_mode == 2)
+            {
                 FaBlok::Delete(kd);
                 kd = getAllKeysByField(0, "[A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*", NO_MATCH_PATTERN, ad->AsSds(), patterns, setname);
-            }else
+            }
+            else
                 kd->Rename(setname);
             listRelease(patterns);
         }
@@ -357,15 +361,13 @@ SJIBOLETH_HANDLER(GremlinDialect::executeAllVertices)
     kd->ValueType(KeysetDescriptor_TYPE_GREMLIN_VERTEX_SET);
     kd->Close();
     // PushResult(kd, stack);
-    p->Memoize("V", kd);
+    stack->Memoize("V", kd);
 }
 END_SJIBOLETH_HANDLER(GremlinDialect::executeAllVertices)
 
 SJIBOLETH_HANDLER(executeAllEdges)
 {
-    rxUNUSED(p);
     rxUNUSED(t);
-    rxUNUSED(eO);
 
     FaBlok *kd = NULL;
     if (stack->HasEntries())
@@ -401,7 +403,7 @@ SJIBOLETH_HANDLER(executeAllEdges)
     kd->vertices_or_edges = VERTEX_SET;
     kd->ValueType(KeysetDescriptor_TYPE_GREMLIN_VERTEX_SET);
     PushResult(kd, stack);
-    p->Memoize("E", kd);
+    stack->Memoize("E", kd);
 }
 END_SJIBOLETH_HANDLER(executeAllEdges)
 
@@ -417,9 +419,8 @@ END_SJIBOLETH_HANDLER(executeAllEdges)
 */
 SJIBOLETH_HANDLER(GremlinDialect::executeGremlinParameters)
 {
-    rxUNUSED(p);
     rxUNUSED(t);
-    rxUNUSED(eO);
+
     STACK_CHECK(2);
 
     FaBlok *second = stack->Pop();
@@ -451,14 +452,13 @@ END_SJIBOLETH_HANDLER(GremlinDialect::executeGremlinParameters)
 //     c) push the copied set
 SJIBOLETH_HANDLER(executeGremlinAs)
 {
-    rxUNUSED(p);
-    rxUNUSED(eO);
+
     rxUNUSED(t);
     STACK_CHECK(1);
 
     FaBlok *sd = stack->Pop();
     sd->Open();
-    FaBlok *memo = (FaBlok *)p->Recall("V");
+    FaBlok *memo = (FaBlok *)stack->Recall("V");
     if (sd->IsValueType(KeysetDescriptor_TYPE_MONITORED_SET) || sd->IsValueType(KeysetDescriptor_TYPE_GREMLIN_AS_SET))
     {
         // Reuse set
@@ -468,13 +468,16 @@ SJIBOLETH_HANDLER(executeGremlinAs)
     {
         // Save set as
         FaBlok *base = memo ? memo : stack->Pop();
-        if(base != NULL){
+        if (base != NULL)
+        {
             base->CopyTo(sd);
-        }else{
+        }
+        else
+        {
             base = getAllKeysByRegex(0, "[A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*", NO_MATCH_PATTERN, "vertices");
             base->CopyTo(sd);
         }
-            sd->ValueType(KeysetDescriptor_TYPE_GREMLIN_VERTEX_SET + KeysetDescriptor_TYPE_GREMLIN_AS_SET);
+        sd->ValueType(KeysetDescriptor_TYPE_GREMLIN_VERTEX_SET + KeysetDescriptor_TYPE_GREMLIN_AS_SET);
     }
     PushResult(sd, stack);
 }
@@ -499,7 +502,6 @@ static bool FilterTypes(unsigned char *s, size_t len, void *data, void **privDat
 #define MATCH_IS_TRUE 1
 static SJIBOLETH_HANDLER(executeGremlinHas)
 {
-    rxUNUSED(p);
     rxUNUSED(t);
     rxUNUSED(stack);
 
@@ -509,8 +511,7 @@ static SJIBOLETH_HANDLER(executeGremlinHas)
        2) Filter all keys matching kvp
        3) Push filtered dict on the stack
     */
-    rxUNUSED(p);
-    rxUNUSED(eO);
+
     FaBlok *vd = stack->Pop();
     FaBlok *ad;
     if (vd->IsParameterList())
@@ -522,23 +523,27 @@ static SJIBOLETH_HANDLER(executeGremlinHas)
     }
     else
         ad = stack->Pop();
-    if(ad == NULL){
+    if (ad == NULL)
+    {
         sds msg = sdscatfmt(sdsempty(), "%s requires an attribute value pair to test", t->Token());
         ERROR(msg);
         sdsfree(msg);
         return C_ERR;
-    }else if(!ad->IsValueType(KeysetDescriptor_TYPE_SINGULAR)){
+    }
+    else if (!ad->IsValueType(KeysetDescriptor_TYPE_SINGULAR))
+    {
         sds msg = sdscatfmt(sdsempty(), "%s requires an attribute value pair to test", t->Token());
         ERROR(msg);
         sdsfree(msg);
         return C_ERR;
     }
     if (!stack->HasEntries())
-        GremlinDialect::executeAllVertices(pO, eO, tO, stackO);
+        GremlinDialect::executeAllVertices(tO, stackO);
     FaBlok *od = stack->Pop();
-    if(od == NULL)
-        od = (FaBlok *)p->Recall("V");
-    if(od == NULL){
+    if (od == NULL)
+        od = (FaBlok *)stack->Recall("V");
+    if (od == NULL)
+    {
         od = getAllKeysByRegex(0, "[A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*", NO_MATCH_PATTERN, "vertices");
     }
     sds set_name;
@@ -563,7 +568,6 @@ END_SJIBOLETH_HANDLER(executeGremlinHas)
 
 static SJIBOLETH_HANDLER(executeGremlinHasLabel)
 {
-    rxUNUSED(p);
     rxUNUSED(t);
     rxUNUSED(stack);
 
@@ -573,13 +577,12 @@ static SJIBOLETH_HANDLER(executeGremlinHasLabel)
        2) Filter all keys matching kvp
        3) Push filtered dict on the stack
     */
-    rxUNUSED(p);
-    rxUNUSED(eO);
+
     FaBlok *ad = stack->Pop();
 
     FaBlok *od = stack->Pop();
-    if(od == NULL)
-        od = (FaBlok *)p->Recall("V");
+    if (od == NULL)
+        od = (FaBlok *)stack->Recall("V");
     if (od == NULL)
         od = getAllKeysByRegex(0, "[A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*", NO_MATCH_PATTERN, "vertices");
     sds set_name;
@@ -607,9 +610,8 @@ END_SJIBOLETH_HANDLER(executeGremlinHasLabel)
  */
 SJIBOLETH_HANDLER(executeGremlinGroupby)
 {
-    rxUNUSED(eO);
+
     rxUNUSED(t);
-    rxUNUSED(p);
     STACK_CHECK(2);
     FaBlok *gbd = stack->Pop();
     FaBlok *kd = stack->Pop();
@@ -693,7 +695,7 @@ SJIBOLETH_HANDLER(executeGremlinGroupby)
 END_SJIBOLETH_HANDLER(executeGremlinGroupby)
 
 // Do a breadth first for any vertex or edge of type <out>
-int executeGremlinTraverse(GraphStack<FaBlok> *stack, int traverse_direction, short filterOnly)
+int executeGremlinTraverse(SilNikParowy_Kontekst *stack, int traverse_direction, short filterOnly)
 {
     /* 1) Use top of stack = dict of keys/values.
        2) Filter all outgoing edges having the designated attribute value
@@ -739,9 +741,8 @@ int executeGremlinTraverse(GraphStack<FaBlok> *stack, int traverse_direction, sh
 // Do a breadth first for any vertex or edge of type <out>
 SJIBOLETH_HANDLER(executeGremlinOut)
 {
-    rxUNUSED(eO);
+
     rxUNUSED(t);
-    rxUNUSED(p);
     STACK_CHECK(1);
     return executeGremlinTraverse(stack, GRAPH_TRAVERSE_OUT, 0);
 }
@@ -750,9 +751,8 @@ END_SJIBOLETH_HANDLER_X(executeGremlinOut)
 // Do a breadth first for any vertex or edge of type <out>
 SJIBOLETH_HANDLER(executeGremlinIn)
 {
-    rxUNUSED(eO);
+
     rxUNUSED(t);
-    rxUNUSED(p);
     STACK_CHECK(1);
     return executeGremlinTraverse(stack, GRAPH_TRAVERSE_IN, 0);
 }
@@ -761,9 +761,8 @@ END_SJIBOLETH_HANDLER_X(executeGremlinIn)
 // Do a breadth first for any vertex or edge of type <out>
 SJIBOLETH_HANDLER(executeGremlinInOut)
 {
-    rxUNUSED(eO);
+
     rxUNUSED(t);
-    rxUNUSED(p);
     STACK_CHECK(1);
     return executeGremlinTraverse(stack, GRAPH_TRAVERSE_INOUT, 0);
 }
@@ -772,9 +771,8 @@ END_SJIBOLETH_HANDLER_X(executeGremlinInOut)
 // Do a breadth first to filter any vertex or edge with an <out> type
 SJIBOLETH_HANDLER(executeGremlinHasOut)
 {
-    rxUNUSED(eO);
+
     rxUNUSED(t);
-    rxUNUSED(p);
     STACK_CHECK(1);
     return executeGremlinTraverse(stack, GRAPH_TRAVERSE_OUT, 1);
 }
@@ -782,10 +780,9 @@ END_SJIBOLETH_HANDLER_X(executeGremlinHasOut)
 
 // Do a breadth first to filter any vertex or edge with an <in> type
 SJIBOLETH_HANDLER(executeGremlinHasIn)
-{    
-    rxUNUSED(eO);
+{
+
     rxUNUSED(t);
-    rxUNUSED(p);
     STACK_CHECK(1);
     return executeGremlinTraverse(stack, GRAPH_TRAVERSE_IN, 1);
 }
@@ -794,15 +791,14 @@ END_SJIBOLETH_HANDLER_X(executeGremlinHasIn)
 // Do a breadth first to filter any vertex or edge with an <in/out> type
 SJIBOLETH_HANDLER(executeGremlinHasInOut)
 {
-    rxUNUSED(eO);
+
     rxUNUSED(t);
-    rxUNUSED(p);
     STACK_CHECK(1);
     return executeGremlinTraverse(stack, GRAPH_TRAVERSE_INOUT, 1);
 }
 END_SJIBOLETH_HANDLER_X(executeGremlinHasInOut)
 
-FaBlok *createVertex(SilNikParowy *p, CParsedExpression *eO, FaBlok *pl)
+FaBlok *createVertex(SilNikParowy_Kontekst *stack, FaBlok *pl)
 {
     if (!pl->IsParameterList() || pl->parameter_list->Size() < 2)
     {
@@ -810,7 +806,7 @@ FaBlok *createVertex(SilNikParowy *p, CParsedExpression *eO, FaBlok *pl)
     }
     FaBlok *i = pl->parameter_list->Dequeue();
     FaBlok *t = pl->parameter_list->Dequeue();
-    redis_HSET(p, i->setname, Graph_vertex_or_edge_type, t->setname);
+    redis_HSET(stack, i->setname, Graph_vertex_or_edge_type, t->setname);
     void *o = rxFindKey(0, i->setname);
     FaBlok *v = FaBlok::Get(i->setname, KeysetDescriptor_TYPE_GREMLINSET);
     v->AddKey(i->setname, o);
@@ -821,11 +817,10 @@ FaBlok *createVertex(SilNikParowy *p, CParsedExpression *eO, FaBlok *pl)
 SJIBOLETH_HANDLER(executeGremlinAddVertex)
 {
     rxUNUSED(t);
-    rxUNUSED(p);
     // Get parameters g:addV(<iri>, <type>)
     // Get parameters g:e().addV(<iri>, <type>)
     FaBlok *pl = stack->Pop();
-    FaBlok *v = createVertex(p, eO, pl);
+    FaBlok *v = createVertex(stack, pl);
     v->vertices_or_edges = VERTEX_SET;
     PushResult(v, stack);
 }
@@ -842,7 +837,6 @@ END_SJIBOLETH_HANDLER(executeGremlinAddVertex)
 SJIBOLETH_HANDLER(executeGremlinLinkVertex)
 {
     rxUNUSED(t);
-    rxUNUSED(p);
     sds forward_edge;
     sds backward_edge;
     if (t->Is("to") || t->Is("object"))
@@ -861,7 +855,7 @@ SJIBOLETH_HANDLER(executeGremlinLinkVertex)
     rax *vertex_set = NULL;
     if (v->IsParameterList() && v->parameter_list->Size() == 2)
     {
-        FaBlok *nv = createVertex(p, eO, v); // Use new vertex!
+        FaBlok *nv = createVertex(stack, v); // Use new vertex!
         vertex_set = &nv->keyset;
         FaBlok::Delete(v);
     }
@@ -895,11 +889,11 @@ SJIBOLETH_HANDLER(executeGremlinLinkVertex)
             sds link = sdscatfmt(sdsempty(), "%s|%s|%s|1.0", edge_type, edge_key, forward_edge);
 
             // serverLog(LL_NOTICE, "%s | %s | %s", e_key, v_key, link);
-            redis_SADD(p, vertex_key, link);
+            redis_SADD(stack, vertex_key, link);
             link = sdscatfmt(sdsempty(), "%s|%s|%s|1.0", edge_type, vertex_key, backward_edge);
 
             // serverLog(LL_NOTICE, "%s | %s | %s", e_key, v_key, link);
-            redis_SADD(p, edge_key, link);
+            redis_SADD(stack, edge_key, link);
         }
         raxStop(&vertex_iterator);
     }
@@ -934,8 +928,7 @@ g.addE('knows').from(vMarko).to(vPeter) //7
 SJIBOLETH_HANDLER(executeGremlinAddEdge)
 {
     rxUNUSED(t);
-    rxUNUSED(p);
-    rxUNUSED(eO);
+
     // Get parameters g:addE(<iri>, <type>)
     // Get parameters g:v().addV(<iri>, <type>)
     FaBlok *et = stack->Pop();
@@ -978,10 +971,10 @@ SJIBOLETH_HANDLER(executeGremlinAddEdge)
         FaBlok *bridges[2] = {pred, inv_pred};
         for (int j = 0; j < 2; ++j)
         {
-            redis_HSET(p, bridge_keys[j], Graph_vertex_or_edge_type, bridges[j]->setname);
+            redis_HSET(stack, bridge_keys[j], Graph_vertex_or_edge_type, bridges[j]->setname);
             if (sdslen(backLink))
             {
-                redis_HSET(p, bridge_keys[j], "edge", backLink);
+                redis_HSET(stack, bridge_keys[j], "edge", backLink);
             }
         }
 
@@ -994,7 +987,7 @@ SJIBOLETH_HANDLER(executeGremlinAddEdge)
         sds member[4] = {SE, OE, ES, EO};
         for (int j = 0; j < 4; ++j)
         {
-            redis_SADD(p, keys[j], member[j]);
+            redis_SADD(stack, keys[j], member[j]);
         }
         FaBlok *e = FaBlok::Get(edge_name, KeysetDescriptor_TYPE_GREMLINSET);
         void *oo = rxFindKey(0, edge_name);
@@ -1009,7 +1002,7 @@ SJIBOLETH_HANDLER(executeGremlinAddEdge)
         // Create temp key
         // the temp key will be renamed from the to(subject)/from(object) vertices
         sds temp_key = sdscatprintf(sdsempty(), "%s:::%lld", et->setname, ustime());
-        redis_HSET(p, temp_key, Graph_vertex_or_edge_type, et->setname);
+        redis_HSET(stack, temp_key, Graph_vertex_or_edge_type, et->setname);
         FaBlok *v = FaBlok::Get(sdsnew(sdsdup(temp_key)), KeysetDescriptor_TYPE_GREMLINSET);
         void *oo = rxFindKey(0, temp_key);
         v->InsertKey(temp_key, oo);
@@ -1023,8 +1016,6 @@ END_SJIBOLETH_HANDLER(executeGremlinAddEdge)
 SJIBOLETH_HANDLER(executeGremlinAddProperty)
 {
     rxUNUSED(t);
-    rxUNUSED(p);
-    rxUNUSED(eO);
 
     FaBlok *pl = stack->Pop();
     FaBlok *s = stack->Pop();
@@ -1046,8 +1037,8 @@ SJIBOLETH_HANDLER(executeGremlinAddProperty)
             {
                 FaBlok *a = pl->parameter_list->Dequeue();
                 FaBlok *v = pl->parameter_list->Dequeue();
-                if (p->module_contex)
-                    redis_HSET(p, key, a->setname, v->setname);
+                if (stack->module_contex)
+                    redis_HSET(stack, key, a->setname, v->setname);
                 else
                 {
                     rxHashTypeSet(targetObjectIterator.data, a->setname, v->setname, 0);
@@ -1066,7 +1057,7 @@ SJIBOLETH_HANDLER(executeGremlinAddProperty)
 END_SJIBOLETH_HANDLER(executeGremlinAddProperty)
 
 GremlinDialect::GremlinDialect()
-:Sjiboleth()
+    : Sjiboleth()
 {
     this->default_operator = sdsempty();
     this->registerDefaultSyntax();
@@ -1080,7 +1071,6 @@ GremlinDialect::GremlinDialect()
  */
 SJIBOLETH_PARSER_CONTEXT_CHECKER(GremlinScopeCheck)
 {
-    rxUNUSED(p);
     rxUNUSED(head);
     rxUNUSED(expression);
     if (HasParkedToken(expression, "by"))
@@ -1364,7 +1354,8 @@ int matchEdges(int db, Graph_Leg *leg, list *patterns, FaBlok *kd, GraphStack<Gr
     }
     sds key = sdscatprintf(sdsempty(), "^%s", leg->key);
     void *zobj = rxFindSetKey(db, key);
-    if (zobj == NULL){
+    if (zobj == NULL)
+    {
         sdsfree(key);
         return 0;
     }
@@ -1425,7 +1416,7 @@ int matchEdges(int db, Graph_Leg *leg, list *patterns, FaBlok *kd, GraphStack<Gr
             }
             numkeys += AddMemberToKeysetForMatch(db, (unsigned char *)elesds, sdslen(elesds), kd, leg, filter_only);
         }
-        else if(patterns == NULL)
+        else if (patterns == NULL)
         {
             // serverLog(LL_NOTICE, "no match: 0x%x %s member %s start=0x%x", (POINTER)leg, leg->key, elesds, (POINTER)leg->start);
             // Is the subject or object of the requested type?

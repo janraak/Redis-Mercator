@@ -12,23 +12,25 @@ extern "C"
 #define LL_VERBOSE 1
 #define LL_NOTICE 2
 #define LL_WARNING 3
-#define LL_RAW (1<<10) /* Modifier to log without timestamp */
-
+#define LL_RAW (1 << 10) /* Modifier to log without timestamp */
 
 #ifdef __GNUC__
-void serverLog(int level, const char *fmt, ...)
-    __attribute__((format(printf, 2, 3)));
+    void serverLog(int level, const char *fmt, ...)
+        __attribute__((format(printf, 2, 3)));
 #else
 void serverLog(int level, const char *fmt, ...);
 #endif
-#include "rxSuite.h"
 #include "adlist.h"
-#include "parser.h"
-#include "queryEngine.h"
+//#include "parser.h"
+//#include "queryEngine.h"
+#include "rxSuite.h"
 #ifdef __cplusplus
 }
 #endif
+#undef eTokenType_TYPE
+#include "sjiboleth.h"
 
+#include "sjiboleth.hpp"
 #include "sjiboleth-fablok.hpp"
 
 const char *GREMLIN_DIALECT = "gremlin";
@@ -51,17 +53,19 @@ public:
 
     static GremlinDialect *RuleParser;
 
-    static  BusinessRule *Retain(BusinessRule *br){
-        if(BusinessRule::Registry == NULL)
+    static BusinessRule *Retain(BusinessRule *br)
+    {
+        if (BusinessRule::Registry == NULL)
             BusinessRule::Registry = raxNew();
         BusinessRule *old;
         raxTryInsert(BusinessRule::Registry, (UCHAR *)br->setName, sdslen(br->setName), br, (void **)&old);
         return old;
     }
 
-    static  BusinessRule *Forget(BusinessRule *br){
+    static BusinessRule *Forget(BusinessRule *br)
+    {
         BusinessRule *old = (BusinessRule *)raxFind(BusinessRule::Registry, (UCHAR *)br->setName, sdslen(br->setName));
-        if(old != raxNotFound)
+        if (old != raxNotFound)
         {
             raxRemove(BusinessRule::Registry, (UCHAR *)br->setName, sdslen(br->setName), (void **)&old);
         }
@@ -133,7 +137,7 @@ public:
     };
 
     BusinessRule(const char *setName, const char *query)
-    :BusinessRule()
+        : BusinessRule()
     {
         this->setName = sdsnew(strdup(setName));
         this->rule = this->RuleParser->Parse(query);
@@ -171,13 +175,14 @@ public:
         sds k = sdsnew(key);
         int stringmatch = sdscharcount(k, ':');
         sdsfree(k);
-        if(stringmatch >= 2){
+        if (stringmatch >= 2)
+        {
             this->apply_skipped_count++;
             return false;
         }
         sds rpn = this->rule->ToString();
         this->apply_count++;
-        auto *executor = new SilNikParowy((char*)"192.168.1.182", 6379, NULL);
+        auto *executor = new SilNikParowy_Kontekst((char *)"192.168.1.182", 6379, NULL);
         rax *set = executor->Execute(this->rule, key);
 
         if (set != NULL && raxSize(set) != 0)
@@ -196,7 +201,6 @@ public:
             raxFree(set);
             this->set->Close();
             sdsfree(rpn);
-            executor->Reset();
             delete executor;
             return true;
         }
@@ -206,12 +210,12 @@ public:
             raxFree(set);
         this->set->Close();
         sdsfree(rpn);
-        executor->Reset();
         delete executor;
         return false;
     }
 
-    sds ParsedToString(){
+    sds ParsedToString()
+    {
         return this->rule->ToString();
     }
 };

@@ -162,7 +162,7 @@ ParsedExpression *Sjiboleth::Parse(const char *query)
             token = scanIdentifier(head, &tail);
             if(token->HasParserContextProc()){
                 parserContextProc *pcp = token->ParserContextProc();
-                token = (ParserToken *)pcp((CSjiboleth *)this, (CParserToken *) token, head, (CParsedExpression *)expression);
+                token = (ParserToken *)pcp((CParserToken *) token, head, (CParsedExpression *)expression);
             }
             head = tail;
             switch (token->TokenType())
@@ -515,6 +515,10 @@ ParsedExpression::ParsedExpression(Sjiboleth *dialect)
     this->side_track = listCreate();
     this->errors = listCreate();
 };
+
+SilNikParowy *ParsedExpression::GetEngine(){
+    return this->dialect->GetEngine();
+}
 
 void ParsedExpression::AddError(sds msg)
 {

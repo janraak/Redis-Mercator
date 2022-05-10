@@ -7,7 +7,7 @@ extern "C"
 #include "rxSuite.h"
 #include "sjiboleth.h"
 #include <string.h>
-#include "zmalloc.h"
+#include "../../src/zmalloc.h"
 
 #ifdef __cplusplus
 }
@@ -74,11 +74,11 @@ int writeParsedErrors(CParsedExpression *sO, RedisModuleCtx *ctx)
 rax *executeQ(CParsedExpression *s, char *h, int port, RedisModuleCtx *module_context, list **errors)
 {
     ParsedExpression *so = (ParsedExpression *)s;
-    SilNikParowy *e = new SilNikParowy(h, port, module_context);
+    auto *e = new SilNikParowy_Kontekst(h, port, module_context);
     rax *result = e->Execute(so);
     if (errors)
     {
-        *errors = e->Errors(so);
+        *errors = e->Errors();
     }
     return result;
 }
@@ -97,39 +97,38 @@ CSjiboleth *releaseParser(CSjiboleth *s)
     return NULL;
 }
 
-int HasMinimumStackEntries(CStack *stackO, int size)
+int HasMinimumStackEntries(CSilNikParowy_Kontekst *stackO, int size)
 {
-    GraphStack<FaBlok> *stack = (GraphStack<FaBlok> *)stackO;
+    auto  *stack = (SilNikParowy_Kontekst *)stackO;
     return stack->Size() >= size ? C_OK : C_ERR;
 }
 
-CFaBlok *PopStack(CStack *stackO)
+CFaBlok *PopStack(CSilNikParowy_Kontekst *stackO)
 {
-    GraphStack<FaBlok> *stack = (GraphStack<FaBlok> *)stackO;
+    auto  *stack = (SilNikParowy_Kontekst *)stackO;
     return stack->Pop();
 }
 
-int PushStack(CStack *stackO, CFaBlok *entryO)
+int PushStack(CSilNikParowy_Kontekst *stackO, CFaBlok *entryO)
 {
-    GraphStack<FaBlok> *stack = (GraphStack<FaBlok> *)stackO;
-    FaBlok *entry = (FaBlok *)entryO;
+    auto  *stack = (SilNikParowy_Kontekst *)stackO;
+    auto *entry = (FaBlok *)entryO;
     stack->Push(entry);
     return stack->Size();
 }
 
-CFaBlok *GetOperationPair(CSilNikParowy *engineO, CParserToken *operationO, CStack *stackO, int load_left_and_or_right)
+CFaBlok *GetOperationPair(CParserToken *operationO, CSilNikParowy_Kontekst *stackO, int load_left_and_or_right)
 {
-    GraphStack<FaBlok> *stack = (GraphStack<FaBlok> *)stackO;
-    ParserToken *operation = (ParserToken *)operationO;
-    SilNikParowy *engine = (SilNikParowy *)engineO;
-    auto *pair = engine->GetOperationPair(operation->TokenAsSds(), stack, load_left_and_or_right);
+    auto *stack = (SilNikParowy_Kontekst *)stackO;
+    auto *operation = (ParserToken *)operationO;
+    auto *pair = stack->GetOperationPair(operation->TokenAsSds(), load_left_and_or_right);
     return (CFaBlok *)pair;
 }
 
-void PushResult(CFaBlok *hereO, CStack *stackO)
+void PushResult(CFaBlok *hereO, CSilNikParowy_Kontekst *stackO)
 {
-    GraphStack<FaBlok> *stack = (GraphStack<FaBlok> *)stackO;
-    FaBlok *here = (FaBlok *)hereO;
+    auto  *stack = (SilNikParowy_Kontekst *)stackO;
+    auto *here = (FaBlok *)hereO;
     here->PushResult(stack);
     here->Close();
 }
@@ -153,10 +152,10 @@ int CopyKeySet(CFaBlok *inO, CFaBlok *outO)
     return in->CopyTo(out);
 }
 
-int FetchKeySet(CSilNikParowy *pO, CParsedExpression *eO, CFaBlok *outO, CFaBlok *leftO, CFaBlok *rightO, CParserToken *tO)
+int FetchKeySet(CSilNikParowy_Kontekst *pO, CFaBlok *outO, CFaBlok *leftO, CFaBlok *rightO, CParserToken *tO)
 {
-    SilNikParowy *p = (SilNikParowy *)pO;
-    rxUNUSED(eO);
+    auto *p = (SilNikParowy_Kontekst *)pO;
+    
     FaBlok *out = (FaBlok *)outO;
     FaBlok *right = (FaBlok *)rightO;
     FaBlok *left = (FaBlok *)leftO;

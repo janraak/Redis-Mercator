@@ -10,8 +10,10 @@
 #include <iostream>
 
 using std::string;
-#include "sjiboleth.h"
 #include "rule.hpp"
+#include "sjiboleth.h"
+
+// #include "rxIndex-silnikparowy.hpp"
 
 #ifdef __cplusplus
 extern "C"
@@ -151,9 +153,10 @@ int rxApply(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     return REDISMODULE_OK;
 }
 
-void executeTest(CSjiboleth *g, const char *cmd, RedisModuleCtx *ctx, list *errors){
+void executeTest(CSjiboleth *g, const char *cmd, RedisModuleCtx *ctx, list *errors)
+{
     rxUNUSED(errors);
-    Sjiboleth *parser = (Sjiboleth *)g;
+    auto *parser = (Sjiboleth *)g;
     auto *t = parser->Parse(cmd);
     t->Show(cmd);
     if (parsedWithErrors(t))
@@ -161,7 +164,7 @@ void executeTest(CSjiboleth *g, const char *cmd, RedisModuleCtx *ctx, list *erro
         writeParsedErrors(t, ctx);
         return;
     }
-    SilNikParowy *e = new SilNikParowy((char *)"192.168.1.182", 6379, ctx);
+    auto *e = new SilNikParowy_Kontekst((char *)"192.168.1.182", 6379, ctx);
     rax *r = e->Execute(t);
     if (r)
     {
@@ -175,99 +178,136 @@ void executeTest(CSjiboleth *g, const char *cmd, RedisModuleCtx *ctx, list *erro
     releaseQuery(t);
 }
 
-
 SJIBOLETH_HANDLER(IndexerJsonComma)
-    rxUNUSED(t);
-    rxUNUSED(p);
-    rxUNUSED(eO);
-    rxUNUSED(stack);
-    ERROR("Operation not yet implemented");
+rxUNUSED(t);
+
+rxUNUSED(stack);
+ERROR("Operation not yet implemented");
 END_SJIBOLETH_HANDLER(IndexerJsonComma)
 
 SJIBOLETH_HANDLER(IndexerJsonAttributeValue)
-    rxUNUSED(t);
-    rxUNUSED(p);
-    rxUNUSED(eO);
-    rxUNUSED(stack);
-    FaBlok *value = stack->Pop();
-    FaBlok *field = stack->Pop();
-    printf("%s = %s\n", field->AsSds(), value->AsSds());
-    END_SJIBOLETH_HANDLER(IndexerJsonAttributeValue)
+rxUNUSED(t);
 
-    int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
+rxUNUSED(stack);
+FaBlok *value = stack->Pop();
+FaBlok *field = stack->Pop();
+printf("%s = %s\n", field->AsSds(), value->AsSds());
+END_SJIBOLETH_HANDLER(IndexerJsonAttributeValue)
+
+SJIBOLETH_HANDLER(IndexerTextDash)
+printf("%s\n", t->TokenAsSds());
+stack->DumpStack();
+END_SJIBOLETH_HANDLER()
+SJIBOLETH_HANDLER(IndexerTextDot)
+printf("%s\n", t->TokenAsSds());
+stack->DumpStack();
+END_SJIBOLETH_HANDLER()
+SJIBOLETH_HANDLER(IndexerTextAt)
+printf("%s\n", t->TokenAsSds());
+stack->DumpStack();
+END_SJIBOLETH_HANDLER()
+SJIBOLETH_HANDLER(IndexerTextComma)
+printf("%s\n", t->TokenAsSds());
+stack->DumpStack();
+END_SJIBOLETH_HANDLER()
+SJIBOLETH_HANDLER(IndexerTextSemiColon)
+printf("%s\n", t->TokenAsSds());
+stack->DumpStack();
+END_SJIBOLETH_HANDLER()
+SJIBOLETH_HANDLER(IndexerTextColon)
+printf("%s\n", t->TokenAsSds());
+stack->DumpStack();
+END_SJIBOLETH_HANDLER()
+SJIBOLETH_HANDLER(IndexerTextTab)
+printf("%s\n", t->TokenAsSds());
+stack->DumpStack();
+END_SJIBOLETH_HANDLER()
+SJIBOLETH_HANDLER(IndexerTextNL)
+printf("%s\n", t->TokenAsSds());
+stack->DumpStack();
+END_SJIBOLETH_HANDLER()
+SJIBOLETH_HANDLER(IndexerTextQuote)
+printf("%s\n", t->TokenAsSds());
+stack->DumpStack();
+END_SJIBOLETH_HANDLER()
+SJIBOLETH_HANDLER(IndexerTextApostrophe)
+printf("%s\n", t->TokenAsSds());
+stack->DumpStack();
+END_SJIBOLETH_HANDLER()
+
+int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
+{
+    sds cmd = (char *)rxGetContainedObject(argv[0]);
+    const char *target_setname = NULL;
+    sdstoupper(cmd);
+    // int fetch_rows = strcmp(RX_GET, cmd) == 0 ? 1 : 0;
+    sds query = sdsempty();
+    int dialect_skippy = 0;
+    size_t arg_len;
+    sds sep = sdsnew("");
+    int show_parser_debug_info = 0;
+    for (int j = 1; j < argc; ++j)
     {
-        sds cmd = (char *)rxGetContainedObject(argv[0]);
-        const char *target_setname = NULL;
-        sdstoupper(cmd);
-        // int fetch_rows = strcmp(RX_GET, cmd) == 0 ? 1 : 0;
-        sds query = sdsempty();
-        int dialect_skippy = 0;
-        size_t arg_len;
-        sds sep = sdsnew("");
-        int show_parser_debug_info = 0;
-        for (int j = 1; j < argc; ++j)
+        char *q = (char *)RedisModule_StringPtrLen(argv[j], &arg_len);
+        if (stringmatchlen(q, strlen(AS_ARG), AS_ARG, strlen(AS_ARG), 1) && strlen(q) == strlen(AS_ARG))
         {
-            char *q = (char *)RedisModule_StringPtrLen(argv[j], &arg_len);
-            if (stringmatchlen(q, strlen(AS_ARG), AS_ARG, strlen(AS_ARG), 1) && strlen(q) == strlen(AS_ARG))
-            {
-                ++j;
-                q = (char *)RedisModule_StringPtrLen(argv[j], &arg_len);
-                target_setname = q;
-            }
-            else if (stringmatchlen(q, strlen(q), DEBUG_ARG, strlen(DEBUG_ARG), 1))
-            {
-                show_parser_debug_info = 1;
-            }
-            else if (stringmatchlen(q, strlen(RESET_ARG), RESET_ARG, strlen(RESET_ARG), 1) && strlen(q) == strlen(RESET_ARG))
-            {
-                // clearCache();
-            }
-            else
-            {
-                query = sdscatfmt(query, "%s%s", sep, q);
-                sep = sdsnew(" ");
-            }
+            ++j;
+            q = (char *)RedisModule_StringPtrLen(argv[j], &arg_len);
+            target_setname = q;
         }
-        sdsfree(sep);
-
-        rxUNUSED(target_setname);
-        rxUNUSED(show_parser_debug_info);
-
-        CSjiboleth *parser;
-        if (
-            stringmatchlen(query, 2, JSON_PREFX, strlen(JSON_PREFX), 1))
+        else if (stringmatchlen(q, strlen(q), DEBUG_ARG, strlen(DEBUG_ARG), 1))
         {
-            parser = newJsonEngine();
-            dialect_skippy = strlen(JSON_PREFX);
-            ((Sjiboleth*)parser)->RegisterSyntax(",", 5, 0, 0, IndexerJsonComma);
-            ((Sjiboleth*)parser)->RegisterSyntax(":", 30, 0, 0, IndexerJsonAttributeValue);
+            show_parser_debug_info = 1;
         }
-        else if (
-            stringmatchlen(query, 2, TXT_PREFX, strlen(TXT_PREFX), 1))
+        else if (stringmatchlen(q, strlen(RESET_ARG), RESET_ARG, strlen(RESET_ARG), 1) && strlen(q) == strlen(RESET_ARG))
         {
-            parser = newTextEngine();
-            dialect_skippy = strlen(TXT_PREFX);
-            	((Sjiboleth*)parser)->RegisterSyntax("=", 5, 0, 0, NULL);
-	((Sjiboleth*)parser)->RegisterSyntax("-", 5, 0, 0, NULL);
-	((Sjiboleth*)parser)->RegisterSyntax(".", 5, 0, 0, NULL);
-	((Sjiboleth*)parser)->RegisterSyntax("@", 5, 0, 0, NULL);
-	((Sjiboleth*)parser)->RegisterSyntax(",", 5, 0, 0, NULL);
-	((Sjiboleth*)parser)->RegisterSyntax(";", 5, 0, 0, NULL);
-	((Sjiboleth*)parser)->RegisterSyntax(":", 5, 0, 0, NULL);
-	((Sjiboleth*)parser)->RegisterSyntax("\t", 5, 0, 0, NULL);
-	((Sjiboleth*)parser)->RegisterSyntax("\n", 5, 0, 0, NULL);
-	((Sjiboleth*)parser)->RegisterSyntax("`", 5, 0, 0, NULL);
-	((Sjiboleth*)parser)->RegisterSyntax("'", 5, 0, 0, NULL);
-
+            // clearCache();
         }
         else
-            parser = newQueryEngine();
+        {
+            query = sdscatfmt(query, "%s%s", sep, q);
+            sep = sdsnew(" ");
+        }
+    }
+    sdsfree(sep);
 
-        list *errors = listCreate();
-        executeTest(parser, (const char *)query + dialect_skippy, ctx, errors);
-        listRelease(errors);
-        releaseParser(parser);
-        return REDISMODULE_OK;
+    rxUNUSED(target_setname);
+    rxUNUSED(show_parser_debug_info);
+
+    CSjiboleth *parser;
+    if (
+        stringmatchlen(query, 2, JSON_PREFX, strlen(JSON_PREFX), 1))
+    {
+        parser = newJsonEngine();
+        dialect_skippy = strlen(JSON_PREFX);
+        ((Sjiboleth *)parser)->RegisterSyntax(",", 5, 0, 0, IndexerJsonComma);
+        ((Sjiboleth *)parser)->RegisterSyntax(":", 30, 0, 0, IndexerJsonAttributeValue);
+    }
+    else if (
+        stringmatchlen(query, 2, TXT_PREFX, strlen(TXT_PREFX), 1))
+    {
+        parser = newTextEngine();
+        dialect_skippy = strlen(TXT_PREFX);
+        ((Sjiboleth *)parser)->RegisterSyntax("=", 5, 0, 0, NULL);
+        ((Sjiboleth *)parser)->RegisterSyntax("-", 5, 0, 0, IndexerTextDash);
+        ((Sjiboleth *)parser)->RegisterSyntax(".", 5, 0, 0, IndexerTextDot);
+        ((Sjiboleth *)parser)->RegisterSyntax("@", 5, 0, 0, IndexerTextAt);
+        ((Sjiboleth *)parser)->RegisterSyntax(",", 5, 0, 0, IndexerTextComma);
+        ((Sjiboleth *)parser)->RegisterSyntax(";", 5, 0, 0, IndexerTextSemiColon);
+        ((Sjiboleth *)parser)->RegisterSyntax(":", 5, 0, 0, IndexerTextColon);
+        ((Sjiboleth *)parser)->RegisterSyntax("\t", 5, 0, 0, IndexerTextTab);
+        ((Sjiboleth *)parser)->RegisterSyntax("\n", 5, 0, 0, IndexerTextNL);
+        ((Sjiboleth *)parser)->RegisterSyntax("`", 5, 0, 0, IndexerTextQuote);
+        ((Sjiboleth *)parser)->RegisterSyntax("'", 5, 0, 0, IndexerTextApostrophe);
+    }
+    else
+        parser = newQueryEngine();
+
+    list *errors = listCreate();
+    executeTest(parser, (const char *)query + dialect_skippy, ctx, errors);
+    listRelease(errors);
+    releaseParser(parser);
+    return REDISMODULE_OK;
 }
 
 /* This function must be present on each R
