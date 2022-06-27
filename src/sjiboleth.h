@@ -1,44 +1,3 @@
-#ifndef __SJIBOLETH_H__
-#define __SJIBOLETH_H__
-
-typedef void CSjiboleth;
-typedef void CParsedExpression;
-typedef void CParserToken;
-
-typedef void CStack;
-typedef void CFaBlok;
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-#include "../../deps/hiredis/sds.h"
-#include "adlist.h"
-#include "../../src/dict.h"
-#include "rax.h"
-#include "rxSuite.h"
-
-#define pri5 5
-#define pri10 10
-#define pri20 20
-#define pri30 30
-#define pri50 50
-#define pri60 60
-#define pri6 6
-#define pri70 70
-#define pri100 100
-#define pri200 200
-#define pri500 500
-#define priIgnore -1
-#define priImmediate 0
-
-#define QE_LOAD_NONE 0
-#define QE_LOAD_LEFT_ONLY 1
-#define QE_LOAD_RIGHT_ONLY 2
-#define QE_LOAD_LEFT_AND_RIGHT (QE_LOAD_LEFT_ONLY | QE_LOAD_RIGHT_ONLY)
-#define QE_CREATE_SET 4
-#define QE_SWAP_SMALLEST_FIRST 8
-#define QE_SWAP_LARGEST_FIRST 16
-
 
 #ifndef eTokenType_TYPE
 enum eTokenType
@@ -54,14 +13,61 @@ enum eTokenType
 #define eTokenType_TYPE
 #endif
 
+#ifndef __SJIBOLETH_H__
+#define __SJIBOLETH_H__
+
+typedef void CSjiboleth;
+typedef void CParsedExpression;
+typedef void CParserToken;
+typedef void CSilNikParowy_Kontekst;
+
+typedef void CStack;
+typedef void CFaBlok;
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+#include "../../deps/hiredis/sds.h"
+#include "../../src/adlist.h"
+#include "../../src/dict.h"
+#include "../../src/rax.h"
+#include "rxSuite.h"
+
+#define pri5 5
+#define pri10 10
+#define pri20 20
+#define pri30 30
+#define pri50 50
+#define pri60 60
+#define pri6 6
+#define pri70 70
+#define pri100 100
+#define pri200 200
+#define pri500 500
+#define priIgnore -1
+#define priBreak -2
+#define priImmediate 0
+
+#define QE_LOAD_NONE 0
+#define QE_LOAD_LEFT_ONLY 1
+#define QE_LOAD_RIGHT_ONLY 2
+#define QE_LOAD_LEFT_AND_RIGHT (QE_LOAD_LEFT_ONLY | QE_LOAD_RIGHT_ONLY)
+#define QE_CREATE_SET 4
+#define QE_SWAP_SMALLEST_FIRST 8
+#define QE_SWAP_LARGEST_FIRST 16
+
+
     typedef void CSilNikParowy; // Opaque Execution Engine 
 
-    typedef int operationProc(CSilNikParowy *pO, CParsedExpression *eO, CParserToken *tO, CStack *stackO);
-    typedef CParserToken *parserContextProc(CSjiboleth *p, CParserToken *t, char *head, CParsedExpression *expression);
+    typedef int operationProc(CParserToken *tO, CSilNikParowy_Kontekst *stackO);
+    typedef CParserToken *parserContextProc(CParserToken *t, char *head, CParsedExpression *expression, CSjiboleth *pO);
 
     CSjiboleth *newQueryEngine();
     CSjiboleth *newGremlinEngine();
+    CSjiboleth *newJsonEngine();
+    CSjiboleth *newTextEngine();
     CSjiboleth *releaseParser(CSjiboleth *s);
+    CParserToken *lookupToken(CSjiboleth *s, sds token);
 
     CParsedExpression *parseQ(CSjiboleth *s, const char *query);
     CParserToken *CopyParserToken(CParserToken *t);
@@ -82,13 +88,13 @@ enum eTokenType
     int HasMinimumStackEntries(CStack *stack, int size);
     CFaBlok *PopStack(CStack *stack);
     int PushStack(CStack *stack, CFaBlok *entry);
-    CFaBlok *GetOperationPair(CSilNikParowy *engine, CParserToken *operation, CStack *stack, int load_left_and_or_right);
+    CFaBlok *GetOperationPair(CParserToken *operation, CStack *stack, int load_left_and_or_right);
     void PushResult(CFaBlok *hereO, CStack *stackO);
 
     int RegisterSyntax(const char *op, int token_priority, operationProc *opf, parserContextProc *pcf);
     CFaBlok *GetRight(CFaBlok *here);
     CFaBlok *GetLeft(CFaBlok *here);
-    int FetchKeySet(CSilNikParowy *pO, CParsedExpression *eO, CFaBlok *out, CFaBlok *left, CFaBlok *right, CParserToken *t);
+    int FetchKeySet(CSilNikParowy_Kontekst *pO, CFaBlok *out, CFaBlok *left, CFaBlok *right, CParserToken *t);
     int CopyKeySet(CFaBlok *in, CFaBlok *out);
     int MergeInto(CFaBlok *in, CFaBlok *out);
     int MergeFrom(CFaBlok *out, CFaBlok *left, CFaBlok *right);
@@ -98,13 +104,18 @@ enum eTokenType
 }
 #endif
 
+// CParserToken *FindReferal(CParserToken *t);
 
-#define SJIBOLETH_PARSER_CONTEXT_CHECKER(fn)                                                                                        \
-    CParserToken *fn(CSjiboleth *p, CParserToken *t, char *head, CParsedExpression *expression) \
-    {                                                                                  \
+#define DECLARE_SJIBOLETH_HANDLER(fn)                                                           \
+    static int fn(CParserToken *tO, CSilNikParowy_Kontekst *stackO);
 
-#define END_SJIBOLETH_PARSER_CONTEXT_CHECKER(fn)                                                                                        \
-        return t;                                \
+
+#define SJIBOLETH_PARSER_CONTEXT_CHECKER(fn)                                                    \
+    CParserToken *fn(CParserToken *t, char *head, CParsedExpression *expression, CSjiboleth *pO)\
+    {                                                                                           
+
+#define END_SJIBOLETH_PARSER_CONTEXT_CHECKER(fn)                                                \
+        return t;                                                                               \
     }
 
 #endif

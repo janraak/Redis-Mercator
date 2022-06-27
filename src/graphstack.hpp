@@ -99,6 +99,18 @@ public:
         }
         return NULL;
     }
+
+    T *Pop_Last()
+    {
+        listNode *node = listIndex(this->sequencer, this->sequencer->len - 1);
+        if (node)
+        {
+            T *t = (T *)node->value;
+            listDelNode(this->sequencer, node);
+            return t;
+        }
+        return NULL;
+    }
     
     T *Peek()
     {

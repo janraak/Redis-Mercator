@@ -1,5 +1,13 @@
 #include "rxSuite.h"
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 #include "server.h"
+#ifdef __cplusplus
+}
+#endif
 
 uint64_t tokenSdsHash(const void *key)
 {

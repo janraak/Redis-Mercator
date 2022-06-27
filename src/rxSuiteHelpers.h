@@ -38,28 +38,38 @@ extern "C"
 {
 #endif
 
-typedef int timeProc(void *eventLoop, long long id, void *clientData);
-typedef void eventFinalizerProc(void *eventLoop, void *clientData);
+    typedef struct redisCommandredis Command;
 
-/*
- * Install one or more command interceptors.
- *
- * An interceptor replaces a the handler for a Redis command. The interceptor can call the original handler as needed.
- */
-void installInterceptors(interceptRule *commandTable, int no_of_commands, timeProc *cron_proc);
+    typedef int timeProc(void *eventLoop, long long id, void *clientData);
+    typedef void eventFinalizerProc(void *eventLoop, void *clientData);
 
-/*
- * Restore the intercepted commands to the original handlers.
- */
-void uninstallInterceptors(interceptRule *commandTable, int no_of_commands);
+    /*
+     * Install one or more command interceptors.
+     *
+     * An interceptor replaces a the handler for a Redis command. The interceptor can call the original handler as needed.
+     */
+    void installInterceptors(interceptRule *commandTable, int no_of_commands, timeProc *cron_proc);
 
-void *rxFindKey(int dbNo, sds key);
-void *rxFindSetKey(int dbNo, sds key);
-void *rxFindHashKey(int dbNo, sds key);
-void *rxScanKeys(int dbNo, void **diO, char **key);
-void *rxScanSetMembers(void *obj, void **siO, char **member, int64_t *member_len);
-dictIterator *rxGetDatabaseIterator(int dbNo);
-long long rxGetDatabaseSize(int dbNo);
+    /*
+     * Restore the intercepted commands to the original handlers.
+     */
+    void uninstallInterceptors(interceptRule *commandTable, int no_of_commands);
+
+    // #ifdef RX_INDEXING
+    // redisCommandProc **rxInstallIndexerInterceptors(struct redisCommand *interceptorCommandTable, unsigned int interceptorCommandTable_size);
+    // redisCommandProc **rxUninstallIndexerInterceptors(struct redisCommand *interceptorCommandTable, unsigned int interceptorCommandTable_size, redisCommandProc **standard_command_procs);
+    // #endif
+
+    void *rxFindKey(int dbNo, sds key);
+    void *rxFindSetKey(int dbNo, sds key);
+    void *rxFindHashKey(int dbNo, sds key);
+    void *rxScanKeys(int dbNo, void **diO, char **key);
+    void *rxScanSetMembers(void *obj, void **siO, char **member, int64_t *member_len);
+    dictIterator *rxGetDatabaseIterator(int dbNo);
+    long long rxDatabaseSize(int dbNo);
+    
+    void rxAllocateClientArgs(void *cO, void ** argV, int argC);
+    void rxClientExecute(void *cO, void *pO);
 
 #define MATCH_IS_FALSE 0
 #define MATCH_IS_TRUE 1
@@ -68,6 +78,7 @@ long long rxGetDatabaseSize(int dbNo);
 #define POINTER unsigned int
 #define AS_POINTER(p) ((POINTER)p)
 
+  struct rxHashTypeIterator;
 
 int rxMatchHasValue(void *oO, sds field, sds pattern, int plen);
 
@@ -86,6 +97,17 @@ void *rxCreateHashObject(void);
 int rxHashTypeGetValue(void *o, sds field, unsigned char **vstr, POINTER *vlen, long long *vll);
 sds rxGetHashField(void *o, sds field);
 int rxHashTypeSet(void *o, sds field, sds value, int flags);
+
+struct rxHashTypeIterator *rxHashTypeInitIterator(void *subject);
+void rxHashTypeReleaseIterator(struct rxHashTypeIterator *hi);
+
+int rxHashTypeNext(struct rxHashTypeIterator *hi);
+
+#define rxOBJ_HASH_KEY 1
+#define rxOBJ_HASH_VALUE 2
+
+sds rxHashTypeCurrentObjectNewSds(struct rxHashTypeIterator *hi, int what);
+
 void rxFreeStringObject(void *o);
 void rxFreeHashObject(void *o);
 void *rxGetContainedObject(void *o);
@@ -104,6 +126,9 @@ int rxAddSetMember(sds key, int dbNo, sds member);
 void *rxRemoveKeyRetainValue(int dbNo, sds key);
 void *rxRestoreKeyRetainValue(int dbNo, sds key, void *obj);
 void *rxCommitKeyRetainValue(int dbNo, sds key, void *old_state);
+
+unsigned long long mem_avail();
+
 #ifdef __cplusplus
 }
 #endif

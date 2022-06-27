@@ -9,11 +9,12 @@ extern "C"
 #include "rax.h"
 #include "util.h"
 #include "zmalloc.h"
-#include "rxSuiteHelpers.h"
 
 #ifdef __cplusplus
 }
 #endif
+
+#include "sjiboleth-fablok.hpp"
 
 class Mercator_Index{
     public:
@@ -55,5 +56,4 @@ class Mercator_Index{
         sdsfree(objectIndexkey);
     }
 };
-
 #endif

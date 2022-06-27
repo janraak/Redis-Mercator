@@ -3,7 +3,7 @@
  *            against a Redis Database
  */
 #define REDISMODULE_EXPERIMENTAL_API
-#include "rxQuery.h"
+#include "rxQuery.hpp"
 #include <string>
 
 using std::string;
@@ -204,16 +204,15 @@ IndexerInfo index_info = {sdsempty(), 6379, sdsnew("&"), 0};
 //     return json;
 // }
 
-void executeTest(CSjiboleth *g, const char *cmd, int fetch_rows, RedisModuleCtx *ctx, list *errors){
+void executeTest(Sjiboleth *parser, const char *cmd, int fetch_rows, RedisModuleCtx *ctx, list *errors){
     rxUNUSED(errors);
     rxUNUSED(fetch_rows);
-    Sjiboleth *parser = (Sjiboleth *)g;
     auto *t = parser->Parse(cmd);
     if(parsedWithErrors(t)){
         writeParsedErrors(t, ctx);
         return;
     }
-    SilNikParowy *e = new SilNikParowy((char *)index_info.index_address, index_info.index_port, ctx);
+    auto *e = new SilNikParowy_Kontekst((char *)index_info.index_address, index_info.index_port, ctx);
     rax *r = e->Execute(t);
     if (r)
     {
@@ -258,15 +257,15 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     }
     sdsfree(sep);
     rxUNUSED(target_setname);
-    CSjiboleth *parser;
+    Sjiboleth *parser;
     if (
         stringmatchlen(query, 2, GREMLIN_PREFX, strlen(GREMLIN_PREFX), 1) ||
         stringmatchlen(query, 2, GREMLIN_PREFIX_ALT, strlen(GREMLIN_PREFIX_ALT), 1))
     {
-        parser = newGremlinEngine();
+        parser = new GremlinDialect();
         dialect_skippy = strlen(GREMLIN_PREFX);
     }else
-        parser = newQueryEngine();
+        parser = new QueryDialect();
 
     list *errors = listCreate();
     executeTest(parser, (const char *)query + dialect_skippy, fetch_rows, ctx, errors);

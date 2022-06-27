@@ -49,27 +49,31 @@ typedef bool RaxCopyCallProc(unsigned char *s, size_t len, void *data, void **pr
 class SilNikParowy;
 class FaBlok
 {
-private:
+public:
     static rax *Registry;
     void pushIndexEntries(redisReply *reply);
 
     UCHAR value_type;
 public:
-    /*
-        Since  expression are parsed into Reversed Polish Notation
-        the moving parts for the expression execution are named
-        after the Polish Manufacturer of Steam Trains.
-    */
-    long long creationTime;
-    long long start;
-    long long latency;
-    sds setname;
-    size_t reuse_count;
-    size_t size;
-    rax keyset;
-    GraphStack<FaBlok> *parameter_list;
-    FaBlok *left;
-    FaBlok *right;
+      static  rax *Get_Thread_Registry();
+
+        /*
+            Since  expression are parsed into Reversed Polish Notation
+            the moving parts for the expression execution are named
+            after the Polish Manufacturer of Steam Trains.
+        */
+        long long creationTime;
+        long long start;
+        long long latency;
+        sds setname;
+        size_t reuse_count;
+        size_t size;
+        rax keyset;
+        char rumble_strip1[16];
+        GraphStack<FaBlok> *parameter_list;
+        char rumble_strip2[16];
+        FaBlok *left;
+        FaBlok *right;
 
     public:
         int is_temp;
@@ -93,6 +97,7 @@ public:
 
     protected:
         friend class SilNikParowy;
+        friend class SilNikParowy_Kontekst;
 
     public:
         int FetchKeySet(sds host, int port, sds rh);
@@ -139,16 +144,52 @@ public:
     The execution context allows the parsed expression to be executed in
     parallel.
 */
-class SilNikParowy_Kontekst
+class SilNikParowy_Kontekst: public GraphStack<FaBlok>
 {
+public:
+    sds host;
+    int port;
+
+    rax *Memoization;
+
+protected:
+
+    int can_delete_result;
+
     public:
-        SilNikParowy *engine;
+        // SilNikParowy *engine;
         ParsedExpression *expression;
         RedisModuleCtx *module_contex;
-        rax *Memoization;
+
+       virtual rax *Execute(ParsedExpression *e);
+        virtual rax *Execute(ParsedExpression *e, const char *key);
+     
 
         SilNikParowy_Kontekst(SilNikParowy *engine, ParsedExpression *e, char *h, int port);
         SilNikParowy_Kontekst(SilNikParowy *engine, ParsedExpression *e, const char *key, char *h, int port);
+
+    virtual list *Errors();
+
+    void RetainResult();
+    bool CanDeleteResult();
+    bool IsMemoized(char const *field);
+    void Memoize(char const *field, /*T*/void *value);
+    /*template<typename T>T */ void *Forget(char const  *field);
+    /*template<typename T>T */ void *Recall(char const  *field);
+    FaBlok *GetOperationPair(sds operation, int load_left_and_or_right);
+        int FetchKeySet(FaBlok *out, FaBlok *left, FaBlok *right, ParserToken *token);
+        int FetchKeySet(FaBlok *out, ParserToken *token);
+        int FetchKeySet(FaBlok *out);
+
+    void ClearStack();
+    void DumpStack();
+
+    SilNikParowy_Kontekst();
+    SilNikParowy_Kontekst(char *h, int port, RedisModuleCtx *module_context);
+    virtual ~SilNikParowy_Kontekst();
+    void Reset();
+    void AddError(sds msg);
+
 };
 
 class SilNikParowy
@@ -158,89 +199,61 @@ class SilNikParowy
         the moving parts for the expression execution are named
         after Polish translation of Steam Engine.
     */
-private:
-    sds host;
-    int port;
-
-    rax *Memoization;
-
-protected:
-    GraphStack<FaBlok> *stack;
-
-    int can_delete_result;
-
 public:
-    RedisModuleCtx *module_contex;
-
-
-public:
-    virtual rax *Execute(ParsedExpression *e);
-    virtual rax *Execute(ParsedExpression *e, const char *key);
-    virtual list *Errors(ParsedExpression *e);
-
-    void RetainResult();
-    bool CanDeleteResult();
-    bool IsMemoized(char const *field);
-    void Memoize(char const *field, /*T*/void *value);
-    /*template<typename T>T */ void *Forget(char const  *field);
-    /*template<typename T>T */ void *Recall(char const  *field);
-
-    void ClearStack();
-    void DumpStack();
-    FaBlok *GetOperationPair(sds operation, GraphStack<FaBlok> *stack, int load_left_and_or_right);
-    int FetchKeySet(FaBlok *out, FaBlok *left, FaBlok *right, ParserToken *token);
+    virtual rax *Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack);
+    virtual rax *Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, const char *key);
 
     SilNikParowy();
-    SilNikParowy(char *h, int port, RedisModuleCtx *module_context);
     virtual ~SilNikParowy();
-    void Reset();
 };
 
 #define STACK_CHECK(minSize) \
     if (HasMinimumStackEntries(stack, minSize) == C_ERR) \
     {                                                    \
-        auto *e = (ParsedExpression *)eO;             \
         auto *t = (ParserToken *)tO;                     \
         sds msg = sdscatprintf(sdsempty(), "%s requires %d sets!", t->Token(), minSize); \
-        e->AddError(msg);                                \
+        stack->AddError(msg);                                \
         sdsfree(msg);                                    \
         return C_ERR;                                    \
     }
 
 #define ERROR(msg)                                    \
     {                                                 \
-        auto *e = (ParsedExpression *)eO;             \
         sds m = sdsnew(msg);                          \
-        e->AddError(m);                             \
+        stack->AddError(m);                             \
+        printf("ERROR: %s\n", m);                             \
         sdsfree(m);                                   \
         return C_ERR;                                 \
     }
 
-#define ERROR_RETURN_NULL(msg)                                    \
+#define ERROR_RETURN_NULL(msg)                        \
     {                                                 \
-        auto *e = (ParsedExpression *)eO;             \
         sds m = sdsnew(msg);                          \
-        e->AddError(m);                             \
+        printf("ERROR: %s\n", m);                     \
+        stack->AddError(m);                           \
         sdsfree(m);                                   \
-        return NULL;                                 \
+        return NULL;                                  \
     }
 
-#define SJIBOLETH_HANDLER(fn)                                                                                        \
-    int fn(CSilNikParowy *pO, CParsedExpression *eO, CParserToken *tO, CStack *stackO) \
-    {                                                                                  \
+
+#define SJIBOLETH_HANDLER(fn)                                \
+    int fn(CParserToken *tO, CSilNikParowy_Kontekst *stackO) \
+    {                                                        \
         UNWRAP_SJIBOLETH_HANDLER_PARAMETERS();
 
+#define SJIBOLETH_HANDLER_STUB(fn)                           \
+    int fn(CParserToken *, CSilNikParowy_Kontekst *)         \
+    {                                                        
 
-#define END_SJIBOLETH_HANDLER(fn)                                                                                        \
+#define END_SJIBOLETH_HANDLER(fn)                   \
         return C_OK;                                \
     }
 
-#define END_SJIBOLETH_HANDLER_X(fn)                                                                                        \
+#define END_SJIBOLETH_HANDLER_X(fn)                 \
     }
 
 #define UNWRAP_SJIBOLETH_HANDLER_PARAMETERS()       \
-    auto *p = (SilNikParowy *)pO;                   \
     auto *t = (ParserToken *)tO;                    \
-    auto *stack = (GraphStack<FaBlok> *)stackO;
+    auto *stack = (SilNikParowy_Kontekst *)stackO;  
 
 #endif

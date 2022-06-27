@@ -1,5 +1,7 @@
 #include "sjiboleth.hpp"
 #include "sjiboleth.h"
+#include "sjiboleth-fablok.hpp"
+
 #include <cstring>
 
 #include <setjmp.h>
@@ -145,31 +147,31 @@ void fphandler(int sig)
     longjmp(ExecuteExceptionReturnMark, -1);
 }
 
-int ParserToken::Execute(CSilNikParowy *eO, CParsedExpression *pO, CParserToken *tO, CStack *stackO)
+int ParserToken::Execute(CParserToken *tO, CStack *stackO)
 {
     int rc = -1;
-    signal(SIGFPE, (void (*)(int))fphandler);
-    signal(SIGILL, (void (*)(int))fphandler);
-    signal(SIGSEGV, (void (*)(int))fphandler);
+    // signal(SIGFPE, (void (*)(int))fphandler);
+    // signal(SIGILL, (void (*)(int))fphandler);
+    // signal(SIGSEGV, (void (*)(int))fphandler);
     
-    ParserToken::ExecuteExceptionReturn = 0;
-    ParserToken::ExecuteExceptionReturn = setjmp(ExecuteExceptionReturnMark);
+    // ParserToken::ExecuteExceptionReturn = 0;
+    // ParserToken::ExecuteExceptionReturn = setjmp(ExecuteExceptionReturnMark);
 
-    if (ParserToken::ExecuteExceptionReturn == 0)
-    {
-        ParserToken::ExecuteExceptionReturn = 0;
-        rc = this->opf(eO, pO, tO, stackO);
-        goto done;
-    }
-    else
-    {
-        printf("Captured signal\n");
-        rc = -1;
-    }
-done:
-    signal(SIGFPE, SIG_DFL);
-    signal(SIGILL, SIG_DFL);
-    signal(SIGSEGV, SIG_DFL);
+    // if (ParserToken::ExecuteExceptionReturn == 0)
+    // {
+    //     ParserToken::ExecuteExceptionReturn = 0;
+        rc = this->opf(tO, stackO);
+//         goto done;
+//     }
+//     else
+//     {
+//         printf("Captured signal\n");
+//         rc = -1;
+//     }
+// done:
+//     signal(SIGFPE, SIG_DFL);
+//     signal(SIGILL, SIG_DFL);
+//     signal(SIGSEGV, SIG_DFL);
     return rc;
 }
 
@@ -214,6 +216,8 @@ bool Sjiboleth::resetSyntax()
 bool Sjiboleth::RegisterSyntax(const char *op, short token_priority, int inE, int outE, operationProc *opf)
 {
     auto *t = new ParserToken(op, _operator, token_priority, inE, outE, opf);
+    void *old;
+    raxRemove(this->registry, t->Operation(), t->OperationLength(), &old);
     raxInsert(this->registry, t->Operation(), t->OperationLength(), t, NULL);
     return true;
 }
@@ -221,6 +225,8 @@ bool Sjiboleth::RegisterSyntax(const char *op, short token_priority, int inE, in
 bool Sjiboleth::RegisterSyntax(const char *op, short token_priority, int inE, int outE, operationProc *opf, parserContextProc *pcf)
 {
     auto *t = new ParserToken(op, _operator, token_priority, inE, outE, opf);
+    void *old;
+    raxRemove(this->registry, t->Operation(), t->OperationLength(), &old);
     t->ParserContextProc(pcf);
     raxInsert(this->registry, t->Operation(), t->OperationLength(), t, NULL);
     return true;
@@ -228,8 +234,20 @@ bool Sjiboleth::RegisterSyntax(const char *op, short token_priority, int inE, in
 
 bool Sjiboleth::DeregisterSyntax(const char *op)
 {
-    rxUNUSED(op);
-    return false;
+    void *old;
+    raxRemove(this->registry, (UCHAR *)op, strlen(op), &old);
+    return true;
+}
+
+
+ParserToken *Sjiboleth::LookupToken(sds token){
+	ParserToken *referal_token = (ParserToken *)raxFind(this->registry, (UCHAR *)token, sdslen(token));
+	if (referal_token != raxNotFound){
+        // if (referal_token->Priority() == priBreak)
+        //     return NULL;
+        return referal_token;
+    }
+    return NULL;
 }
 
 Sjiboleth::Sjiboleth()
@@ -263,3 +281,18 @@ const char *Sjiboleth::defaultOperator()
 {
     return this->default_operator;
 }
+
+SilNikParowy *Sjiboleth::GetEngine(){
+    // FOR NOW!
+    return new SilNikParowy();
+}
+
+SilNikParowy *GremlinDialect::GetEngine(){
+    return new SilNikParowy();
+}
+
+SilNikParowy *QueryDialect::GetEngine(){
+    return new SilNikParowy();
+}
+
+

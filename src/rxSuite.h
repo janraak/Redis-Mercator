@@ -18,7 +18,7 @@ extern "C" {
 
 
 
-#include "redismodule.h"
+#include "../../src/redismodule.h"
 #include "../../src/dict.h"
 #include "../../deps/hiredis/hiredis.h"
 

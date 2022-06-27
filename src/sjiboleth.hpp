@@ -8,6 +8,7 @@
 
 // class Parser;
 class ParsedExpression;
+class SilNikParowy;
 class ParserToken
 {
 protected:
@@ -67,7 +68,7 @@ public:
     bool IsVolatile();
     bool HasExecutor();
     operationProc *Executor();
-    int Execute(CSilNikParowy *pO, CParsedExpression *eO, CParserToken *tO, CStack *stackO);
+    int Execute(CParserToken *tO, CStack *stackO);
 };
 
 class Sjiboleth
@@ -86,10 +87,13 @@ protected:
 
     ParserToken *getTokenAt(list *list, int ix);
     ParserToken *newToken(eTokenType token_type, const char *token, size_t len);
+    ParserToken *findToken(const char *token, size_t len);
     bool isoperator(char aChar);
     bool isNumber(char *aChar);
     bool is_space(char aChar);
-    bool isbracket(char aChar);
+    bool isbracket(char *aChar, char **newPos);
+    bool Is_Bracket_Open(char *aChar, char **newPos);
+    char *getFence(char *aChar);
     bool iscsym(int c);
     ParserToken *scanIdentifier(char *head, char **tail);
     ParserToken *scanLiteral(char *head, char **tail);
@@ -100,13 +104,16 @@ protected:
     virtual bool registerDefaultSyntax();
     bool resetSyntax();
 
-    static int executePlusMinus(CSilNikParowy *pO, CParsedExpression *eO, CParserToken *tO, CStack *stackO);
-    static int executeStore(CSilNikParowy *pO, CParsedExpression *eO, CParserToken *tO, CStack *stackO);
-    static int executeEquals(CSilNikParowy *pO, CParsedExpression *eO, CParserToken *tO, CStack *stackO);
-    static int executeOr(CSilNikParowy *pO, CParsedExpression *eO, CParserToken *tO, CStack *stackO);
-    static int executeAnd(CSilNikParowy *pO, CParsedExpression *eO, CParserToken *tO, CStack *stackO);
-    static int executeXor(CSilNikParowy *pO, CParsedExpression *eO, CParserToken *tO, CStack *stackO);
-    static int executeNotIn(CSilNikParowy *pO, CParsedExpression *eO, CParserToken *tO, CStack *stackO);
+    DECLARE_SJIBOLETH_HANDLER(executePlusMinus);
+    DECLARE_SJIBOLETH_HANDLER(executeStore);
+    DECLARE_SJIBOLETH_HANDLER(executeEquals);
+    DECLARE_SJIBOLETH_HANDLER(executeOr);
+    DECLARE_SJIBOLETH_HANDLER(executeAnd);
+    DECLARE_SJIBOLETH_HANDLER(executeXor);
+    DECLARE_SJIBOLETH_HANDLER(executeNotIn);
+
+public:
+    ParserToken *LookupToken(sds token);
 
 public:
     Sjiboleth(const char *default_operator);
@@ -124,40 +131,51 @@ public:
     const char *defaultOperator();
 
     friend class ParsedExpression;
+
+    virtual SilNikParowy *GetEngine();
+
 };
 
-class QueryDialect : Sjiboleth
+class QueryDialect : public Sjiboleth
 {
 protected:
     virtual bool registerDefaultSyntax();
 
 public:
+    virtual SilNikParowy *GetEngine();
 };
 
 class GremlinDialect : public Sjiboleth
 {
-protected:
+public:
     virtual bool registerDefaultSyntax();
 
 public:
-    static int executeMatch(CSilNikParowy *pO, CParsedExpression *eO, CParserToken *tO, CStack *stackO);
-    static int executeNomatch(CSilNikParowy *pO, CParsedExpression *eO, CParserToken *tO, CStack *stackO);
-    static int executeAllVertices(CSilNikParowy *pO, CParsedExpression *eO, CParserToken *tO, CStack *stackO);
-    static int executeGremlinParameters(CSilNikParowy *pO, CParsedExpression *eO, CParserToken *tO, CStack *stackO);
-    static int executeGremlinMatchInExclude(CSilNikParowy *pO, CParsedExpression *eO, CParserToken *tO, CStack *stackO);
+    DECLARE_SJIBOLETH_HANDLER(executeMatch);
+    DECLARE_SJIBOLETH_HANDLER(executeNomatch);
+    DECLARE_SJIBOLETH_HANDLER(executeAllVertices);
+    DECLARE_SJIBOLETH_HANDLER(executeGremlinParameters);
+    DECLARE_SJIBOLETH_HANDLER(executeGremlinMatchInExclude);
     GremlinDialect();
+
+    virtual SilNikParowy *GetEngine();
 };
 
-class JsonDialect : Sjiboleth
+class JsonDialect : public Sjiboleth
 {
-protected:
+public:
     virtual bool registerDefaultSyntax();
+    JsonDialect();
 };
 
-class TextDialect : Sjiboleth
+class TextDialect : public Sjiboleth
 {
-protected:
+public:
     virtual bool registerDefaultSyntax();
+
+    bool static FlushIndexables(rax *collector, sds key, char *key_type, redisContext *index);
+    
+    TextDialect();
 };
 
 class SilNikParowy;
@@ -169,11 +187,14 @@ protected:
     list *errors;
     list *side_track;
 
+    ParsedExpression *next;
+
 public:
 
     UCHAR final_result_value_type;
     ParserToken *lastInstruction();
     friend class SilNikParowy;
+    friend class SilNikParowy_Kontekst;
     /* Parser methods */
     ParserToken *tokenAt(list *list, int ix);
     ParserToken *peekParked();
@@ -193,9 +214,15 @@ public:
     int writeErrors(RedisModuleCtx *ctx);
 
     void show(const char *query);
+    void Show(const char *query);
     ParsedExpression(Sjiboleth *dialect);
 
+    SilNikParowy *GetEngine();
+
     sds ToString();
+
+    ParsedExpression *Next();
+    ParsedExpression *Next(ParsedExpression *next);
 };
 
 #endif

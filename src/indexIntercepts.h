@@ -1,27 +1,26 @@
 
 #ifndef __RXINDEXINTERCEPTORS_H__
 #define __RXINDEXINTERCEPTORS_H__
+#define WRAPPER
+#include "simpleQueue.hpp"
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 #define REDISMODULE_EXPERIMENTAL_API
 #include "redismodule.h"
-#include "/usr/include/arm-linux-gnueabihf/bits/types/siginfo_t.h"
-#include <sched.h>
-#include <signal.h>
 
-#include "adlist.h"
-#include "dict.h"
-#include "server.h"
-#include <ctype.h>
-#include <locale.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
-#include "simpleQueue.h"
 
 void installIndexerInterceptors();
 void uninstallIndexerInterceptors();
 void freeIndexingRequest(sds *kfv);
+
+#ifdef __cplusplus
+}
+#endif
 
 typedef struct indexerThread
 {

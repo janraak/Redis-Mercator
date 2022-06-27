@@ -62,7 +62,6 @@ public:
         this->dbNo = dbNo;
         this->argc = argc;
         this->di = rxGetDatabaseIterator(dbNo);
-        this->dbsize = rxGetDatabaseSize(dbNo);
         this->attribute_value = sdsdup(attribute_value);
         this->attribute_value_len = sdslen(attribute_value);
         this->attribute = sdsempty();
@@ -106,9 +105,6 @@ public:
 
     ~RxFetchDuplexer()
     {
-        long long currentSize = rxGetDatabaseSize(this->dbNo);
-        if (currentSize != this->dbsize)
-            printf("Db: %d original size:%lld  current size:%lld\n", this->dbNo, this->dbsize, currentSize);
         this->checkIntegrity();
         dictReleaseIterator(this->di);
         raxFreeWithCallback(this->bucket, FreeResultDoubleObject);

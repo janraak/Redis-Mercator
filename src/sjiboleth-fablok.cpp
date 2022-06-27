@@ -7,7 +7,7 @@ extern "C"
 #include <cstdlib>
 
 #include "string.h"
-
+#include <pthread.h>
 #include "../../deps/hiredis/hiredis.h"
 
 #include "rax.h"
@@ -22,9 +22,22 @@ extern "C"
 #include "sjiboleth-graph.hpp"
 #include "client-pool.hpp"
 
+static char RUMBLE_STRIP1[] = "AUTHOR:JAN RAAK.";
+static char RUMBLE_STRIP2[] = "2022SHORELINE,WA";
+
+rax *FaBlok::Get_Thread_Registry(){
+    pthread_t id = pthread_self();
+    rax *local_registry = (rax *)raxFind(FaBlok::Registry, (UCHAR *)&id, sizeof(id));
+    if(local_registry == raxNotFound){
+        local_registry = raxNew();
+        raxInsert(FaBlok::Registry, (UCHAR *)&id, sizeof(id), local_registry, NULL);
+    }
+    return local_registry;
+}
+
 FaBlok *FaBlok::Get(const char *sn)
 {
-    FaBlok *f = (FaBlok *)raxFind(FaBlok::Registry, (UCHAR *)sn, strlen(sn));
+    FaBlok *f = (FaBlok *)raxFind(FaBlok::Get_Thread_Registry(), (UCHAR *)sn, strlen(sn));
     if (f == raxNotFound)
     {
         return NULL;
@@ -35,6 +48,11 @@ FaBlok *FaBlok::Get(const char *sn)
 
 bool FaBlok::IsValid()
 {
+    if(memcmp(this->rumble_strip1, RUMBLE_STRIP1, sizeof(this->rumble_strip1))!=0
+     || memcmp(this->rumble_strip2, RUMBLE_STRIP2, sizeof(this->rumble_strip2))!=0){
+        printf("Rumble in the Jungle");
+        return false;
+     }
     if ((sdslen(this->setname) > 0 && this->size != raxSize(&this->keyset)) || !(this->marked_for_deletion == 653974783 || this->marked_for_deletion == 2069722765))
     {
         printf("FaBlok for %s may be corrupted fab: 0x%x reused:%d sz: %u set:0x%x sz: %lld  marked_for_deletion:%d temp:%d\n",
@@ -53,12 +71,12 @@ bool FaBlok::IsValid()
 
 FaBlok *FaBlok::Get(const char *sn, UCHAR value_type)
 {
-    FaBlok *f = (FaBlok *)raxFind(FaBlok::Registry, (UCHAR *)sn, strlen(sn));
+    FaBlok *f = (FaBlok *)raxFind(FaBlok::Get_Thread_Registry(), (UCHAR *)sn, strlen(sn));
     if (f == raxNotFound)
     {
         FaBlok *n = new FaBlok(sdsdup(sdsnew(sn)), value_type);
         n->AsTemp();
-        raxInsert(FaBlok::Registry, (UCHAR *)n->setname, sdslen(n->setname), n, NULL);
+        raxInsert(FaBlok::Get_Thread_Registry(), (UCHAR *)n->setname, sdslen(n->setname), n, NULL);
         n->IsValid();
         return n;
     }
@@ -67,11 +85,19 @@ FaBlok *FaBlok::Get(const char *sn, UCHAR value_type)
         f->reuse_count++;
         f->IsValid();
     }
+    if(memcmp(f->rumble_strip1, RUMBLE_STRIP1, sizeof(f->rumble_strip1))!=0
+     ||memcmp(f->rumble_strip2, RUMBLE_STRIP2, sizeof(f->rumble_strip2))!=0){
+        printf("Rumble in the Jungle");
+     }
     return f;
 }
 
 FaBlok *FaBlok::Delete(FaBlok *d)
 {
+    if(memcmp(d->rumble_strip1, RUMBLE_STRIP1, sizeof(d->rumble_strip1))!=0
+     ||memcmp(d->rumble_strip2, RUMBLE_STRIP2, sizeof(d->rumble_strip2))!=0){
+        printf("Rumble in the Jungle");
+     }
     if (d->IsValueType(KeysetDescriptor_TYPE_MONITORED_SET))
         return NULL;
     d->marked_for_deletion = 2069722765;
@@ -80,13 +106,13 @@ FaBlok *FaBlok::Delete(FaBlok *d)
 
 FaBlok *FaBlok::Rename(sds setname)
 {
-    auto *standing = raxFind(FaBlok::Registry, (UCHAR *)this->setname, sdslen(this->setname));
+    auto *standing = raxFind(FaBlok::Get_Thread_Registry(), (UCHAR *)this->setname, sdslen(this->setname));
     if(standing == this){
         void *old;
-        raxRemove(FaBlok::Registry, (UCHAR *)this->setname, sdslen(this->setname), &old);
+        raxRemove(FaBlok::Get_Thread_Registry(), (UCHAR *)this->setname, sdslen(this->setname), &old);
     }
     this->setname = setname;
-    raxInsert(FaBlok::Registry, (UCHAR *)this->setname, sdslen(this->setname), this, NULL);
+    raxInsert(FaBlok::Get_Thread_Registry(), (UCHAR *)this->setname, sdslen(this->setname), this, NULL);
     return this;
 }
 
@@ -131,6 +157,8 @@ FaBlok::FaBlok()
     this->left = NULL;
     this->right = NULL;
     this->parameter_list = NULL;
+        memcpy(this->rumble_strip1, RUMBLE_STRIP1, sizeof(this->rumble_strip1));
+    memcpy(this->rumble_strip2, RUMBLE_STRIP2, sizeof(this->rumble_strip2));
 }
 
 void FaBlok::InitKeyset(bool withRootNode)
@@ -166,6 +194,7 @@ rax *FaBlok::AsRax()
 FaBlok::~FaBlok()
 {
 if(this->keyset.head != NULL){
+    this->IsValid();
     rax *tmp = (rax *)malloc(sizeof(rax));
     tmp->head = this->keyset.head;
     tmp->numele = this->keyset.numele;
@@ -183,191 +212,19 @@ FaBlok::FaBlok(sds sn, UCHAR value_type)
     this->ValueType(value_type);
 }
 
-rax *SilNikParowy::Execute(ParsedExpression *e, const char *key)
-{
-    FaBlok *v = FaBlok::Get((char *)key, KeysetDescriptor_TYPE_KEYSET);
-    v->AsTemp();
-    v->LoadKey(0, v->setname);
-    stack->Push(v);
-    rax *result = this->Execute(e);
-    // delete v;
-    return result;
-}
-
 bool FaBlok::HasKeySet()
 {
     return raxSize(&this->keyset) > 0;
 }
 
-list *SilNikParowy::Errors(ParsedExpression *e)
-{
-    return e->errors;
-}
-
-rax *SilNikParowy::Execute(ParsedExpression *e)
-{
-    e->expression->StartHead();
-    ParserToken *t;
-    FaBlok *kd;
-    while ((t = e->expression->Next()) != NULL)
-    {
-        switch (t->TokenType())
-        {
-        case _operand:
-            kd = FaBlok::Get(t->Token(), KeysetDescriptor_TYPE_SINGULAR);
-            stack->Push(kd);
-            break;
-        case _literal:
-            kd = FaBlok::Get(t->Token(), KeysetDescriptor_TYPE_SINGULAR);
-            stack->Push(kd);
-            break;
-        case _operator:
-            if (t->HasExecutor())
-            {
-                if (t->Execute(this, e, t, stack) == C_ERR)
-                {
-                    goto end_of_loop;
-                }
-            }
-            else if (t->Priority() > priImmediate)
-            {
-                char error[256];
-                snprintf(error, sizeof(error), "%d Invalid operation %s\n", t->Priority(), t->Token());
-                e->AddError(error);
-            }
-            break;
-        default:
-            break;
-        }
-    }
-end_of_loop:
-    DumpStack();
-    sds error;
-    rax *rx = NULL;
-    if (listLength(e->errors) > 0)
-    {
-        error = sdsempty();
-        listNode *ln;
-        listIter *li = listGetIterator(e->errors, AL_START_HEAD);
-        while((ln = listNext(li)) != NULL){
-            if(strlen((char *)ln->value) > 0){
-                error = sdscat(error, (char *)ln->value);
-                error = sdscat(error, "\n");
-            }
-        }
-        if(sdslen(error) > 0){
-            this->ClearStack();
-            return NULL;
-        }
-    }
-
-
-    {
-        ParserToken *t = NULL;
-        FaBlok *r = NULL;
-        switch (stack->Size())
-        {
-        case 0:
-            t = e->lastInstruction();
-            if (t->CompareToken(sdsnew("=")) != 0)
-            {
-                e->AddError(sdsnew("Invalid expression, no result yielded!"));
-            }
-            break;
-        case 1:
-            r = stack->Pop();
-            if (r->IsValueType(KeysetDescriptor_TYPE_MONITORED_SET))
-                this->RetainResult();
-            if ((r->IsValueType(KeysetDescriptor_TYPE_KEYSET) || r->IsValueType(KeysetDescriptor_TYPE_SINGULAR) )&& !r->HasKeySet())
-            {
-                r->FetchKeySet(this->host, this->port, sdsempty(), r->setname, sdsempty());
-                // stack->Push(r);
-            }
-            e->final_result_value_type = r->ValueType();
-            rx = r->AsRax();
-            return rx;
-        case 2:
-        default:
-        {
-            r = stack->Pop();
-            if (r->IsValueType(KeysetDescriptor_TYPE_MONITORED_SET))
-                this->RetainResult();
-            FaBlok *checkV = stack->Pop();
-            FaBlok *memo = (FaBlok *)this->Recall("V");
-            if (memo != NULL && memo != checkV)
-            {
-                error = sdsnew("Invalid expression, ");
-                error = sdscatfmt(error, "%i  results yielded!\n", stack->Size());
-                e->AddError(error);
-                return NULL;
-            }
-            if ((r->IsValueType(KeysetDescriptor_TYPE_KEYSET) || r->IsValueType(KeysetDescriptor_TYPE_SINGULAR))
-            && !r->HasKeySet())
-            {
-                r->FetchKeySet(this->host, this->port, sdsempty(), r->setname, sdsempty());
-                // stack->Push(r);
-            }
-            if (r->IsValueType(KeysetDescriptor_TYPE_MONITORED_SET))
-                this->RetainResult();
-            e->final_result_value_type = r->ValueType();
-            rx = r->AsRax();
-            return rx;
-        }
-        break;
-        // default:
-        //     error = sdsnew("Invalid expression, ");
-        //     error = sdscatfmt(error, "%i  results yielded!\n", stack->Size());
-        //     e->AddError(error);
-        //     this->ClearStack();
-        //     break;
-        }
-    }
-    return NULL;
-}
-
-void SilNikParowy::Reset(){
-    FaBlok::DeleteAllTempDescriptors();
-}
-
 rax *FaBlok::Registry = raxNew();
-
-SilNikParowy::SilNikParowy()
-{
-    this->stack = new GraphStack<FaBlok>();
-    this->host = sdsempty();
-    this->port = 6379;
-    this->module_contex = NULL;
-    this->Memoization = raxNew();
-    this->can_delete_result = 653974783;
-}
-
-void SilNikParowy::RetainResult()
-{
-    this->can_delete_result = 2069722765;
-}
-
-bool SilNikParowy::CanDeleteResult()
-{
-    return this->can_delete_result == 653974783;
-}
-
-SilNikParowy::SilNikParowy(char *h, int port, RedisModuleCtx *module_contex)
-    : SilNikParowy()
-{
-    this->host = sdsnew(h);
-    this->port = port;
-    this->module_contex = module_contex;
-}
-
-SilNikParowy::~SilNikParowy()
-{
-    raxFree(this->Memoization);
-    // RedisClientPool::Release(this->index_context);
-    delete this->stack;
-}
 
 UCHAR FaBlok::ValueType()
 {
+    if(memcmp(this->rumble_strip1, RUMBLE_STRIP1, sizeof(this->rumble_strip1))!=0
+     ||memcmp(this->rumble_strip2, RUMBLE_STRIP2, sizeof(this->rumble_strip2))!=0){
+        printf("Rumble in the Jungle");
+     }
     return this->value_type;
 }
 
@@ -381,14 +238,19 @@ void FaBlok::pushIndexEntries(redisReply *reply)
 
         // 1) member
         // 2) score
-        for (size_t j = 0; j < reply->elements; j += 2)
+        for (size_t j = 0; j < reply->elements; j++)
         {
-            sds index_entry = sdsnew(reply->element[j]->str);
+            redisReply *row = reply->element[j];
+            redisReply *item = row->element[0];
+            sds index_entry = sdsnew(item->str);
 
             int segments = 0;
             sds *parts = sdssplitlen(index_entry, sdslen(index_entry), "\t", 1, &segments);
-            void *o = rxCreateStringObject(index_entry, sdslen(index_entry));
-            this->InsertKey((UCHAR *)sdsdup(parts[0]), sdslen(parts[0]), o);
+            if (segments > 0)
+            {
+                void *o = rxCreateStringObject(index_entry, sdslen(index_entry));
+                this->InsertKey((UCHAR *)sdsdup(parts[0]), sdslen(parts[0]), o);
+            }
             sdsfreesplitres(parts, segments);
         }
         this->size = raxSize(&this->keyset);
@@ -398,6 +260,10 @@ void FaBlok::pushIndexEntries(redisReply *reply)
 
 sds FaBlok::AsSds()
 {
+    if(memcmp(this->rumble_strip1, RUMBLE_STRIP1, sizeof(this->rumble_strip1))!=0
+     ||memcmp(this->rumble_strip2, RUMBLE_STRIP2, sizeof(this->rumble_strip2))!=0){
+        printf("Rumble in the Jungle");
+     }
     return this->setname;
 }
 
@@ -425,6 +291,8 @@ int FaBlok::FetchKeySet(sds host, int port, sds rh)
 int FaBlok::FetchKeySet(sds h, int port, sds lh, sds rh, sds cmp)
 {
     auto *index_context = RedisClientPool::Acquire(h, port);
+    if(index_context == NULL)
+        return C_OK;
     if (index_context == NULL)
         return C_ERR;
     redisReply *rcc;
@@ -447,36 +315,18 @@ int FaBlok::FetchKeySet(sds h, int port, sds lh, sds rh, sds cmp)
     return C_OK;
 }
 
-int SilNikParowy::FetchKeySet(FaBlok *out, FaBlok *left, FaBlok *right, ParserToken *token)
-{
-    if(out->HasKeySet())
-        return out->size;
-    return out->FetchKeySet(this->host, this->port, left->setname, right->setname, (char *)token->Token());
-}
-
 void FaBlok::DeleteAllTempDescriptors()
 {
     raxIterator ri;
-    raxStart(&ri, FaBlok::Registry);
+    raxStart(&ri, FaBlok::Get_Thread_Registry());
     raxSeek(&ri, "^", NULL, 0);
     while (raxNext(&ri))
     {
        FaBlok *kd = (FaBlok *)ri.data;
-        //printf("#100# DeleteAllTempDescriptors for %s vt:%d t:%d fab: 0x%x reused:%d sz: %u set:0x%x sz: %lld  \n",
-
-            //    kd->setname,
-            //    kd->ValueType(),
-            //    kd->is_temp,
-            //    (POINTER)kd,
-            //    kd->reuse_count,
-            //    kd->size,
-            //    (POINTER) & kd->keyset,
-            //    &kd->keyset != NULL ? raxSize(&kd->keyset) : 0);
-
         if (kd->marked_for_deletion == 2069722765 || kd->is_temp == 2069722765)
         {
             FaBlok *old;
-            raxRemove(FaBlok::Registry, ri.key, ri.key_len, (void **)&old);
+            raxRemove(FaBlok::Get_Thread_Registry(), ri.key, ri.key_len, (void **)&old);
             delete kd;
             raxSeek(&ri, ">", ri.key, ri.key_len);
         }
@@ -487,7 +337,7 @@ void FaBlok::DeleteAllTempDescriptors()
 void FaBlok::ClearCache()
 {
     raxIterator ri;
-    raxStart(&ri, FaBlok::Registry);
+    raxStart(&ri, FaBlok::Get_Thread_Registry());
     raxSeek(&ri, "^", NULL, 0);
     while (raxNext(&ri))
     {
@@ -495,7 +345,7 @@ void FaBlok::ClearCache()
         if (!kd->ValueType(KeysetDescriptor_TYPE_MONITORED_SET))
         {
             FaBlok *old;
-            raxRemove(FaBlok::Registry, ri.key, ri.key_len, (void **)&old);
+            raxRemove(FaBlok::Get_Thread_Registry(), ri.key, ri.key_len, (void **)&old);
             delete kd;
             raxSeek(&ri, ">", ri.key, ri.key_len);
         }
@@ -506,62 +356,6 @@ void FaBlok::ClearCache()
 bool FaBlok::IsParameterList()
 {
     return this->parameter_list != NULL;
-}
-
-void SilNikParowy::ClearStack()
-{
-}
-
-void SilNikParowy::DumpStack()
-{
-    return;
-    stack->StartHead();
-    FaBlok *kd;
-    int n = 0;
-    while ((kd = stack->Next()) != NULL)
-    {
-        printf("%2d 0x%10x temp=%d type=%d size=%d %s\n", n++, (POINTER)kd, kd->is_temp, kd->value_type, kd->size, kd->setname);
-    }
-    stack->Stop();
-}
-
-FaBlok *SilNikParowy::GetOperationPair(sds operation, GraphStack<FaBlok> *stack, int load_left_and_or_right)
-{
-    FaBlok *l = stack->Pop();
-    if ((load_left_and_or_right & QE_LOAD_LEFT_ONLY))
-    {
-        sds lk = sdsdup(l->setname);
-        l->FetchKeySet(this->host, this->port, lk);
-        sdsfree(lk);
-    }
-
-    FaBlok *r = stack->Pop();
-    if ((load_left_and_or_right & QE_LOAD_RIGHT_ONLY))
-    {
-        sds rk = sdsdup(r->setname);
-        r->FetchKeySet(this->host, this->port, rk);
-        sdsfree(rk);
-    }
-
-    int do_swap = ((load_left_and_or_right && QE_SWAP_LARGEST_FIRST) && (raxSize(&l->keyset) < raxSize(&r->keyset))) || ((load_left_and_or_right && QE_SWAP_SMALLEST_FIRST) && (raxSize(&l->keyset) > raxSize(&r->keyset)));
-    if (do_swap)
-    {
-        FaBlok *swap = l;
-        l = r;
-        r = swap;
-    }
-
-    sds keyset_name = sdscatfmt(sdsempty(), "%s %s %s", l->setname, operation, r->setname);
-    FaBlok *kd = FaBlok::Get(keyset_name, KeysetDescriptor_TYPE_KEYSET);
-    kd->left = l;
-    kd->right = r;
-    kd->start = ustime();
-
-    if (load_left_and_or_right && QE_CREATE_SET)
-    {
-        kd->ValueType(KeysetDescriptor_TYPE_KEYSET);
-    }
-    return kd;
 }
 
 FaBlok *FaBlok::Right()
@@ -589,9 +383,9 @@ FaBlok *FaBlok::Copy(sds set_name, int value_type, RaxCopyCallProc *fnCallback, 
         this->InitKeyset(true);
     }
 
-    if (raxFind(FaBlok::Registry, (UCHAR *)set_name, strlen(set_name)) == raxNotFound)
+    if (raxFind(FaBlok::Get_Thread_Registry(), (UCHAR *)set_name, strlen(set_name)) == raxNotFound)
     {
-        raxInsert(FaBlok::Registry, (UCHAR *)out->setname, sdslen(out->setname), out, NULL);
+        raxInsert(FaBlok::Get_Thread_Registry(), (UCHAR *)out->setname, sdslen(out->setname), out, NULL);
     }
 
     if (this->HasKeySet())
@@ -805,36 +599,6 @@ int FaBlok::CopyNotIn(FaBlok *left, FaBlok *right)
     return c;
 }
 
-bool SilNikParowy::IsMemoized(char const *field)
-{
-    void *m = raxFind(this->Memoization, (UCHAR *)field, strlen(field));
-    return (m != raxNotFound);
-}
-
-void SilNikParowy::Memoize(char const *field, /*T*/ void *value)
-{
-    raxInsert(this->Memoization, (UCHAR *)field, strlen(field), value, NULL);
-}
-
-/*template<typename T>T */ void *SilNikParowy::Recall(char const *field)
-{
-    /*T*/ void *m = raxFind(this->Memoization, (UCHAR *)field, strlen(field));
-
-    if (m != raxNotFound)
-        return m;
-    return NULL;
-}
-
-/*template<typename T>T */ void *SilNikParowy::Forget(char const *field)
-{
-    void *m = NULL;
-    raxRemove(this->Memoization, (UCHAR *)field, strlen(field), &m);
-
-    if (m != raxNotFound)
-        return m;
-    return NULL;
-}
-
 void FaBlok::AddKey(sds key, void *obj)
 {
     this->Open();
@@ -902,3 +666,7 @@ sds FaBlok::GetCacheReport(){
     // TODO
     return sdsempty();
 }
+
+
+#include "sjiboleth-silnikparowy.cpp"
+#include "sjiboleth-silnikparowy-ctx.cpp"
