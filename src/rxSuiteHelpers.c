@@ -126,7 +126,14 @@ dictIterator *rxGetDatabaseIterator(int dbNo){
     redisDb *db = (&server.db[dbNo]);
     if (!db)
         serverPanic("findKey: No REDIS DB!");
-    return dictGetIterator(db->dict);    
+    return dictGetSafeIterator(db->dict);    
+}
+
+long long rxGetDatabaseSize(int dbNo){
+    redisDb *db = (&server.db[dbNo]);
+    if (!db)
+        serverPanic("findKey: No REDIS DB!");
+    return dictSize(db->dict);    
 }
 
 void *rxScanSetMembers(void *obj, void **siO, char **member, int64_t *member_len)

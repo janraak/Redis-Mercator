@@ -35,23 +35,51 @@ public:
     sds attribute;
     int attribute_len;
     comparisonProc *matchOperation;
+    long long touched;
+    long long strings;
+    long long hashes;
     long long hits;
     long long misses;
     long long ignored;
     rax *bucket;
     bool complex_mode;
+    long long dbsize;
+    int dbNo;
 
-    RxFetchDuplexer(int argc, int dbNo, sds attribute_value, sds attribute)
+    dictIterator *dup_di;
+    comparisonProc *dup_matchOperation;
+    rax *dup_bucket;
+
+    RxFetchDuplexer(int argc, int dbNo, sds attribute_value)
         : Duplexer()
     {
+        this->touched = 0;
+        this->hits = 0;
+        this->misses = 0;
+        this->ignored = 0;
+        this->strings = 0;
+        this->hashes = 0;
+        this->dbNo = dbNo;
         this->argc = argc;
         this->di = rxGetDatabaseIterator(dbNo);
+        this->dbsize = rxGetDatabaseSize(dbNo);
         this->attribute_value = sdsdup(attribute_value);
         this->attribute_value_len = sdslen(attribute_value);
-        this->attribute = sdsdup(attribute);
-        this->attribute_len = sdslen(attribute);
+        this->attribute = sdsempty();
+        this->attribute_len = 0;
         this->matchOperation = NULL;
         this->bucket = raxNew();
+
+        this->dup_di = this->di;
+        this->dup_matchOperation = this->matchOperation;
+        this->dup_bucket = this->bucket;
+    }
+
+    RxFetchDuplexer(int argc, int dbNo, sds attribute_value, sds attribute)
+        : RxFetchDuplexer(argc, dbNo, attribute_value)
+    {
+        this->attribute = sdsdup(attribute);
+        this->attribute_len = sdslen(attribute);
     }
 
     RxFetchDuplexer(int argc, int dbNo, sds attribute_value, sds attribute, comparisonProc *matchOperation)
@@ -60,8 +88,28 @@ public:
         this->matchOperation = matchOperation;
     }
 
+    void checkIntegrity()
+    {
+        if (this->dup_di != this->di)
+        {
+            printf("corrupted di\n");
+        }
+        if (this->dup_bucket != this->bucket)
+        {
+            printf("corrupted bucket\n");
+        }
+        if (this->dup_matchOperation != this->matchOperation)
+        {
+            printf("corrupted matchOperation\n");
+        }
+    }
+
     ~RxFetchDuplexer()
     {
+        long long currentSize = rxGetDatabaseSize(this->dbNo);
+        if (currentSize != this->dbsize)
+            printf("Db: %d original size:%lld  current size:%lld\n", this->dbNo, this->dbsize, currentSize);
+        this->checkIntegrity();
         dictReleaseIterator(this->di);
         raxFreeWithCallback(this->bucket, FreeResultDoubleObject);
         sdsfree(this->attribute);
@@ -71,13 +119,16 @@ public:
     int Execute()
     {
         dictEntry *de;
+        this->checkIntegrity();
         if ((de = dictNext(this->di)) == NULL)
             return -1;
+        this->checkIntegrity();
 
         sds key = (char *)dictGetKey(de);
         // if (stringmatchlen(this->attribute_value, this->attribute_value_len, key, sdslen(key), 0))
         // {
         void *value = dictGetVal(de);
+        this->touched++;
         if (rxGetObjectType(value) == rxOBJ_ZSET)
         {
             int segments = 0;
@@ -85,22 +136,37 @@ public:
             switch (this->argc)
             {
             case VALUE_ONLY:
-                // if (stringmatchlen(this->attribute_value, this->attribute_value_len, parts[1], sdslen(parts[1]), 1))
-                // {
-                //     this->hits++;
-                //     rxHarvestSortedSetMembers(value, this->bucket);
-                // }
-                // else
-                //     this->misses++;
-                // break;
-            case FIELD_AND_VALUE_ONLY:
-                if (stringmatchlen(this->attribute_value, this->attribute_value_len, parts[1], sdslen(parts[1]), 1) && stringmatchlen(this->attribute, this->attribute_len, parts[2], sdslen(parts[2]), 1))
+                this->strings++;
+                if (stringmatchlen(this->attribute_value, this->attribute_value_len, parts[1], sdslen(parts[1]), 1))
                 {
                     this->hits++;
                     rxHarvestSortedSetMembers(value, this->bucket);
                 }
                 else
                     this->misses++;
+                break;
+            case FIELD_AND_VALUE_ONLY:
+                this->hashes++;
+                if (this->attribute_len == 0)
+                {
+                    if (stringmatchlen(this->attribute_value, this->attribute_value_len, parts[1], sdslen(parts[1]), 1))
+                    {
+                        this->hits++;
+                        rxHarvestSortedSetMembers(value, this->bucket);
+                    }
+                    else
+                        this->misses++;
+                }
+                else
+                {
+                    if (stringmatchlen(this->attribute_value, this->attribute_value_len, parts[1], sdslen(parts[1]), 1) && stringmatchlen(this->attribute, this->attribute_len, parts[2], sdslen(parts[2]), 1))
+                    {
+                        this->hits++;
+                        rxHarvestSortedSetMembers(value, this->bucket);
+                    }
+                    else
+                        this->misses++;
+                }
                 break;
             case FIELD_OP_VALUE:
                 if (this->matchOperation != NULL)
@@ -121,6 +187,7 @@ public:
         }
         else
             this->ignored++;
+        this->checkIntegrity();
         return 1;
     }
 

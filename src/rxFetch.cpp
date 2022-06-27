@@ -105,9 +105,9 @@ int rx_fetch(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     {
     case VALUE_ONLY:
         v = (char *)rxGetContainedObject(argv[1]);
-        f = sdsnew("*");
-        duplexer = new RxFetchDuplexer(argc, dbId, v, f);
-        sdsfree(f);
+        // f = sdsnew("*");
+        duplexer = new RxFetchDuplexer(argc, dbId, v);
+        // sdsfree(f);
         break;
     case FIELD_AND_VALUE_ONLY:
         v = (char *)rxGetContainedObject(argv[1]);

@@ -104,16 +104,19 @@ sjibolethWrapper.xo: sjibolethWrapper.cpp sjiboleth.h
 rxRule.so: ../../src/redismodule.h rxRule.cpp rule.hpp    rxSuite.xo  rxSuiteHelpers.xo  queryEngine.xo  parser.xo token.xo   sjiboleth.so  sjibolethWrapper.xo
 	g++ -shared -g -ggdb -o rxRule.so  $(SHOBJ_CFLAGS)  -fPIC rxRule.cpp rxSuiteHelpers.xo rxSuite.xo  queryEngine.xo  parser.xo token.xo  sjiboleth.so  sjibolethWrapper.xo 
 
+rxFetch.so: ../../src/redismodule.h rxFetch.cpp rule.hpp    rxSuite.xo  rxSuiteHelpers.xo  queryEngine.xo  parser.xo token.xo   sjiboleth.so  sjibolethWrapper.xo
+	g++ -shared -g -ggdb -o rxFetch.so  $(SHOBJ_CFLAGS)  -fPIC rxFetch.cpp rxSuiteHelpers.xo rxSuite.xo  
+
 makefile:
 	echo "build complete"
 
-rxRule.xo: ../../src/redismodule.h rxRule.cpp rxRule.h queryEngine.c queryEngine.h  parser.c parser.h token.c token.h queryEngine.c queryEngine.h  sentenceProcessor.c sentenceProcessor.h rule.hpp  sjibolethWrapper.xo  sjiboleth.xo
+# rxRule.xo: ../../src/redismodule.h rxRule.cpp rxRule.h queryEngine.c queryEngine.h  parser.c parser.h token.c token.h queryEngine.c queryEngine.h  sentenceProcessor.c sentenceProcessor.h rule.hpp  sjibolethWrapper.xo  sjiboleth.xo
 
 rxIndexer.xo: ../../src/redismodule.h rxIndexer.c rxIndexer.h queryEngine.c queryEngine.h  parser.c parser.h token.c token.h queryEngine.c queryEngine.h  sentenceProcessor.c sentenceProcessor.h simpleQueue.h   sjiboleth.so  sjibolethWrapper.xo 
 
 rxQuery.xo: ../../src/redismodule.h rxQuery.c rxQuery.h parser.c parser.h token.c token.h queryEngine.c queryEngine.h  sentenceProcessor.c sentenceProcessor.h  queryEngine.so
 
-rxFetch.xo: ../../src/redismodule.h rxFetch.c rxFetch.h token.c token.h 
+# rxFetch.xo: ../../src/redismodule.h rxFetch.c rxFetch.h token.c token.h 
 
 queryEngine.xo:       ../../src/redismodule.h  queryEngine.c       queryEngine.h       parser.c  token.c parser.h token.h 
 
@@ -142,8 +145,8 @@ rxIndexer.so: rxIndexer.xo
 	 $(LD) -o $@ $< rxSuite.xo  rxSuiteHelpers.xo parser.xo  token.xo sentenceProcessor.xo queryEngine.xo indexIntercepts.xo simpleQueue.xo $(SHOBJ_LDFLAGS) $(LIBS) -lc  
 	#  $(LD) -o $@ $< rxSuite.xo  rxSuiteHelpers.xo parser.xo  token.xo sentenceProcessor.xo queryEngine.xo indexIntercepts.xo simpleQueue.xo $(SHOBJ_LDFLAGS) $(LIBS) -lc  -LqueryEngine.so
 
-rxFetch.so: rxFetch.xo
-	$(LD) -o $@ $<   token.xo $(SHOBJ_LDFLAGS) $(LIBS) -lc
+# rxFetch.so: rxFetch.xo
+# 	$(LD) -o $@ $<   token.xo $(SHOBJ_LDFLAGS) $(LIBS) -lc
 
 rxQuery.so: rxQuery.xo rxSuite.xo  rxSuiteHelpers.xo parser.xo token.xo queryEngine.xo  sjiboleth.xo
 	# $(LD) -o $@ $< rxSuite.so parser.so token.so queryEngine.xo $(SHOBJ_LDFLAGS) $(LIBS) -lc  -LqueryEngine.so

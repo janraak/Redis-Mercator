@@ -59,6 +59,7 @@ void *rxFindHashKey(int dbNo, sds key);
 void *rxScanKeys(int dbNo, void **diO, char **key);
 void *rxScanSetMembers(void *obj, void **siO, char **member, int64_t *member_len);
 dictIterator *rxGetDatabaseIterator(int dbNo);
+long long rxGetDatabaseSize(int dbNo);
 
 #define MATCH_IS_FALSE 0
 #define MATCH_IS_TRUE 1
