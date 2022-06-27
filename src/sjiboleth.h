@@ -45,6 +45,7 @@ extern "C"
 #define pri200 200
 #define pri500 500
 #define priIgnore -1
+#define priBreak -2
 #define priImmediate 0
 
 #define QE_LOAD_NONE 0
@@ -59,13 +60,14 @@ extern "C"
     typedef void CSilNikParowy; // Opaque Execution Engine 
 
     typedef int operationProc(CParserToken *tO, CSilNikParowy_Kontekst *stackO);
-    typedef CParserToken *parserContextProc(CParserToken *t, char *head, CParsedExpression *expression);
+    typedef CParserToken *parserContextProc(CParserToken *t, char *head, CParsedExpression *expression, CSjiboleth *pO);
 
     CSjiboleth *newQueryEngine();
     CSjiboleth *newGremlinEngine();
     CSjiboleth *newJsonEngine();
     CSjiboleth *newTextEngine();
     CSjiboleth *releaseParser(CSjiboleth *s);
+    CParserToken *lookupToken(CSjiboleth *s, sds token);
 
     CParsedExpression *parseQ(CSjiboleth *s, const char *query);
     CParserToken *CopyParserToken(CParserToken *t);
@@ -102,12 +104,14 @@ extern "C"
 }
 #endif
 
+// CParserToken *FindReferal(CParserToken *t);
+
 #define DECLARE_SJIBOLETH_HANDLER(fn)                                                           \
     static int fn(CParserToken *tO, CSilNikParowy_Kontekst *stackO);
 
 
 #define SJIBOLETH_PARSER_CONTEXT_CHECKER(fn)                                                    \
-    CParserToken *fn(CParserToken *t, char *head, CParsedExpression *expression) \
+    CParserToken *fn(CParserToken *t, char *head, CParsedExpression *expression, CSjiboleth *pO)\
     {                                                                                           
 
 #define END_SJIBOLETH_PARSER_CONTEXT_CHECKER(fn)                                                \

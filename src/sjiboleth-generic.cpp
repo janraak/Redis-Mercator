@@ -2,23 +2,13 @@
 #include "sjiboleth.h"
 #include "sjiboleth.hpp"
 
-SJIBOLETH_HANDLER(Sjiboleth::executePlusMinus)
-    rxUNUSED(t);
-    
-    rxUNUSED(stack);
-    ERROR("Operation not yet implemented");
+SJIBOLETH_HANDLER_STUB(Sjiboleth::executePlusMinus)
 END_SJIBOLETH_HANDLER(executePlusMinus)
 
-SJIBOLETH_HANDLER(Sjiboleth::executeStore)
-    rxUNUSED(t);
-    
-    rxUNUSED(stack);
-    ERROR("Operation not yet implemented");
+SJIBOLETH_HANDLER_STUB(Sjiboleth::executeStore)
 END_SJIBOLETH_HANDLER(Sjiboleth::executeStore)
 
-SJIBOLETH_HANDLER(Sjiboleth::executeEquals)
-    rxUNUSED(t);
-    
+SJIBOLETH_HANDLER(Sjiboleth::executeEquals)    
     STACK_CHECK(2);
     CFaBlok *out = stack->GetOperationPair(t->TokenAsSds(), QE_LOAD_NONE);
     FetchKeySet(stackO, out, GetLeft(out), GetRight(out), t);
@@ -26,8 +16,6 @@ SJIBOLETH_HANDLER(Sjiboleth::executeEquals)
 END_SJIBOLETH_HANDLER(Sjiboleth::executeEquals)
 
 SJIBOLETH_HANDLER(Sjiboleth::executeOr)
-    rxUNUSED(t);
-    
     STACK_CHECK(2);
     CFaBlok *out = stack->GetOperationPair(t->TokenAsSds(), QE_LOAD_LEFT_AND_RIGHT | QE_CREATE_SET | QE_SWAP_LARGEST_FIRST);
     // propagate_set_type(out, out->left, out->right);
@@ -38,17 +26,13 @@ SJIBOLETH_HANDLER(Sjiboleth::executeOr)
 END_SJIBOLETH_HANDLER(Sjiboleth::executeOr)
 
 SJIBOLETH_HANDLER(Sjiboleth::executeAnd)
-    rxUNUSED(t);
-    
     STACK_CHECK(2);
     CFaBlok *out = stack->GetOperationPair(t->TokenAsSds(), QE_LOAD_LEFT_AND_RIGHT | QE_CREATE_SET | QE_SWAP_LARGEST_FIRST);
     MergeFrom(out, GetLeft(out), GetRight(out));
     PushResult(out, stack);
 END_SJIBOLETH_HANDLER(Sjiboleth::executeAnd)
 
-SJIBOLETH_HANDLER(Sjiboleth::executeXor)
-    rxUNUSED(t);
-    
+SJIBOLETH_HANDLER(Sjiboleth::executeXor)    
     STACK_CHECK(2);
     CFaBlok *out = stack->GetOperationPair(t->TokenAsSds(), QE_LOAD_LEFT_AND_RIGHT | QE_CREATE_SET | QE_SWAP_LARGEST_FIRST);
     MergeDisjunct(out, GetLeft(out), GetRight(out));
@@ -56,8 +40,6 @@ SJIBOLETH_HANDLER(Sjiboleth::executeXor)
 END_SJIBOLETH_HANDLER(Sjiboleth::executeXor)
 
 SJIBOLETH_HANDLER(Sjiboleth::executeNotIn)
-    rxUNUSED(t);
-    
     STACK_CHECK(2);
     CFaBlok *out = stack->GetOperationPair(t->TokenAsSds(), QE_LOAD_LEFT_AND_RIGHT | QE_CREATE_SET | QE_SWAP_LARGEST_FIRST);
     CopyNotIn(out, GetLeft(out), GetRight(out));

@@ -45,10 +45,12 @@ rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack)
         {
         case _operand:
             kd = FaBlok::Get(t->Token(), KeysetDescriptor_TYPE_SINGULAR);
+            kd->IsValid();
             stack->Push(kd);
             break;
         case _literal:
             kd = FaBlok::Get(t->Token(), KeysetDescriptor_TYPE_SINGULAR);
+            kd->IsValid();
             stack->Push(kd);
             break;
         case _operator:
@@ -61,9 +63,9 @@ rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack)
             }
             else if (t->Priority() > priImmediate)
             {
-                char error[256];
-                snprintf(error, sizeof(error), "%d Invalid operation %s\n", t->Priority(), t->Token());
-                e->AddError(error);
+                char msg[256];
+                snprintf(msg, sizeof(msg), "%d Invalid operation %s\n", t->Priority(), t->Token());
+                e->AddError(msg);
             }
             break;
         default:
@@ -80,6 +82,8 @@ end_of_loop:
         listIter *li = listGetIterator(e->errors, AL_START_HEAD);
         while((ln = listNext(li)) != NULL){
             if(strlen((char *)ln->value) > 0){
+                printf("ERROR: %s\n", e->ToString());
+                printf("ERROR: %s\n", (char *)ln->value);
                 error = sdscat(error, (char *)ln->value);
                 error = sdscat(error, "\n");
             }
@@ -97,7 +101,7 @@ end_of_loop:
         {
         case 0:
             t = e->lastInstruction();
-            if (t->CompareToken(sdsnew("=")) != 0)
+            if (t != NULL && t->CompareToken(sdsnew("=")) != 0)
             {
                 e->AddError(sdsnew("Invalid expression, no result yielded!"));
             }

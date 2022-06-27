@@ -14,7 +14,6 @@ extern "C"
 
 long long rust_helper_cron = -1;
 
-
 extern sds hashTypeGetFromHashTable(robj *o, sds field);
 extern int hashTypeGetValue(robj *o, sds field, unsigned char **vstr, POINTER *vlen, long long *vll);
 extern int hashTypeGetFromZiplist(robj *o, sds field,
@@ -26,13 +25,14 @@ zskiplistNode *zslGetElementByRank(zskiplist *zsl, unsigned long rank);
 
 void installInterceptors(interceptRule *commandTable, int no_of_commands, timeProc *cron_proc)
 {
-    for (int j = 0; j < no_of_commands; ++j) {
+    for (int j = 0; j < no_of_commands; ++j)
+    {
         struct redisCommand *cmd = lookupCommandByCString(commandTable[j].name);
         if (cmd)
         {
             commandTable[j].id = cmd->id;
-            commandTable[j].redis_proc = (interceptorProc*)cmd->proc;
-            cmd->proc = (redisCommandProc*)commandTable[j].proc;
+            commandTable[j].redis_proc = (interceptorProc *)cmd->proc;
+            cmd->proc = (redisCommandProc *)commandTable[j].proc;
             commandTable[j].no_of_intercepts = 0;
             commandTable[j].no_of_success_intercepts = 0;
             commandTable[j].no_of_failure_intercepts = 0;
@@ -40,32 +40,36 @@ void installInterceptors(interceptRule *commandTable, int no_of_commands, timePr
         }
     }
 
-        if (rust_helper_cron == -1) {
-            rust_helper_cron = aeCreateTimeEvent(server.el, 1, (aeTimeProc*) cron_proc, NULL, NULL);
-            int i = cron_proc(NULL, 0, NULL);
-            serverLog(LL_NOTICE, "Rust cron started: %lld   0x%lx %d", rust_helper_cron, (long)cron_proc, i);
-        }
+    if (rust_helper_cron == -1)
+    {
+        rust_helper_cron = aeCreateTimeEvent(server.el, 1, (aeTimeProc *)cron_proc, NULL, NULL);
+        int i = cron_proc(NULL, 0, NULL);
+        serverLog(LL_NOTICE, "Rust cron started: %lld   0x%lx %d", rust_helper_cron, (long)cron_proc, i);
+    }
 }
 
-void uninstallInterceptors(interceptRule *commandTable, int no_of_commands) {
+void uninstallInterceptors(interceptRule *commandTable, int no_of_commands)
+{
     // Restore original command processors
-    for (int j = 0; j < no_of_commands; ++j) {
+    for (int j = 0; j < no_of_commands; ++j)
+    {
         struct redisCommand *cmd = lookupCommandByCString(commandTable[j].name);
         if (cmd)
         {
-            cmd->proc = (redisCommandProc*)commandTable[j].redis_proc;
+            cmd->proc = (redisCommandProc *)commandTable[j].redis_proc;
             commandTable[j].redis_proc = NULL;
         }
     }
-} 
+}
 
-void *rxFindKey(int dbNo, sds key){
+void *rxFindKey(int dbNo, sds key)
+{
     if (dbNo < 0 || dbNo >= server.dbnum)
         serverPanic("findKey: Invalid database");
     redisDb *db = (&server.db[dbNo]);
     if (!db)
         serverPanic("findKey: No REDIS DB!");
-    if(!key)
+    if (!key)
         serverPanic("findKey: No key to search!");
     dictEntry *de = dictFind(db->dict, key);
     if (de)
@@ -78,25 +82,28 @@ void *rxFindKey(int dbNo, sds key){
     }
 }
 
-void *rxFindSetKey(int dbNo, sds key){
+void *rxFindSetKey(int dbNo, sds key)
+{
     robj *o = rxFindKey(dbNo, key);
-    if(o == NULL || o->type != OBJ_SET)
+    if (o == NULL || o->type != OBJ_SET)
         return NULL;
     return o;
 }
 
-void *rxFindSortedSetKey(int dbNo, sds key){
+void *rxFindSortedSetKey(int dbNo, sds key)
+{
     robj *o = rxFindKey(dbNo, key);
-    if(o == NULL || o->type != OBJ_ZSET)
+    if (o == NULL || o->type != OBJ_ZSET)
         return NULL;
     return o;
 }
 
-void *rxFindHashKey(int dbNo, sds key){
+void *rxFindHashKey(int dbNo, sds key)
+{
     robj *o = rxFindKey(dbNo, key);
-    if(!o)
+    if (!o)
         return NULL;
-    if(o->type == OBJ_HASH)
+    if (o->type == OBJ_HASH)
         return o;
     return NULL;
 }
@@ -121,21 +128,30 @@ void *rxScanKeys(int dbNo, void **diO, char **key)
     return value;
 }
 
-
-dictIterator *rxGetDatabaseIterator(int dbNo){
+dictIterator *rxGetDatabaseIterator(int dbNo)
+{
     redisDb *db = (&server.db[dbNo]);
     if (!db)
         serverPanic("findKey: No REDIS DB!");
-    return dictGetIterator(db->dict);    
+    return dictGetSafeIterator(db->dict);
+}
+
+long long rxDatabaseSize(int dbNo)
+{
+    redisDb *db = (&server.db[dbNo]);
+    if (!db)
+        serverPanic("findKey: No REDIS DB!");
+    return dictSize(db->dict);
 }
 
 void *rxScanSetMembers(void *obj, void **siO, char **member, int64_t *member_len)
 {
     setTypeIterator **si = (setTypeIterator **)siO;
-    if(*si == NULL){
+    if (*si == NULL)
+    {
         *si = setTypeInitIterator(obj);
     }
-    if(setTypeNext(*si, member, member_len) == -1)
+    if (setTypeNext(*si, member, member_len) == -1)
     {
         setTypeReleaseIterator(*si);
         *si = NULL;
@@ -151,7 +167,7 @@ rax *rxSetToRax(void *obj)
     int64_t member_len;
     setTypeIterator *si = setTypeInitIterator(obj);
 
-    while(setTypeNext(si, &member, &member_len) != -1)
+    while (setTypeNext(si, &member, &member_len) != -1)
     {
         raxInsert(r, (unsigned char *)member, sdslen(member), NULL, NULL);
     }
@@ -201,8 +217,9 @@ int rxMatchHasValue(void *oO, sds field, sds pattern, int plen)
     return MATCH_IS_FALSE;
 }
 
-int rxHashTypeSet(void *o, sds field, sds value, int flags){
-    if( ((robj *)o)->type != rxOBJ_HASH)
+int rxHashTypeSet(void *o, sds field, sds value, int flags)
+{
+    if (((robj *)o)->type != rxOBJ_HASH)
         return -1;
     return hashTypeSet((robj *)o, field, value, flags);
 }
@@ -250,33 +267,61 @@ sds rxGetHashField(void *oO, sds field)
 }
 
 // Wrappers
-short rxGetObjectType(void *o){
+short rxGetObjectType(void *o)
+{
     return ((robj *)o)->type;
 }
 
-void *rxCreateObject(int type, void *ptr){
+void *rxCreateObject(int type, void *ptr)
+{
     return createObject(type, ptr);
 }
-void *rxCreateStringObject(const char *ptr, size_t len){
+void *rxCreateStringObject(const char *ptr, size_t len)
+{
     return createStringObject(ptr, len);
 }
-void *rxCreateHashObject(){
+void *rxCreateHashObject()
+{
     return createHashObject();
 }
-void rxFreeStringObject(void *o){
+void rxFreeStringObject(void *o)
+{
     freeStringObject(o);
 }
-void rxFreeHashObject(void *o){
+void rxFreeHashObject(void *o)
+{
     freeHashObject(o);
 }
 
-void *rxGetContainedObject(void *o){
+void *rxGetContainedObject(void *o)
+{
     robj *ro = (robj *)o;
     return ro->ptr;
 }
 
-int rxHashTypeGetValue(void *o, sds field, unsigned char **vstr, POINTER *vlen, long long *vll){
-    return hashTypeGetValue(o, field, vstr, vlen, vll);    
+int rxHashTypeGetValue(void *o, sds field, unsigned char **vstr, POINTER *vlen, long long *vll)
+{
+    return hashTypeGetValue(o, field, vstr, vlen, vll);
+}
+
+struct rxHashTypeIterator *rxHashTypeInitIterator(void *subject)
+{
+    return (struct rxHashTypeIterator *)hashTypeInitIterator((robj *)subject);
+}
+
+void rxHashTypeReleaseIterator(struct rxHashTypeIterator *hi)
+{
+    hashTypeReleaseIterator((hashTypeIterator *)hi);
+}
+
+int rxHashTypeNext(struct rxHashTypeIterator *hi)
+{
+    return hashTypeNext((hashTypeIterator *)hi);
+}
+
+sds rxHashTypeCurrentObjectNewSds(struct rxHashTypeIterator *hi, int what)
+{
+    return hashTypeCurrentObjectNewSds((hashTypeIterator *)hi, what);
 }
 
 long long rxCreateTimeEvent(long long milliseconds,
@@ -286,7 +331,8 @@ long long rxCreateTimeEvent(long long milliseconds,
     return aeCreateTimeEvent(server.el, milliseconds, proc, clientData, finalizerProc);
 }
 
-void rxModulePanic(char *msg){
+void rxModulePanic(char *msg)
+{
     serverPanic(msg);
 }
 
@@ -310,7 +356,8 @@ extern int setTypeAdd(robj *subject, sds value);
 int rxAddSetMember(sds key, int dbNo, sds member)
 {
     robj *sobj = (robj *)rxFindSetKey(dbNo, key);
-    if(sobj == NULL){
+    if (sobj == NULL)
+    {
         sobj = createSetObject();
         robj *k = createStringObject(key, sdslen(key));
         dbAdd((&server.db[dbNo]), k, sobj);
@@ -325,7 +372,8 @@ double rxAddSortedSetMember(sds key, int dbNo, double score, sds member)
 {
     double newScore;
     robj *zobj = (robj *)rxFindSortedSetKey(dbNo, key);
-    if(zobj == NULL){
+    if (zobj == NULL)
+    {
         zobj = createZsetObject();
         robj *k = createStringObject(key, sdslen(key));
         dbAdd((&server.db[dbNo]), k, zobj);
@@ -340,7 +388,7 @@ extern int dbDelete(redisDb *db, robj *key);
 void *rxRemoveKeyRetainValue(int dbNo, sds key)
 {
     void *obj = rxFindKey(dbNo, key);
-    if(obj == NULL)
+    if (obj == NULL)
         return obj;
     incrRefCount(obj);
     robj *k = createStringObject(key, sdslen(key));
@@ -353,7 +401,7 @@ void *rxRestoreKeyRetainValue(int dbNo, sds key, void *obj)
 {
     robj *k = createStringObject(key, sdslen(key));
     dbDelete((&server.db[dbNo]), k);
-    if(obj != NULL)
+    if (obj != NULL)
         dbAdd((&server.db[dbNo]), k, obj);
     freeStringObject(k);
     return obj;
@@ -368,9 +416,9 @@ void *rxCommitKeyRetainValue(int dbNo, sds key, void *old_state)
     void *new_state = rxFindKey(dbNo, objectIndexkey);
     sdsfree(objectIndexkey);
 
-    if(old_state == NULL)
+    if (old_state == NULL)
         return new_state;
-        
+
     rax *new_members = (new_state != NULL)
                            ? rxSetToRax(new_state)
                            : NULL;
@@ -380,8 +428,9 @@ void *rxCommitKeyRetainValue(int dbNo, sds key, void *old_state)
     int64_t l;
     while (rxScanSetMembers(old_state, &si, &old_member, &l) != NULL)
     {
-        // Any Old state member not in new state is removed from index entry!        
-        if(new_members == NULL || raxFind(new_members, (unsigned char *)old_member, sdslen(old_member)) == raxNotFound){
+        // Any Old state member not in new state is removed from index entry!
+        if (new_members == NULL || raxFind(new_members, (unsigned char *)old_member, sdslen(old_member)) == raxNotFound)
+        {
             robj *index_entry = rxFindSortedSetKey(dbNo, old_member);
             sds hkey = sdscatfmt(sdsempty(), "%s\tH", key);
             if (zsetDel(index_entry, hkey) == 0)
@@ -402,66 +451,109 @@ void *rxCommitKeyRetainValue(int dbNo, sds key, void *old_state)
         }
     }
 
-    if(new_members != NULL)
+    if (new_members != NULL)
         raxFree(new_members);
     freeSetObject(old_state);
     return new_state;
 }
 void rxHarvestSortedSetMembers(void *obj, rax *bucket)
 {
-    robj *zobj = (robj*)obj;
+    robj *zobj = (robj *)obj;
     long llen;
     long rangelen;
 
-    if (rxGetObjectType(zobj) != OBJ_ZSET) return;
+    if (rxGetObjectType(zobj) != OBJ_ZSET)
+        return;
 
     /* Sanitize indexes. */
     llen = zsetLength(zobj);
 
     rangelen = llen;
 
-    if (zobj->encoding == OBJ_ENCODING_ZIPLIST) {
+    if (zobj->encoding == OBJ_ENCODING_ZIPLIST)
+    {
         unsigned char *zl = zobj->ptr;
         unsigned char *eptr, *sptr;
         unsigned char *vstr;
         unsigned int vlen;
         long long vlong;
 
-        eptr = ziplistIndex(zl,0);
+        eptr = ziplistIndex(zl, 0);
 
         // serverAssertWithInfo(c,zobj,eptr != NULL);
-        sptr = ziplistNext(zl,eptr);
+        sptr = ziplistNext(zl, eptr);
 
-        while (rangelen--) {
+        while (rangelen--)
+        {
             // serverAssertWithInfo(c,zobj,eptr != NULL && sptr != NULL);
-            ziplistGet(eptr,&vstr,&vlen,&vlong);
+            ziplistGet(eptr, &vstr, &vlen, &vlong);
 
-            if (vstr == NULL){
-                printf( "L:%lld ", vlong);
-            }else{
+            if (vstr == NULL)
+            {
+                printf("L:%lld ", vlong);
+            }
+            else
+            {
                 HarvestMember(bucket, vstr, vlen, zzlGetScore(sptr));
             }
-            zzlNext(zl,&eptr,&sptr);
+            zzlNext(zl, &eptr, &sptr);
         }
-
-    } else if (zobj->encoding == OBJ_ENCODING_SKIPLIST) {
+    }
+    else if (zobj->encoding == OBJ_ENCODING_SKIPLIST)
+    {
         zset *zs = zobj->ptr;
         zskiplist *zsl = zs->zsl;
         zskiplistNode *ln;
         sds ele;
 
         /* Check if starting point is trivial, before doing log(N) lookup. */
-            ln = zsl->header->level[0].forward;
+        ln = zsl->header->level[0].forward;
 
-        while(rangelen--) {
+        while (rangelen--)
+        {
             // serverAssertWithInfo(c,zobj,ln != NULL);
             ele = ln->ele;
             HarvestMember(bucket, (unsigned char *)ele, sdslen(ele), ln->score);
             ln = ln->level[0].forward;
         }
-    } else {
+    }
+    else
+    {
         serverPanic("Unknown sorted set encoding");
     }
 }
 
 // END OF Wrappers
+
+void rxAllocateClientArgs(void *cO, void **argV, int argC)
+{
+    client *c = (client *)cO;
+    c->argc = argC;
+    c->argv = (robj **)argV;
+}
+
+void rxClientExecute(void *cO, void *pO)
+{
+    struct redisCommand *p = (struct redisCommand *)pO;
+    client *c = (client *)cO;
+    c->cmd = pO;
+    p->proc(c);
+}
+
+#include <sys/sysinfo.h>
+#include <sys/resource.h>
+ 
+int sysinfo(struct sysinfo *info);
+
+unsigned long long mem_avail()
+{
+    struct sysinfo info;
+ 
+    if (sysinfo(&info) < 0)
+        return 0;
+
+    size_t zmalloc_used = zmalloc_used_memory();
+    size_t total_system_mem = (server.system_memory_size < server.maxmemory) ? server.system_memory_size : server.maxmemory;
+
+    return (total_system_mem - zmalloc_used) / info.mem_unit; 
+}

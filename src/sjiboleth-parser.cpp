@@ -5,6 +5,15 @@
 
 #define semicolon sdsnew(";")
 
+ParserToken *Sjiboleth::findToken(const char *token, size_t len)
+{
+    ParserToken *t = NULL;
+        t = (ParserToken *)raxFind(this->registry, (UCHAR *)token, len);
+        if (t != raxNotFound)
+            return t;
+        return NULL;
+}
+
 ParserToken *Sjiboleth::newToken(eTokenType token_type, const char *token, size_t len)
 {
     ParserToken *t = NULL;
@@ -13,6 +22,8 @@ ParserToken *Sjiboleth::newToken(eTokenType token_type, const char *token, size_
         t = (ParserToken *)raxFind(this->registry, (UCHAR *)token, len);
         if (t != raxNotFound)
         {
+            if (t->Priority() == priBreak)
+                return NULL;
             return t;
         }
     }
@@ -53,10 +64,13 @@ ParserToken *Sjiboleth::newToken(eTokenType token_type, const char *token, size_
 ParsedExpression *Sjiboleth::Parse(const char *query)
 {
     auto *expression = new ParsedExpression(this);
+    auto *root_expression = expression;
     char *head = (char *)query;
     while (*head && is_space(*head))
         ++head;
     ParserToken *last_token = NULL;
+    char *newHead = NULL;
+
     while (*head)
     {
         char *tail;
@@ -64,6 +78,7 @@ ParsedExpression *Sjiboleth::Parse(const char *query)
             head++;
 
         ParserToken *token = NULL;
+        newHead = NULL;
         if (*head == '"' || *head == '\'')
         {
             token = scanLiteral(head, &tail);
@@ -79,76 +94,105 @@ ParsedExpression *Sjiboleth::Parse(const char *query)
         else if (isoperator(*head))
         {
             token = scanOperator(head, &tail);
-            head = tail;
-            if (expression->hasParkedTokens())
+            if (token != NULL && token->HasParserContextProc())
             {
-                ParserToken *head_token = expression->peekParked();
-                if (head_token->TokenType() == _operator && head_token->Priority() >= token->Priority())
-                {
-                    expression->moveSideTrackToFinal();
-                }
+                parserContextProc *pcp = token->ParserContextProc();
+                token = (ParserToken *)pcp((CParserToken *)token, head, (CParsedExpression *)expression, (CSjiboleth *)this);
             }
-            if (token->TokenType() == _immediate_operator)
+            if (token == NULL)
             {
+                // Sentence breaker!
                 expression->flushSideTrack();
-                expression->emitFinal(token);
+                auto *flush_token = findToken("~~~=~~~", 7);
+                if (flush_token != NULL)
+                    expression->emitFinal(flush_token);
+                expression = expression->Next(new ParsedExpression(this));
+                head = tail;
             }
             else
-                expression->park(token);
-        }
-        else if (isbracket(*head))
-        {
-            token = scanBracket(head, &tail);
-            head = tail;
-            if (token->TokenType() == _close_bracket)
             {
+                head = tail;
                 if (expression->hasParkedTokens())
                 {
-                    while (expression->hasParkedTokens())
-                    {
-                        ParserToken *head_token = expression->peekParked();
-                        if (head_token->TokenType() == _open_bracket)
-                        {
-                            expression->unpark();
-                            break;
-                        }
-                        else
-                        {
-                            expression->emitFinal(head_token);
-                            expression->unpark();
-                        }
-                    }
-                }
-                else
-                    expression->AddError(sdsnew("unbalanced brackets"));
-                if (token->Is(";"))
-                    expression->emitFinal(token);
-                if (this->object_and_array_controls)
-                {
-                    expression->emitFinal(token);
-                }
-            }
-            else
-            {
-                if (this->object_and_array_controls)
-                {
-                    expression->emitFinal(token);
-                }
-                if (last_token &&
-                    (last_token->TokenType() == _operand || last_token->TokenType() == _close_bracket))
-                {
-                    while (expression->hasParkedTokens())
+                    ParserToken *head_token = expression->peekParked();
+                    if (head_token->TokenType() == _operator && head_token->Priority() >= token->Priority())
                     {
                         expression->moveSideTrackToFinal();
                     }
-                    if (this->hasDefaultOperator())
+                }
+                if (token->TokenType() == _immediate_operator)
+                {
+                    expression->flushSideTrack();
+                    expression->emitFinal(token);
+                }
+                else
+                    expression->park(token);
+                if(token->Priority() == priBreak){
+                    expression->flushSideTrack();
+                    auto *flush_token = findToken("~~~=~~~", 7);
+                    if(flush_token != NULL)
+                        expression->emitFinal(flush_token);
+                    expression = expression->Next(new ParsedExpression(this));
+                }
+            }
+        }
+        else if (isbracket(head, &newHead))
+        {
+            token = scanBracket(head, &tail);
+            head = newHead;
+            head = tail;
+            if (token != NULL)
+            {
+                if (token->TokenType() == _close_bracket)
+                {
+                    if (expression->hasParkedTokens())
                     {
-                        char *dummy;
-                        ParserToken *default_token = scanOperator((char *)this->defaultOperator(), &dummy);
-                        expression->park(default_token);
+                        while (expression->hasParkedTokens())
+                        {
+                            ParserToken *head_token = expression->peekParked();
+                            if (head_token->TokenType() == _open_bracket)
+                            {
+                                expression->unpark();
+                                break;
+                            }
+                            else
+                            {
+                                expression->emitFinal(head_token);
+                                expression->unpark();
+                            }
+                        }
+                    }
+                    else
+                        expression->AddError(sdsnew("unbalanced brackets"));
+                    if (token->Is(";"))
+                        expression->emitFinal(token);
+                    if (this->object_and_array_controls)
+                    {
+                        expression->emitFinal(token);
                     }
                 }
-                expression->park(token);
+                else
+                {
+                    if (this->object_and_array_controls)
+                    {
+                        expression->emitFinal(token);
+                    }
+                    if (last_token &&
+                        (last_token->TokenType() == _operand || last_token->TokenType() == _close_bracket))
+                    {
+                        while (expression->hasParkedTokens())
+                        {
+                            expression->moveSideTrackToFinal();
+                        }
+                        if (this->hasDefaultOperator())
+                        {
+                            char *dummy;
+                            ParserToken *default_token = scanOperator((char *)this->defaultOperator(), &dummy);
+                            expression->park(default_token);
+                        }
+                    }
+                    expression->park(token);
+                }
             }
         }
         else if (is_space(*head))
@@ -160,9 +204,10 @@ ParsedExpression *Sjiboleth::Parse(const char *query)
         else
         {
             token = scanIdentifier(head, &tail);
-            if(token->HasParserContextProc()){
+            if (token->HasParserContextProc())
+            {
                 parserContextProc *pcp = token->ParserContextProc();
-                token = (ParserToken *)pcp((CParserToken *) token, head, (CParsedExpression *)expression);
+                token = (ParserToken *)pcp((CParserToken *)token, head, (CParsedExpression *)expression, (CSjiboleth *)this);
             }
             head = tail;
             switch (token->TokenType())
@@ -187,9 +232,16 @@ ParsedExpression *Sjiboleth::Parse(const char *query)
         last_token = token;
     }
     expression->flushSideTrack();
+                auto *flush_token = findToken("~~~=~~~", 7);
+                if (flush_token != NULL)
+                    expression->emitFinal(flush_token);
     // //printf(head);
-    expression->show(query);
-    return expression;
+    // auto *e = root_expression;
+    // while(e != NULL){
+    //     e->show(query);
+    //     e = e->Next();
+    // }
+    return root_expression;
 }
 
 void ParsedExpression::show(const char *query)
@@ -245,6 +297,10 @@ sds ParsedExpression::ToString()
     while ((t = this->expression->Next()) != NULL)
     {
         result = sdscatprintf(result, " %s", t->Token());
+    }
+    if (this->next != NULL)
+    {
+        result = sdscatprintf(result, "\n%s", this->Next()->ToString());
     }
     return result;
 }
@@ -303,12 +359,15 @@ bool ParsedExpression::hasParkedTokens()
     return listLength(side_track) > 0;
 }
 
-bool ParsedExpression::hasParkedToken(const char *token){
+bool ParsedExpression::hasParkedToken(const char *token)
+{
     listIter *li = listGetIterator(this->side_track, AL_START_HEAD);
     listNode *ln;
-    while((ln = listNext(li)) != NULL) {
+    while ((ln = listNext(li)) != NULL)
+    {
         ParserToken *t = (ParserToken *)ln->value;
-        if(t->Is(token)){
+        if (t->Is(token))
+        {
             listReleaseIterator(li);
             return true;
         }
@@ -317,9 +376,10 @@ bool ParsedExpression::hasParkedToken(const char *token){
     return false;
 }
 
-bool Sjiboleth::isbracket(char aChar)
+bool Sjiboleth::isbracket(char *aChar, char **newPos)
 {
-    switch (aChar)
+    *newPos = aChar;
+    switch (*aChar)
     {
     case '(':
     case ')':
@@ -329,9 +389,101 @@ bool Sjiboleth::isbracket(char aChar)
     case ']':
     case ';':
         return true;
+    case 0xe2: // Unicode
+        if(*(aChar+1) == 0x80 && *(aChar+2) == 0x9c){
+            *newPos = aChar + 2;
+            return true;
+        }
+        if(*(aChar+1) == 0x80 && *(aChar+2) == 0x98){
+            *newPos = aChar + 2;
+            return true;
+        }
+        if(*(aChar+1) == 0x20 && *(aChar+2) == 0x39){
+            *newPos = aChar + 2;
+            return true;
+        }
+        if(*(aChar+1) == 0x80 && *(aChar+2) == 0x9d){
+            *newPos = aChar + 2;
+            return true;
+        }
+        if(*(aChar+1) == 0x80 && *(aChar+2) == 0x99){
+            *newPos = aChar + 2;
+            return true;
+        }
+        if(*(aChar+1) == 0x20 && *(aChar+2) == 0x3a){
+            *newPos = aChar + 2;
+            return true;
+        }
+        return false;
     default:
         return false;
     }
+}
+
+bool Sjiboleth::Is_Bracket_Open(char *aChar, char **newPos)
+{
+    *newPos = aChar;
+    switch (*aChar)
+    {
+    case '(':
+    case '{':
+    case '[':
+    case ';':
+        return true;
+    case 0xe2: // Unicode
+        if(*(aChar+1) == 0x80 && *(aChar+2) == 0x9c){
+            *newPos = aChar + 2;
+            return true;
+        }
+        if(*(aChar+1) == 0x80 && *(aChar+2) == 0x98){
+            *newPos = aChar + 2;
+            return true;
+        }
+        if(*(aChar+1) == 0x20 && *(aChar+2) == 0x39){
+            *newPos = aChar + 2;
+            return true;
+        }
+        if(*(aChar+1) == 0x80 && *(aChar+2) == 0x9d){
+            *newPos = aChar + 2;
+            return true;
+        }
+        if(*(aChar+1) == 0x80 && *(aChar+2) == 0x99){
+            *newPos = aChar + 2;
+            return true;
+        }
+        if(*(aChar+1) == 0x20 && *(aChar+2) == 0x3a){
+            *newPos = aChar + 2;
+            return true;
+        }
+        return false;
+    default:
+        return false;
+    }
+}
+
+
+char *Sjiboleth::getFence(char *aChar)
+{
+    switch (*aChar)
+    {
+    case '(':
+        return ")";
+    case '{':
+        return "}";
+    case '[':
+        return "]";
+    case 0xe2: // Unicode
+        if(*(aChar+1) == 0x80 && *(aChar+2) == 0x9c)
+            return "\xe2\x80\x9d";
+        if(*(aChar+1) == 0x80 && *(aChar+2) == 0x98)
+            return "\xe2\x80\x99";
+        if(*(aChar+1) == 0x20 && *(aChar+2) == 0x39)
+            return "\xe2\x20\x3a";
+        return aChar;
+    default:
+        return aChar;
+    }
+        return aChar;
 }
 
 bool Sjiboleth::is_space(char aChar)
@@ -358,6 +510,7 @@ bool Sjiboleth::isNumber(char *aChar)
 
 bool Sjiboleth::isoperator(char aChar)
 {
+    // TODO: Construct from registered tokens!
     switch (aChar)
     {
     case '.':
@@ -379,6 +532,7 @@ bool Sjiboleth::isoperator(char aChar)
     case '|':
     case '&':
     case '%':
+    case ';':
         return !this->crlftab_as_operator;
     case '@':
         return this->crlftab_as_operator;
@@ -402,8 +556,9 @@ bool Sjiboleth::iscsym(int c)
 ParserToken *Sjiboleth::scanIdentifier(char *head, char **tail)
 {
     *tail = head + 1;
+    char *newTail = NULL;
     // int last_was_literal_fence = 0;
-    while (**tail && !(/*(**tail == '"' || **tail == '\'') || isNumber(*tail) ||*/  isoperator(**tail) || isbracket(**tail) || is_space(**tail)))
+    while (**tail && !(/*(**tail == '"' || **tail == '\'') || isNumber(*tail) ||*/ isoperator(**tail) || isbracket(*tail, &newTail) || is_space(**tail)))
     {
 
         // last_was_literal_fence = (**tail == '"' || **tail == '\'');
@@ -443,15 +598,10 @@ ParserToken *Sjiboleth::scanOperator(char *head, char **tail)
 ParserToken *Sjiboleth::scanBracket(char *head, char **tail)
 {
     *tail = head + 1;
-    switch (*head)
-    {
-    case '(':
-    case '{':
-    case '[':
-        return newToken(_open_bracket, head, 1);
-    default:
-        return newToken(_close_bracket, head, 1);
-    }
+    eTokenType token_type = (Is_Bracket_Open(head, tail))
+                                ?_open_bracket: _close_bracket;
+    *tail = *tail + 1;
+    return newToken(token_type, head, *tail - head);
 }
 
 ParserToken *Sjiboleth::scanNumber(char *head, char **tail)
@@ -514,9 +664,22 @@ ParsedExpression::ParsedExpression(Sjiboleth *dialect)
     this->expression = new GraphStack<ParserToken>();
     this->side_track = listCreate();
     this->errors = listCreate();
+    this->next = NULL;
 };
 
-SilNikParowy *ParsedExpression::GetEngine(){
+ParsedExpression *ParsedExpression::Next(ParsedExpression *next)
+{
+    this->next = next;
+    return next;
+};
+
+ParsedExpression *ParsedExpression::Next()
+{
+    return this->next;
+};
+
+SilNikParowy *ParsedExpression::GetEngine()
+{
     return this->dialect->GetEngine();
 }
 
@@ -525,15 +688,18 @@ void ParsedExpression::AddError(sds msg)
     listAddNodeTail(this->errors, msg);
 }
 
-bool ParsedExpression::HasErrors(){
+bool ParsedExpression::HasErrors()
+{
     return listLength(this->errors) > 0;
 }
 
-int ParsedExpression::writeErrors(RedisModuleCtx *ctx){
+int ParsedExpression::writeErrors(RedisModuleCtx *ctx)
+{
     RedisModule_ReplyWithArray(ctx, listLength(this->errors));
     listIter *li = listGetIterator(this->errors, 0);
     listNode *ln;
-    while ((ln = listNext(li)) != NULL){
+    while ((ln = listNext(li)) != NULL)
+    {
         RedisModule_ReplyWithSimpleString(ctx, (char *)ln->value);
     }
     listReleaseIterator(li);

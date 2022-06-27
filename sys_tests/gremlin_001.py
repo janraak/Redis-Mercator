@@ -57,6 +57,8 @@ def check_server(must_flush):
         if m[b'name'].decode('utf-8') == "rxFetch": fetcher_loaded= True
     if not fetcher_loaded:
         redis_index.execute_command("MODULE LOAD /home/pi/redis/redis-6.0.10/extensions/src/rxFetch.so a b c")
+
+    exit(0)    
     
     if must_flush:
         redis_client.execute_command("FLUSHALL")
@@ -69,7 +71,7 @@ def check_server(must_flush):
     redis_client.execute_command("RULE.SET $$ISKINDVAN hasout(zoon,dochter).out(zoon,dochter).by(object)")
     redis_client.execute_command("RULE.SET $$RAAK has(family,raak).property(target,yes)")
     redis_client.execute_command("RULE.SET $$HORST has(family,horst).property(target,yes)")
-    redis_client.execute_command("RULE.SET $$OUDERSBEKEND (hasin(vader)|hasin(moeder)).property(known_parent,yes)")
+    redis_client.execute_command("RULE.SET $$OUDERSBEKEND (as(aKey).hasin(vader)|as(aKey).hasin(moeder)).property(known_parent,yes)")
     redis_index.close()
 
     return redis_client

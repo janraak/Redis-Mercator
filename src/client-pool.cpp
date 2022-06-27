@@ -71,6 +71,16 @@ redisContext *RedisClientPool::Acquire(sds host, int port)
     return client;
 }
 
+redisContext *RedisClientPool::Acquire(const char *host, int port)
+{
+    if(host == NULL)
+        return NULL;
+    sds address = sdsnew(host);
+    redisContext *ctx = RedisClientPool::Acquire(address, port);
+    sdsfree(address);
+    return ctx;
+}
+
 void RedisClientPool::Release(redisContext *client)
 {
     auto *pool = (RedisClientPool *)raxFind(RedisClientPool::Lookup, (UCHAR *)client, sizeof(client));

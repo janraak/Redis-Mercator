@@ -1073,6 +1073,7 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(GremlinScopeCheck)
 {
     rxUNUSED(head);
     rxUNUSED(expression);
+    rxUNUSED(pO);
     if (HasParkedToken(expression, "by"))
     {
         ParserToken *to_cpy = (ParserToken *)t;

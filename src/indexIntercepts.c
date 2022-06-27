@@ -1,14 +1,30 @@
 #include "rxSuite.h"
 #include "indexIntercepts.h"
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
+#define REDISMODULE_EXPERIMENTAL_API
+#include "/usr/include/arm-linux-gnueabihf/bits/types/siginfo_t.h"
+#include <sched.h>
+#include <signal.h>
 
+#undef _GNU_SOURCE
+#undef _DEFAULT_SOURCE
+#undef _LARGEFILE_SOURCE
+#undef LL_RAW
+#include "server.h"
+#include <ctype.h>
+#include <locale.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-// extern sds stringKey = NULL;
-// extern sds hashKey = NULL;
-// extern sds noFieldName = NULL;
-
-// extern Parser *json_parser = NULL;
+#ifdef __cplusplus
+}
+#endif
 
 extern indexerThread index_info;
 
@@ -95,8 +111,10 @@ struct redisCommand interceptorCommandTable[] = {
 
 void freeIndexingRequest(sds *kfv)
 {
+    if(kfv == NULL)
+        return;
     // // Free key, fields and values
-    for (int j = 0; kfv[j]; j++)
+    for (int j = 0; kfv[j] != NULL; j++)
     {
         sdsfree(kfv[j]);
     }
@@ -119,13 +137,13 @@ void enqueueSetCommand(client *c)
 
     sds *index_request = RedisModule_Alloc(sizeof(sds) * (c->argc + 1));
 
+
     int j = 0;
     for (; j < c->argc; ++j)
     {
         if (c->argv[j]->encoding == 1)
         {
-            index_request[j] = sdsempty();
-            index_request[j] = sdscatfmt(index_request[j], "%i", (int)c->argv[j]->ptr);
+            index_request[j] = sdscatfmt(sdsempty(), "%i", (int)c->argv[j]->ptr);
         }
         else
         {

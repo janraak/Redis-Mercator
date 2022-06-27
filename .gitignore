@@ -1,2 +1,6 @@
 *.so
 *.xo
+*.lst
+*.rdb
+__pycache__
+*.log

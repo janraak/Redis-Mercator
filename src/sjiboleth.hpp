@@ -87,10 +87,13 @@ protected:
 
     ParserToken *getTokenAt(list *list, int ix);
     ParserToken *newToken(eTokenType token_type, const char *token, size_t len);
+    ParserToken *findToken(const char *token, size_t len);
     bool isoperator(char aChar);
     bool isNumber(char *aChar);
     bool is_space(char aChar);
-    bool isbracket(char aChar);
+    bool isbracket(char *aChar, char **newPos);
+    bool Is_Bracket_Open(char *aChar, char **newPos);
+    char *getFence(char *aChar);
     bool iscsym(int c);
     ParserToken *scanIdentifier(char *head, char **tail);
     ParserToken *scanLiteral(char *head, char **tail);
@@ -110,6 +113,9 @@ protected:
     DECLARE_SJIBOLETH_HANDLER(executeNotIn);
 
 public:
+    ParserToken *LookupToken(sds token);
+
+public:
     Sjiboleth(const char *default_operator);
     Sjiboleth();
     virtual ~Sjiboleth();
@@ -127,6 +133,7 @@ public:
     friend class ParsedExpression;
 
     virtual SilNikParowy *GetEngine();
+
 };
 
 class QueryDialect : public Sjiboleth
@@ -166,6 +173,8 @@ class TextDialect : public Sjiboleth
 public:
     virtual bool registerDefaultSyntax();
 
+    bool static FlushIndexables(rax *collector, sds key, char *key_type, redisContext *index);
+    
     TextDialect();
 };
 
@@ -177,6 +186,8 @@ protected:
     GraphStack<ParserToken> *expression;
     list *errors;
     list *side_track;
+
+    ParsedExpression *next;
 
 public:
 
@@ -209,6 +220,9 @@ public:
     SilNikParowy *GetEngine();
 
     sds ToString();
+
+    ParsedExpression *Next();
+    ParsedExpression *Next(ParsedExpression *next);
 };
 
 #endif

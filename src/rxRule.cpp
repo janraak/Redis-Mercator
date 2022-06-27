@@ -12,6 +12,7 @@
 using std::string;
 #include "rule.hpp"
 #include "sjiboleth.h"
+#include "client-pool.hpp"
 
 // #include "rxIndex-silnikparowy.hpp"
 
@@ -153,91 +154,63 @@ int rxApply(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     return REDISMODULE_OK;
 }
 
-void executeTest(CSjiboleth *g, const char *cmd, RedisModuleCtx *ctx, list *errors)
+void executeTest(sds key, CSjiboleth *g, const char *cmd, RedisModuleCtx *ctx, list *errors)
 {
     rxUNUSED(errors);
     auto *parser = (Sjiboleth *)g;
+    auto text_parser = newTextEngine();
+
     auto *t = parser->Parse(cmd);
-    t->Show(cmd);
-    if (parsedWithErrors(t))
-    {
-        writeParsedErrors(t, ctx);
-        return;
-    }
+    auto *index_node = RedisClientPool::Acquire("192.168.1.182", 6379);
     auto *e = new SilNikParowy_Kontekst((char *)"192.168.1.182", 6379, ctx);
-    rax *r = e->Execute(t);
-    if (r)
+    auto *collector = raxNew();
+    e->Memoize("@@SilNikParowy_Kontekst@@", (void *)e);
+    e->Memoize("@@TEXT_PARSER@@", (void *)text_parser);
+    e->Memoize("@@collector@@", (void *)collector);
+    t->Show(cmd);
+    auto *tt = t;
+    int no_sub_expr = 0;
+    while (tt != NULL)
     {
-        WriteResults(r, ctx, 0, NULL);
-        if (e->CanDeleteResult())
-            FreeResults(r);
+        no_sub_expr++;
+        tt = tt->Next();
     }
-    else
-        RedisModule_ReplyWithSimpleString(ctx, "No results!");
+    if(no_sub_expr > 1)
+        RedisModule_ReplyWithArray(ctx, no_sub_expr);
+    while (t != NULL)
+    {
+        // printf("%s\n", t->ToString());
+        if (parsedWithErrors(t))
+        {
+            writeParsedErrors(t, ctx);
+            return;
+        }
+        rax *r = e->Execute(t);
+        if (r)
+        {
+            WriteResults(r, ctx, 0, NULL);
+            if (e->CanDeleteResult())
+                FreeResults(r);
+        }
+        else
+            RedisModule_ReplyWithSimpleString(ctx, "No results!");
+        t = t->Next();
+    }
+    TextDialect::FlushIndexables(collector, key, (char *)"S", index_node);
     e->Reset();
+    RedisClientPool::Release(index_node);
+    raxFree(collector);
+    e->Forget("@@SilNikParowy_Kontekst@@");
+    e->Forget("@@TEXT_PARSER@@");
+    e->Forget("@@collector@@");
     releaseQuery(t);
+    releaseParser(text_parser);
 }
-
-SJIBOLETH_HANDLER(IndexerJsonComma)
-rxUNUSED(t);
-
-rxUNUSED(stack);
-ERROR("Operation not yet implemented");
-END_SJIBOLETH_HANDLER(IndexerJsonComma)
-
-SJIBOLETH_HANDLER(IndexerJsonAttributeValue)
-rxUNUSED(t);
-
-rxUNUSED(stack);
-FaBlok *value = stack->Pop();
-FaBlok *field = stack->Pop();
-printf("%s = %s\n", field->AsSds(), value->AsSds());
-END_SJIBOLETH_HANDLER(IndexerJsonAttributeValue)
-
-SJIBOLETH_HANDLER(IndexerTextDash)
-printf("%s\n", t->TokenAsSds());
-stack->DumpStack();
-END_SJIBOLETH_HANDLER()
-SJIBOLETH_HANDLER(IndexerTextDot)
-printf("%s\n", t->TokenAsSds());
-stack->DumpStack();
-END_SJIBOLETH_HANDLER()
-SJIBOLETH_HANDLER(IndexerTextAt)
-printf("%s\n", t->TokenAsSds());
-stack->DumpStack();
-END_SJIBOLETH_HANDLER()
-SJIBOLETH_HANDLER(IndexerTextComma)
-printf("%s\n", t->TokenAsSds());
-stack->DumpStack();
-END_SJIBOLETH_HANDLER()
-SJIBOLETH_HANDLER(IndexerTextSemiColon)
-printf("%s\n", t->TokenAsSds());
-stack->DumpStack();
-END_SJIBOLETH_HANDLER()
-SJIBOLETH_HANDLER(IndexerTextColon)
-printf("%s\n", t->TokenAsSds());
-stack->DumpStack();
-END_SJIBOLETH_HANDLER()
-SJIBOLETH_HANDLER(IndexerTextTab)
-printf("%s\n", t->TokenAsSds());
-stack->DumpStack();
-END_SJIBOLETH_HANDLER()
-SJIBOLETH_HANDLER(IndexerTextNL)
-printf("%s\n", t->TokenAsSds());
-stack->DumpStack();
-END_SJIBOLETH_HANDLER()
-SJIBOLETH_HANDLER(IndexerTextQuote)
-printf("%s\n", t->TokenAsSds());
-stack->DumpStack();
-END_SJIBOLETH_HANDLER()
-SJIBOLETH_HANDLER(IndexerTextApostrophe)
-printf("%s\n", t->TokenAsSds());
-stack->DumpStack();
-END_SJIBOLETH_HANDLER()
 
 int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     sds cmd = (char *)rxGetContainedObject(argv[0]);
+    sds key = (char *)rxGetContainedObject(argv[1]);
     const char *target_setname = NULL;
     sdstoupper(cmd);
     // int fetch_rows = strcmp(RX_GET, cmd) == 0 ? 1 : 0;
@@ -246,7 +219,7 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     size_t arg_len;
     sds sep = sdsnew("");
     int show_parser_debug_info = 0;
-    for (int j = 1; j < argc; ++j)
+    for (int j = 2; j < argc; ++j)
     {
         char *q = (char *)RedisModule_StringPtrLen(argv[j], &arg_len);
         if (stringmatchlen(q, strlen(AS_ARG), AS_ARG, strlen(AS_ARG), 1) && strlen(q) == strlen(AS_ARG))
@@ -280,31 +253,19 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     {
         parser = newJsonEngine();
         dialect_skippy = strlen(JSON_PREFX);
-        ((Sjiboleth *)parser)->RegisterSyntax(",", 5, 0, 0, IndexerJsonComma);
-        ((Sjiboleth *)parser)->RegisterSyntax(":", 30, 0, 0, IndexerJsonAttributeValue);
     }
     else if (
         stringmatchlen(query, 2, TXT_PREFX, strlen(TXT_PREFX), 1))
     {
         parser = newTextEngine();
         dialect_skippy = strlen(TXT_PREFX);
-        ((Sjiboleth *)parser)->RegisterSyntax("=", 5, 0, 0, NULL);
-        ((Sjiboleth *)parser)->RegisterSyntax("-", 5, 0, 0, IndexerTextDash);
-        ((Sjiboleth *)parser)->RegisterSyntax(".", 5, 0, 0, IndexerTextDot);
-        ((Sjiboleth *)parser)->RegisterSyntax("@", 5, 0, 0, IndexerTextAt);
-        ((Sjiboleth *)parser)->RegisterSyntax(",", 5, 0, 0, IndexerTextComma);
-        ((Sjiboleth *)parser)->RegisterSyntax(";", 5, 0, 0, IndexerTextSemiColon);
-        ((Sjiboleth *)parser)->RegisterSyntax(":", 5, 0, 0, IndexerTextColon);
-        ((Sjiboleth *)parser)->RegisterSyntax("\t", 5, 0, 0, IndexerTextTab);
-        ((Sjiboleth *)parser)->RegisterSyntax("\n", 5, 0, 0, IndexerTextNL);
-        ((Sjiboleth *)parser)->RegisterSyntax("`", 5, 0, 0, IndexerTextQuote);
-        ((Sjiboleth *)parser)->RegisterSyntax("'", 5, 0, 0, IndexerTextApostrophe);
     }
     else
         parser = newQueryEngine();
 
     list *errors = listCreate();
-    executeTest(parser, (const char *)query + dialect_skippy, ctx, errors);
+    
+    executeTest(key, parser, (const char *)query + dialect_skippy, ctx, errors);
     listRelease(errors);
     releaseParser(parser);
     return REDISMODULE_OK;

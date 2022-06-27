@@ -36,81 +36,29 @@
 #define __RXINDEXER_H__
 
 #define REDISMODULE_EXPERIMENTAL_API
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 #include "redismodule.h"
-#include "/usr/include/arm-linux-gnueabihf/bits/types/siginfo_t.h"
-#include <sched.h>
-#include <signal.h>
+#include "rxSuite.h"
 
 #include "adlist.h"
 #include "../../src/dict.h"
-#include "server.h"
+// #include "server.h"
 #include <ctype.h>
 #include <locale.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <simpleQueue.h>
-#include "rxSuite.h"
+// #include "simpleQueue.h"
 
-void tokenizeValue(sds objectKey, sds keyType, sds fieldName, sds fieldValue);
-
-int stringCaseCompare(void *privdata, const void *key1, const void *key2)
-{
-    rxUNUSED(privdata);
-    int rc = strcmp((const char *)key1, (const char *)key2);
-    serverLog(LL_NOTICE, "----------------> |%s|::|%s| == %i", (const sds)key1, (const sds)key2, rc);
-    return rc;
+#ifdef __cplusplus
 }
+#endif
+#include "simpleQueue.hpp"
 
-// const void *stringDuplicate(void *privdata, const void *key)
-// {
-//     rxUNUSED(privdata);
-//     const void *rc = strdup((const char *)key);
-//     serverLog(LL_NOTICE, "----------------> |%s| => %s", (const sds)key, rc);
-//     return rc;
-// }
-
-uint64_t stringHash(const void *key)
-{
-    uint64_t rc = dictGenHashFunction(key, strlen((char *)key));
-    serverLog(LL_NOTICE, "----------------> |%s| => %lli", (const sds)key, rc);
-    return rc;
-}
-
-void keyDestructor(void *privdata, void *val)
-{
-    rxUNUSED(privdata);
-    rxUNUSED(val);
-    // zfree(val);
-}
-
-void valueDestructor(void *privdata, void *val)
-{
-    rxUNUSED(privdata);
-    rxUNUSED(val);
-    // if (val)
-    //     zfree(val);
-}
-
-/* Command table. sds string -> command struct pointer. */
-dictType valueDictType = {
-    stringHash,        /* hash function */
-    NULL,   /* key dup */
-    NULL,              /* val dup */
-    stringCaseCompare, /* key compare */
-    dictSdsDestructor,     /* key destructor */
-    valueDestructor    /* val destructor */
-};
-
-
-// /* Db->dict, keys are sds strings, vals are Redis objects. */
-extern dictType tokenDictType;// = {
-//     dictSdsHash,                /* hash function */
-//     NULL,                       /* key dup */
-//     NULL,                       /* val dup */
-//     dictSdsKeyCompare,          /* key compare */
-//     dictSdsDestructor,          /* key destructor */
-//     NULL   /* val destructor */
-// };
 /* Threads. */
 #endif

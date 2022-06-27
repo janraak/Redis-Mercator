@@ -216,6 +216,8 @@ bool Sjiboleth::resetSyntax()
 bool Sjiboleth::RegisterSyntax(const char *op, short token_priority, int inE, int outE, operationProc *opf)
 {
     auto *t = new ParserToken(op, _operator, token_priority, inE, outE, opf);
+    void *old;
+    raxRemove(this->registry, t->Operation(), t->OperationLength(), &old);
     raxInsert(this->registry, t->Operation(), t->OperationLength(), t, NULL);
     return true;
 }
@@ -223,6 +225,8 @@ bool Sjiboleth::RegisterSyntax(const char *op, short token_priority, int inE, in
 bool Sjiboleth::RegisterSyntax(const char *op, short token_priority, int inE, int outE, operationProc *opf, parserContextProc *pcf)
 {
     auto *t = new ParserToken(op, _operator, token_priority, inE, outE, opf);
+    void *old;
+    raxRemove(this->registry, t->Operation(), t->OperationLength(), &old);
     t->ParserContextProc(pcf);
     raxInsert(this->registry, t->Operation(), t->OperationLength(), t, NULL);
     return true;
@@ -230,8 +234,20 @@ bool Sjiboleth::RegisterSyntax(const char *op, short token_priority, int inE, in
 
 bool Sjiboleth::DeregisterSyntax(const char *op)
 {
-    rxUNUSED(op);
-    return false;
+    void *old;
+    raxRemove(this->registry, (UCHAR *)op, strlen(op), &old);
+    return true;
+}
+
+
+ParserToken *Sjiboleth::LookupToken(sds token){
+	ParserToken *referal_token = (ParserToken *)raxFind(this->registry, (UCHAR *)token, sdslen(token));
+	if (referal_token != raxNotFound){
+        // if (referal_token->Priority() == priBreak)
+        //     return NULL;
+        return referal_token;
+    }
+    return NULL;
 }
 
 Sjiboleth::Sjiboleth()

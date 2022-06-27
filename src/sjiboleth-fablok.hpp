@@ -49,27 +49,31 @@ typedef bool RaxCopyCallProc(unsigned char *s, size_t len, void *data, void **pr
 class SilNikParowy;
 class FaBlok
 {
-private:
+public:
     static rax *Registry;
     void pushIndexEntries(redisReply *reply);
 
     UCHAR value_type;
 public:
-    /*
-        Since  expression are parsed into Reversed Polish Notation
-        the moving parts for the expression execution are named
-        after the Polish Manufacturer of Steam Trains.
-    */
-    long long creationTime;
-    long long start;
-    long long latency;
-    sds setname;
-    size_t reuse_count;
-    size_t size;
-    rax keyset;
-    GraphStack<FaBlok> *parameter_list;
-    FaBlok *left;
-    FaBlok *right;
+      static  rax *Get_Thread_Registry();
+
+        /*
+            Since  expression are parsed into Reversed Polish Notation
+            the moving parts for the expression execution are named
+            after the Polish Manufacturer of Steam Trains.
+        */
+        long long creationTime;
+        long long start;
+        long long latency;
+        sds setname;
+        size_t reuse_count;
+        size_t size;
+        rax keyset;
+        char rumble_strip1[16];
+        GraphStack<FaBlok> *parameter_list;
+        char rumble_strip2[16];
+        FaBlok *left;
+        FaBlok *right;
 
     public:
         int is_temp;
@@ -236,6 +240,10 @@ public:
     int fn(CParserToken *tO, CSilNikParowy_Kontekst *stackO) \
     {                                                        \
         UNWRAP_SJIBOLETH_HANDLER_PARAMETERS();
+
+#define SJIBOLETH_HANDLER_STUB(fn)                           \
+    int fn(CParserToken *, CSilNikParowy_Kontekst *)         \
+    {                                                        
 
 #define END_SJIBOLETH_HANDLER(fn)                   \
         return C_OK;                                \

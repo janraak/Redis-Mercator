@@ -14,6 +14,10 @@ void enqueueSimpleQueue(SimpleQueue *q, void *o)
 void *dequeueSimpleQueue(SimpleQueue *q)
 {
   pthread_mutex_lock(&q->fifo_mutex);
+  if(q->fifo->len == 0){
+    pthread_mutex_unlock(&q->fifo_mutex);
+    return NULL;
+  }
   q->dequeue_fifo_tally++;
   listNode *head = listIndex(q->fifo, 0);
   if (head == NULL)
@@ -53,13 +57,13 @@ SimpleQueue *newSimpleQueueAsync(void *handler, int nThreads)
   // if (nThreads <= 0)
     // nThreads = 1;
   // for (; nThreads > 0; nThreads--)
-  // {
+  {
     if (pthread_create(&q->fifo_thread, NULL, handler, q))
     {
       fprintf(stderr, "FATAL: Failed to start indexer thread\n");
       exit(1);
     }
-  // }
+  }
   return q;
 }
 

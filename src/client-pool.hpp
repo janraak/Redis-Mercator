@@ -36,6 +36,7 @@ public:
     int Grow();
 
     static redisContext *Acquire(sds host, int port);
+    static redisContext *Acquire(const char *host, int port);
 
     static void Release(redisContext *client);
 };

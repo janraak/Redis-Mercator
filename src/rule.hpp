@@ -8,11 +8,15 @@ extern "C"
 
 #include "rax.h"
 
+#ifndef LL_RAW
+
 #define LL_DEBUG 0
 #define LL_VERBOSE 1
 #define LL_NOTICE 2
 #define LL_WARNING 3
 #define LL_RAW (1 << 10) /* Modifier to log without timestamp */
+
+#endif 
 
 #ifdef __GNUC__
     void serverLog(int level, const char *fmt, ...)
@@ -20,7 +24,7 @@ extern "C"
 #else
 void serverLog(int level, const char *fmt, ...);
 #endif
-#include "adlist.h"
+#include "../../src/adlist.h"
 //#include "parser.h"
 //#include "queryEngine.h"
 #include "rxSuite.h"

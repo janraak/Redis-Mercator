@@ -51,6 +51,10 @@ CSjiboleth *newGremlinEngine()
     return (CSjiboleth *)qd;
 }
 
+CParserToken *lookupToken(CSjiboleth *s, sds token){
+    return ((Sjiboleth *)s)->LookupToken(token);
+}
+
 CParsedExpression *parseQ(CSjiboleth *s, const char *query)
 {
     Sjiboleth *so = (Sjiboleth *)s;
@@ -289,11 +293,14 @@ bool HasParkedToken(CParsedExpression *pO, const char *token){
         ParserToken *t = (ParserToken *)tO;
         return t->Copy();
     }
+
     void SetParserTokenType(ParserToken *tO, eTokenType tt){
         ParserToken *t = (ParserToken *)tO;
         t->TokenType(tt);
     }
+
     void SetParserTokenPriority(ParserToken *tO, short pri){
         ParserToken *t = (ParserToken *)tO;
         t->Priority(pri);
     }
+
