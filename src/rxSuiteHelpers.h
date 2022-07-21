@@ -13,6 +13,7 @@ extern "C"
 #include "ae.h"
 #include "rax.h"
 #include "../../src/dict.h"
+#include "../../src/sds.h"
 
 #ifdef __cplusplus
 }
@@ -90,18 +91,26 @@ int rxMatchHasValue(void *oO, sds field, sds pattern, int plen);
 #define rxOBJ_HASH 4      /* Hash object. */
 #define rxOBJ_TRIPLET 15  /* RX triplet object. */
 
-short rxGetObjectType(void *o);
-void *rxCreateObject(int type, void *ptr);
-void *rxCreateStringObject(const char *ptr, size_t len);
-void *rxCreateHashObject(void);
-int rxHashTypeGetValue(void *o, sds field, unsigned char **vstr, POINTER *vlen, long long *vll);
-sds rxGetHashField(void *o, sds field);
-int rxHashTypeSet(void *o, sds field, sds value, int flags);
 
-struct rxHashTypeIterator *rxHashTypeInitIterator(void *subject);
-void rxHashTypeReleaseIterator(struct rxHashTypeIterator *hi);
+    struct client *rxCreateAOFClient(void);
+    struct redisCommand *rxLookupCommand(sds name);
 
-int rxHashTypeNext(struct rxHashTypeIterator *hi);
+    sds rxSdsAttachlen(struct sdshdr32 *s_preamble, const void *init, size_t initlen, size_t *total_size);
+    void *rxSetStringObject(void *o, void *ptr);
+    int rxSizeofRobj();
+
+    short rxGetObjectType(void *o);
+    void *rxCreateObject(int type, void *ptr);
+    void *rxCreateStringObject(const char *ptr, size_t len);
+    void *rxCreateHashObject(void);
+    int rxHashTypeGetValue(void *o, sds field, unsigned char **vstr, POINTER *vlen, long long *vll);
+    sds rxGetHashField(void *o, sds field);
+    int rxHashTypeSet(void *o, sds field, sds value, int flags);
+
+    struct rxHashTypeIterator *rxHashTypeInitIterator(void *subject);
+    void rxHashTypeReleaseIterator(struct rxHashTypeIterator *hi);
+
+    int rxHashTypeNext(struct rxHashTypeIterator *hi);
 
 #define rxOBJ_HASH_KEY 1
 #define rxOBJ_HASH_VALUE 2
@@ -110,12 +119,14 @@ sds rxHashTypeCurrentObjectNewSds(struct rxHashTypeIterator *hi, int what);
 
 void rxFreeStringObject(void *o);
 void rxFreeHashObject(void *o);
+void rxFreeObject(void *o);
 void *rxGetContainedObject(void *o);
 rax *rxSetToRax(void *obj);
 
 long long rxCreateTimeEvent(long long milliseconds,
         aeTimeProc *proc, void *clientData,
         aeEventFinalizerProc *finalizerProc);
+void rxDeleteTimeEvent(long long id);
 
 void rxModulePanic(char *msg);
 
@@ -128,6 +139,9 @@ void *rxRestoreKeyRetainValue(int dbNo, sds key, void *obj);
 void *rxCommitKeyRetainValue(int dbNo, sds key, void *old_state);
 
 unsigned long long mem_avail();
+
+// #include <stdarg.h>
+// void * rxStashCommand(const char *command, int argc, va_list *args);
 
 #ifdef __cplusplus
 }

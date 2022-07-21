@@ -19,6 +19,7 @@ public:
 
     Duplexer();
     virtual ~Duplexer();
+    virtual long long Timeout();
     int Start(RedisModuleCtx *ctx);
     virtual int Execute() = 0;
     virtual int Write(RedisModuleCtx *ctx) = 0;
@@ -55,7 +56,7 @@ int Duplexer_Cron(struct aeEventLoop *eventLoop, long long id, void *clientData)
     return -1;
 }
 
-/* Reply callback for blocking command HELLO.BLOCK */
+/* Reply callback command duplexer */
 int Duplexer_Continuation_Handler(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     REDISMODULE_NOT_USED(argv);
@@ -65,7 +66,7 @@ int Duplexer_Continuation_Handler(RedisModuleCtx *ctx, RedisModuleString **argv,
     return REDIS_OK;
 }
 
-/* Timeout callback for blocking command HELLO.BLOCK */
+/* Timeout callback command duplexer */
 int Duplexer_Timeout(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     REDISMODULE_NOT_USED(argv);
@@ -73,7 +74,7 @@ int Duplexer_Timeout(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     return RedisModule_ReplyWithSimpleString(ctx, "Request timedout");
 }
 
-/* Private data freeing callback for HELLO.BLOCK command. */
+/* Private data freeing callback for command duplexer. */
 void Duplexer_FreeData(RedisModuleCtx *ctx, void *privdata)
 {
     REDISMODULE_NOT_USED(privdata);
@@ -96,9 +97,13 @@ Duplexer::Duplexer(){
 
     Duplexer::~Duplexer(){};
 
+    long long Duplexer::Timeout(){
+        return 60000;
+    }
+
     int Duplexer::Start(RedisModuleCtx *ctx)
     {
-        this->bc = RedisModule_BlockClient(ctx, Duplexer_Continuation_Handler, Duplexer_Timeout, Duplexer_FreeData, 60000);
+        this->bc = RedisModule_BlockClient(ctx, Duplexer_Continuation_Handler, Duplexer_Timeout, Duplexer_FreeData, this->Timeout());
         this->cron_id = rxCreateTimeEvent(1, (aeTimeProc *)Duplexer_Cron, this, NULL);
         return 1;
     };

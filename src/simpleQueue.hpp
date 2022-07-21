@@ -21,17 +21,28 @@ public:
     std::atomic<int> dequeue_fifo_tally;
     std::atomic<bool> must_stop;
     std::atomic<int> thread_count;
-
+    SimpleQueue *response_queue;
     SimpleQueue()
     {
         this->dequeue_fifo_tally.store(0);
         this->enqueue_fifo_tally.store(0);
         this->must_stop.store(false);
         this->thread_count.store(0);
+        this->response_queue = NULL;
+    }
+    SimpleQueue(SimpleQueue *response_queue)
+    :SimpleQueue()
+    {
+        this->response_queue = response_queue;
     }
 
     SimpleQueue(void *handler, int nThreads)
-        : SimpleQueue()
+        : SimpleQueue(handler, nThreads, NULL)
+    {
+    }
+
+    SimpleQueue(void *handler, int nThreads, SimpleQueue *response_queue)
+        : SimpleQueue(response_queue)
     {
         pthread_t fifo_thread;
         while (nThreads > 0)

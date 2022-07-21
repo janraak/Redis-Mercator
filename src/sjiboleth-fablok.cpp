@@ -22,6 +22,7 @@ extern "C"
 #include "sjiboleth-graph.hpp"
 #include "client-pool.hpp"
 
+
 static char RUMBLE_STRIP1[] = "AUTHOR:JAN RAAK.";
 static char RUMBLE_STRIP2[] = "2022SHORELINE,WA";
 
@@ -269,7 +270,7 @@ sds FaBlok::AsSds()
 
 int FaBlok::FetchKeySet(sds host, int port, sds rh)
 {
-    redisContext *index_context = RedisClientPool::Acquire(host, port);
+    redisContext *index_context = RedisClientPool<redisContext>::Acquire(host, port);
     if (!index_context)
         return C_ERR;
     long long start = ustime();
@@ -284,13 +285,13 @@ int FaBlok::FetchKeySet(sds host, int port, sds rh)
         printf("#550#RXFETCH %s\n", rh);
         printf("#............ FetchKeyset ... %lld ... \n", this->latency);
     }
-    RedisClientPool::Release(index_context);
+    RedisClientPool<redisContext>::Release(index_context);
     return C_OK;
 }
 
 int FaBlok::FetchKeySet(sds h, int port, sds lh, sds rh, sds cmp)
 {
-    auto *index_context = RedisClientPool::Acquire(h, port);
+    auto *index_context = RedisClientPool<redisContext>::Acquire(h, port);
     if(index_context == NULL)
         return C_OK;
     if (index_context == NULL)
@@ -311,7 +312,7 @@ int FaBlok::FetchKeySet(sds h, int port, sds lh, sds rh, sds cmp)
     }
     this->latency = ustime() - start;
     this->pushIndexEntries(rcc);
-    RedisClientPool::Release(index_context);
+    RedisClientPool<redisContext>::Release(index_context);
     return C_OK;
 }
 

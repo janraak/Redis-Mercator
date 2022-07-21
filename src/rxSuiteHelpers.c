@@ -5,7 +5,9 @@ extern "C"
 #endif
 
 #include "../../src/server.h"
+#include "../../src/sds.h"
 #include "rax.h"
+extern struct client *createAOFClient(void);
 
 #include "rxSuiteHelpers.h"
 #ifdef __cplusplus
@@ -266,6 +268,22 @@ sds rxGetHashField(void *oO, sds field)
     return sdsempty();
 }
 
+// Embeded robj setter
+
+void *rxSetStringObject(void * oO, void *ptr) {
+    robj *o = (robj *)oO;
+    o->type = OBJ_STRING;
+    o->encoding = OBJ_ENCODING_RAW;
+    o->ptr = ptr;
+    o->refcount = 1;
+    o->lru = 0;
+    return o;
+}
+
+int rxSizeofRobj() {
+    return sizeof(robj);
+}
+
 // Wrappers
 short rxGetObjectType(void *o)
 {
@@ -288,9 +306,15 @@ void rxFreeStringObject(void *o)
 {
     freeStringObject(o);
 }
+
 void rxFreeHashObject(void *o)
 {
     freeHashObject(o);
+}
+
+void rxFreeObject(void *o)
+{
+    zfree(o);
 }
 
 void *rxGetContainedObject(void *o)
@@ -329,6 +353,11 @@ long long rxCreateTimeEvent(long long milliseconds,
                             aeEventFinalizerProc *finalizerProc)
 {
     return aeCreateTimeEvent(server.el, milliseconds, proc, clientData, finalizerProc);
+}
+
+void rxDeleteTimeEvent(long long id)
+{
+    aeDeleteTimeEvent(server.el, id);
 }
 
 void rxModulePanic(char *msg)
@@ -456,6 +485,7 @@ void *rxCommitKeyRetainValue(int dbNo, sds key, void *old_state)
     freeSetObject(old_state);
     return new_state;
 }
+
 void rxHarvestSortedSetMembers(void *obj, rax *bucket)
 {
     robj *zobj = (robj *)obj;
@@ -536,24 +566,80 @@ void rxClientExecute(void *cO, void *pO)
 {
     struct redisCommand *p = (struct redisCommand *)pO;
     client *c = (client *)cO;
+    c->user = DefaultUser;
+    // replicate = flags & REDISMODULE_ARGV_REPLICATE;
+    c->flags |= CLIENT_MODULE;
+    c->db = &server.db[0];
     c->cmd = pO;
+    // int call_flags = CMD_CALL_SLOWLOG | CMD_CALL_STATS | CMD_CALL_NOWRAP;
+    // call(c, call_flags);
     p->proc(c);
 }
 
-#include <sys/sysinfo.h>
+sds rxSdsAttachlen(struct sdshdr32 *s_preamble, const void *init, size_t initlen, size_t *total_size) {
+    // struct sdshdr32 *s_preamble = (struct sdshdr32 *)shO;
+    char *s;
+    char type = SDS_TYPE_32;
+    int hdrlen = sizeof(struct sdshdr32);
+
+    s = (char *)((void *)s_preamble + hdrlen);
+    memcpy(s, init, initlen);
+    s[initlen] = 0x00;
+
+    s_preamble->len = initlen;
+    s_preamble->alloc = initlen;
+    s_preamble->flags = type;
+    *total_size = hdrlen + initlen + 1;
+    return (sds)s;
+}
+
 #include <sys/resource.h>
- 
+#include <sys/sysinfo.h>
+
 int sysinfo(struct sysinfo *info);
 
 unsigned long long mem_avail()
 {
     struct sysinfo info;
- 
+
     if (sysinfo(&info) < 0)
         return 0;
 
     size_t zmalloc_used = zmalloc_used_memory();
     size_t total_system_mem = (server.system_memory_size < server.maxmemory) ? server.system_memory_size : server.maxmemory;
 
-    return (total_system_mem - zmalloc_used) / info.mem_unit; 
+    return (total_system_mem - zmalloc_used) / info.mem_unit;
 }
+
+
+struct client *rxCreateAOFClient()
+{
+    // return createClient(NULL);
+    return createAOFClient();
+}
+struct redisCommand *rxLookupCommand(sds name)
+{
+    return lookupCommandByCString(name);
+}
+
+// void * rxStashCommand(const char *command, int argc, va_list *args){
+//     void *stash = NULL;
+
+//     va_list cpyArgs;
+//     va_copy(cpyArgs, *args);
+//     size_t total_string_size = 1 + strlen(command);
+//     for (int j = 0; j < argc; j++)
+//     {
+//         sds result = va_arg(args, char *);
+//         total_string_size += 1 + sdslen(result);
+//     }
+
+
+//     // va_copy(cpyArgs, args);
+
+//     // va_copy(cpyArgs, args);
+
+//     // va_copy(cpyArgs, args);
+
+//         return stash;
+// }

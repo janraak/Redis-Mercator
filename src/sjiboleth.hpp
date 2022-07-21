@@ -223,6 +223,7 @@ public:
 
     ParsedExpression *Next();
     ParsedExpression *Next(ParsedExpression *next);
+    GraphStack<ParserToken> *RPN();
 };
 
 #endif

@@ -267,10 +267,16 @@ Sjiboleth::Sjiboleth(const char *default_operator)
     this->registerDefaultSyntax();
 }
 
+static void FreeSyntax(void *o)
+{
+    auto *t = (ParserToken *)o;
+    delete t;
+}
+
 Sjiboleth::~Sjiboleth()
 {
     this->resetSyntax();
-    raxFree(this->registry);
+    raxFreeWithCallback(this->registry, FreeSyntax);
 }
 
 bool Sjiboleth::hasDefaultOperator()

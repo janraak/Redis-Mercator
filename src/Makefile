@@ -9,10 +9,10 @@ CPPSOURCES := $(wildcard*.cpp)
 # Compile flags for linux / osx
 CFLAGS ?= -std=c99
 ifeq ($(uname_S),Linux)
-	SHOBJ_CFLAGS ?= -W -Wall -fno-common -g -ggdb -O2 
-	SHOBJ_LDFLAGS ?= -shared
+	SHOBJ_CFLAGS ?= -W -Wall -fno-common -g -ggdb -O2  -fPIC
+	SHOBJ_LDFLAGS ?= -shared 
 else
-	SHOBJ_CFLAGS ?= -W -Wall -dynamic -fno-common -g -ggdb -O2 
+	SHOBJ_CFLAGS ?= -W -Wall -dynamic -fno-common -g -ggdb -O2  -fPIC
 	SHOBJ_LDFLAGS ?= -bundle -undefined dynamic_lookup
 endif
 
@@ -83,12 +83,12 @@ FILT = $(filter-out $(OBSOLETEFLAGS), $(CFLAGS))
 .cpp.xo:
 	c++ -I.. -I. $(CXXFLAGS) -shared  $(WARNNING) $(FILT) $(SHOBJ_CFLAGS)   -isystem -DUSE_JEMALLOC  -Werror=main -std=c++17 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -isystem -DUSE_JEMALLOC  -I../../deps/hiredis -I../../deps/linenoise -I../../deps/lua/src -I/usr/include -fPIC  $< -o $@
 
-rxGraphdb.so: ../../src/redismodule.h graphdb.cpp graphstack.hpp   rxSuite.xo  rxSuiteHelpers.xo  queryEngine.xo parser.xo token.xo
-	g++  $(CXXFLAGS) -shared  $(WARNNING) $(FILT) $(SHOBJ_CFLAGS) -g -ggdb -o rxGraphdb.so -fPIC  graphdb.cpp  rxSuite.xo  rxSuiteHelpers.xo  queryEngine.xo  parser.xo token.xo 
+rxGraphdb.so: ../../src/redismodule.h graphdb.cpp graphstack.hpp   rxSuite.xo  rxSuiteHelpers.xo  queryEngine.xo parser.xo token.xo sjiboleth.so  client-pool.hpp
+	g++  $(CXXFLAGS) -shared  $(WARNNING) $(FILT) $(SHOBJ_CFLAGS) -g -ggdb -o rxGraphdb.so -fPIC  graphdb.cpp  rxSuite.xo  rxSuiteHelpers.xo  queryEngine.xo  parser.xo token.xo sjiboleth.so  client-pool.cpp 
 
-graphdb.xo: ../../src/redismodule.h graphdb.cpp graphdb.h queryEngine.c queryEngine.h  parser.c parser.h token.c token.h queryEngine.c queryEngine.h  sentenceProcessor.c sentenceProcessor.h  graphstack.hpp
+# graphdb.xo: ../../src/redismodule.h graphdb.cpp graphdb.h queryEngine.c queryEngine.h  parser.c parser.h token.c token.h queryEngine.c queryEngine.h  sentenceProcessor.c sentenceProcessor.h  graphstack.hpp
 
-sjiboleth.so: ../../src/redismodule.h sjiboleth.cpp sjiboleth.hpp   rxSuite.xo  rxSuiteHelpers.xo  sjiboleth.cpp sjiboleth-silnikparowy.cpp  sjiboleth-silnikparowy-ctx.cpp sjiboleth-generic.cpp sjiboleth-gremlin.cpp sjiboleth-json.cpp sjiboleth-query.cpp sjiboleth-text.cpp  sjiboleth-fablok.cpp rxSuite.xo  rxSuiteHelpers.xo sjiboleth.cpp         sjiboleth-generic.cpp  sjiboleth-parser.cpp  sjiboleth-text.cpp  sjiboleth-gremlin.cpp  sjiboleth-query.cpp   sjibolethWrapper.cpp sjiboleth-fablok.cpp  sjiboleth.xo  sjiboleth-json.cpp sjiboleth.hpp graphstack.hpp makefile client-pool.cpp
+sjiboleth.so: ../../src/redismodule.h sjiboleth.cpp sjiboleth.hpp   rxSuite.xo  rxSuiteHelpers.xo  sjiboleth.cpp sjiboleth-silnikparowy.cpp  sjiboleth-silnikparowy-ctx.cpp sjiboleth-generic.cpp sjiboleth-gremlin.cpp sjiboleth-json.cpp sjiboleth-query.cpp sjiboleth-text.cpp  sjiboleth-fablok.cpp rxSuite.xo  rxSuiteHelpers.xo sjiboleth.cpp         sjiboleth-generic.cpp  sjiboleth-parser.cpp  sjiboleth-text.cpp  sjiboleth-gremlin.cpp  sjiboleth-query.cpp   sjibolethWrapper.cpp sjiboleth-fablok.cpp  sjiboleth.xo  sjiboleth-json.cpp sjiboleth.hpp graphstack.hpp makefile client-pool.hpp client-pool.cpp
 	g++  $(CXXFLAGS) -shared  $(WARNNING) $(FILT) $(SHOBJ_CFLAGS)  -g -ggdb  -isystem -DUSE_JEMALLOC -Werror=main -std=c++17 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -isystem -DUSE_JEMALLOC  -I../deps/hiredis -I../deps/linenoise -I../../deps/lua/src -I/usr/include -fPIC  -o sjiboleth.so -fPIC  sjiboleth.cpp  sjiboleth-fablok.cpp sjiboleth-generic.cpp  sjiboleth-gremlin.cpp  sjiboleth-json.cpp  sjiboleth-parser.cpp  sjiboleth-query.cpp sjiboleth-text.cpp  sjibolethWrapper.cpp   rxSuiteHelpers.xo client-pool.cpp 
 	cp sjiboleth.so ../..
 
@@ -96,11 +96,11 @@ sjiboleth.so: ../../src/redismodule.h sjiboleth.cpp sjiboleth.hpp   rxSuite.xo  
 makefile:
 	echo "build complete"
 
-rxRule.so: ../../src/redismodule.h rxRule.cpp rule.hpp    rxSuite.xo  rxSuiteHelpers.xo   sjiboleth.so  
+rxRule.so: ../../src/redismodule.h rxRule.cpp rule.hpp    rxSuite.xo  rxSuiteHelpers.xo   sjiboleth.so   client-pool.hpp
 	g++ -shared -g -ggdb -o rxRule.so  $(SHOBJ_CFLAGS)  -fPIC rxRule.cpp rxSuiteHelpers.xo rxSuite.xo  sjiboleth.so  
 
-rxIndexer.so: ../../src/redismodule.h rxIndexer.cpp rxIndexer.hpp rule.hpp  rxSuite.xo  rxSuiteHelpers.xo  sjiboleth.so indexIntercepts.xo simpleQueue.hpp
-	g++ -shared -g -ggdb -o rxIndexer.so  $(SHOBJ_CFLAGS) -fPIC rxIndexer.cpp rxSuiteHelpers.xo rxSuite.xo sjiboleth.so  indexIntercepts.xo
+rxIndexer.so: ../../src/redismodule.h rxIndexer.cpp rxIndexer.hpp rule.hpp  rxSuite.xo  rxSuiteHelpers.xo  sjiboleth.so indexIntercepts.xo simpleQueue.hpp client-pool.hpp client-pool.cpp
+	g++ -shared -g -ggdb -o rxIndexer.so  $(SHOBJ_CFLAGS) -fPIC rxIndexer.cpp rxSuiteHelpers.xo rxSuite.xo sjiboleth.so  indexIntercepts.xo client-pool.cpp
 
 rxQuery.so: ../../src/redismodule.h rxQuery.cpp rxQuery.hpp rule.hpp  rxSuite.xo  rxSuiteHelpers.xo  sjiboleth.so 
 	g++ -shared -g -ggdb -o rxQuery.so  $(SHOBJ_CFLAGS)  -fPIC rxQuery.cpp rxSuiteHelpers.xo rxSuite.xo sjiboleth.so  
@@ -119,6 +119,10 @@ indexIntercepts.xo: indexIntercepts.c indexIntercepts.h  simpleQueue.hpp
 %.o: %.cpp $(CPPSOURCES)
 	# $(CXX)                             -std=c++17 -faligned-new -Wno-write-strings   $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -s -isystem -DUSE_JEMALLOC -I..  -I../deps/hiredis -I../deps/linenoise -I../../deps/lua/src -I/usr/include -fPIC -c
 	$(CXX) -I. -I.. $(CXXFLAGS)   $(WARNNING) $(CFLAGS) $(SHOBJ_CFLAGS) -std=c++17 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -s -isystem -DUSE_JEMALLOC -I.. -I../deps/hiredis -I../deps/linenoise -I../../deps/lua/src -I/usr/include -fPIC  -c $< -o $@
+
+%.xo: %.cpp $(CPPSOURCES)
+	# $(CXX)                             -std=c++17 -faligned-new -Wno-write-strings   $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -s -isystem -DUSE_JEMALLOC -I..  -I../deps/hiredis -I../deps/linenoise -I../../deps/lua/src -I/usr/include -fPIC -c
+	$(CXX) -I. -I.. $(CXXFLAGS)   $(WARNNING) $(CFLAGS) $(SHOBJ_CFLAGS) -std=c++17 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -s -isystem -DUSE_JEMALLOC -I.. -I../deps/hiredis -I../deps/linenoise -I../../deps/lua/src -I/usr/include -fPIC  -std=c++17 -c $< -o $@
 
 # queryEngine.so:
 # 	 $(LD) -o $@ $< rxSuite.xo  rxSuiteHelpers.xo parser.xo  token.xo sentenceProcessor.xo queryEngine.xo indexIntercepts.xo simpleQueue.xo $(SHOBJ_LDFLAGS) $(LIBS) -lc

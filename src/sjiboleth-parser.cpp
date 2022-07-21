@@ -678,6 +678,11 @@ ParsedExpression *ParsedExpression::Next()
     return this->next;
 };
 
+GraphStack<ParserToken> *ParsedExpression::RPN()
+{
+    return this->expression;
+};
+
 SilNikParowy *ParsedExpression::GetEngine()
 {
     return this->dialect->GetEngine();

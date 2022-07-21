@@ -11,15 +11,18 @@ extern "C"
 
 #include "rax.h"
 #include "../../deps/hiredis/hiredis.h"
-
+#include "rxSuiteHelpers.h"
 #ifdef __cplusplus
 }
 #endif
 
 #include "graphstack.hpp"
 
+template <typename T>
 class RedisClientPool
 {
+public:
+      static  rax *Get_Thread_Registry();
 public:
     static rax *Registry;
     static rax *Lookup;
@@ -28,17 +31,18 @@ public:
     int port;
     int grow_by;
 
-    GraphStack<redisContext> in_use;
-    GraphStack<redisContext> free;
+    GraphStack<T> in_use;
+    GraphStack<T> free;
 
     RedisClientPool(sds host, int port, int initial_number_of_connections, int extra_number_of_connections);
 
+    T *NewInstance();
     int Grow();
 
-    static redisContext *Acquire(sds host, int port);
-    static redisContext *Acquire(const char *host, int port);
+    static T *Acquire(sds host, int port);
+    static T *Acquire(const char *host, int port);
 
-    static void Release(redisContext *client);
+    static void Release(T *client);
 };
 
 #endif

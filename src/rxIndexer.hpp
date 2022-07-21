@@ -45,7 +45,7 @@ extern "C"
 #include "redismodule.h"
 #include "rxSuite.h"
 
-#include "adlist.h"
+#include "../../src/adlist.h"
 #include "../../src/dict.h"
 // #include "server.h"
 #include <ctype.h>

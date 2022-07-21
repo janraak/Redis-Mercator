@@ -13,7 +13,7 @@ static void Index_Text(FaBlok *v, SilNikParowy_Kontekst *text_kontekst, Sjibolet
     auto *sub = t;
     while (sub)
     {
-        printf("GNIRTS J: %s\n", sub->ToString());
+        // printf("GNIRTS J: %s\n", sub->ToString());
         text_kontekst->Execute(sub);
         sub = sub->Next();
     }
@@ -111,7 +111,14 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(JsonCommaScopeCheck)
 {
     rxUNUSED(head);
     rxUNUSED(expression);
-    if (!HasParkedToken(expression, "["))
+    if (!HasParkedToken(expression, "{"))
+    {
+        sds referal = sdsnew("{{{");
+        referal = sdscat(referal, ((ParserToken *)t)->TokenAsSds());
+        t = lookupToken(pO, referal);
+        sdsfree(referal);
+    }
+    else if (!HasParkedToken(expression, "["))
     {
         sds referal = sdsnew("!!!");
         referal = sdscat(referal, ((ParserToken *)t)->TokenAsSds());
@@ -141,6 +148,7 @@ bool JsonDialect::registerDefaultSyntax()
 	// Sjiboleth::registerDefaultSyntax();
     this->RegisterSyntax(",", 15, 0, 0, executeJsonParameters, JsonCommaScopeCheck);
     this->RegisterSyntax("!!!,", priBreak, 0, 0, IndexJson);
+    this->RegisterSyntax("{{{,", 5, 0, 0, IndexJson);
     this->RegisterSyntax(":", 10, 0, 0, IndexJson);
     return true;
 }

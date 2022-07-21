@@ -56,6 +56,7 @@ extern "C"
 #include "rule.hpp"
 #include "sjiboleth.h"
 #include <string.h>
+#include "rxWaitIndexing-duplexer.hpp"
 
 #define stringKey sdsnew("S")
 #define hashKey sdsnew("H")
@@ -83,6 +84,7 @@ indexerThread index_info = {};
 
 CSjiboleth *json_parser = newJsonEngine();
 CSjiboleth *text_parser = newTextEngine();
+static int must_stop = 0;
 
 BEGIN_COMMAND_INTERCEPTOR(indexingHandlerDelCommand)
 for (int k = 1; k < argc; k++)
@@ -137,7 +139,7 @@ BEGIN_COMMAND_INTERCEPTOR(indexingHandlerXaddCommand)
     // index_info.index_update_request_queue->Enqueue(redis_request);
 
     auto *collector = raxNew();
-    auto *index_node = RedisClientPool::Acquire(index_info.index_address, index_info.index_port);
+    auto *index_node = RedisClientPool<redisContext>::Acquire(index_info.index_address, index_info.index_port);
     auto *e = new SilNikParowy_Kontekst((char *)index_info.index_address, index_info.index_port, NULL);
     e->Memoize("@@SilNikParowy_Kontekst@@", (void *)e);
     e->Memoize("@@TEXT_PARSER@@", (void *)text_parser);
@@ -169,7 +171,6 @@ BEGIN_COMMAND_INTERCEPTOR(indexingHandlerXaddCommand)
                 j = j + 2;
             }
         }
-    sds id = kfv[j];
             j++;
     while (j < argc)
     {
@@ -190,7 +191,7 @@ BEGIN_COMMAND_INTERCEPTOR(indexingHandlerXaddCommand)
     }
 
     TextDialect::FlushIndexables(collector, okey, key_type, index_node);
-    RedisClientPool::Release(index_node);
+    RedisClientPool<redisContext>::Release(index_node);
     raxFree(collector);
     e->Forget("@@SilNikParowy_Kontekst@@");
     e->Forget("@@TEXT_PARSER@@");
@@ -235,7 +236,10 @@ int rxrule_timer_handler(struct aeEventLoop *eventLoop, long long int id, void *
     rxUNUSED(id);
     rxUNUSED(clientData);
 
-    if (!rxrule_fakeClient)
+    if(must_stop == 1)
+        return -1;
+
+    if (rxrule_fakeClient == NULL)
     {
         rxrule_fakeClient = createAOFClient();
         sds ruleapply = sdsnew("RULE.APPLY");
@@ -286,7 +290,7 @@ static int indexingHandler(sds *kfv)
         return indexingHandlerXaddCommand(kfv, argc);
 
     auto *collector = raxNew();
-    auto *index_node = RedisClientPool::Acquire(index_info.index_address, index_info.index_port);
+    auto *index_node = RedisClientPool<redisContext>::Acquire(index_info.index_address, index_info.index_port);
     auto *e = new SilNikParowy_Kontekst((char *)index_info.index_address, index_info.index_port, NULL);
     e->Memoize("@@SilNikParowy_Kontekst@@", (void *)e);
     e->Memoize("@@TEXT_PARSER@@", (void *)text_parser);
@@ -331,7 +335,7 @@ static int indexingHandler(sds *kfv)
         }
     }
     TextDialect::FlushIndexables(collector, key, key_type, index_node);
-    RedisClientPool::Release(index_node);
+    RedisClientPool<redisContext>::Release(index_node);
     raxFree(collector);
     e->Forget("@@SilNikParowy_Kontekst@@");
     e->Forget("@@TEXT_PARSER@@");
@@ -409,6 +413,25 @@ int indexerInfo(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 
 static char indexer_state = 0;
 long long reindex_helper_cron = -1;
+int reindex_cron_slot_time = 100;
+int reindex_cron_interval_time = 5;
+dictIterator *reindex_iterator = NULL;
+long long reindex_total_no_of_keys = 0;
+long long reindex_processed_no_of_keys = 0;
+long long reindex_skipped_no_of_keys = 0;
+long long reindex_yielded_no_of_keys = 0;
+long long reindex_qthrottleded_no_of_keys = 0;
+long long reindex_throttleded_no_mem = 0;
+long long reindex_no_of_slots = 0;
+long long reindex_starttime = 0;
+long long reindex_latency = 0;
+
+int rx_wait_indexing_complete(struct RedisModuleCtx *ctx)
+{
+    auto *duplexer = new RxWaitIndexingDuplexer(index_info.key_indexing_request_queue, &reindex_iterator);
+    duplexer->Start(ctx);
+    return REDISMODULE_OK;
+}
 
 int indexerControl(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
@@ -417,7 +440,11 @@ int indexerControl(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         size_t arg_len;
         sds arg = sdsnew((char *)RedisModule_StringPtrLen(argv[1], &arg_len));
         sdstoupper(arg);
-        if (sdscmp(arg, sdsnew("ON")) == 0)
+        if (sdscmp(arg, sdsnew("WAIT")) == 0)
+        {
+            return rx_wait_indexing_complete(ctx);
+        }
+        else if (sdscmp(arg, sdsnew("ON")) == 0)
         {
             if (indexer_state)
                 return RedisModule_ReplyWithSimpleString(ctx, "Indexer already active.");
@@ -439,22 +466,13 @@ int indexerControl(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     return RedisModule_ReplyWithSimpleString(ctx, "OK");
 }
 
-int reindex_cron_slot_time = 100;
-int reindex_cron_interval_time = 5;
-dictIterator *reindex_iterator = NULL;
-long long reindex_total_no_of_keys = 0;
-long long reindex_processed_no_of_keys = 0;
-long long reindex_skipped_no_of_keys = 0;
-long long reindex_yielded_no_of_keys = 0;
-long long reindex_qthrottleded_no_of_keys = 0;
-long long reindex_throttleded_no_mem = 0;
-long long reindex_no_of_slots = 0;
-long long reindex_starttime = 0;
-long long reindex_latency = 0;
 /* This is the timer handler that is called by the main event loop. We schedule
  * this timer to be called when the nearest of our module timers will expire. */
 int reindex_cron(struct aeEventLoop *eventLoop, long long id, void *clientData)
 {
+    if (must_stop == 1)
+        return -1;
+
     rxUNUSED(eventLoop);
     rxUNUSED(id);
     auto *engine = (SilNikParowy_Kontekst *)clientData;
@@ -542,9 +560,9 @@ int reindex_cron(struct aeEventLoop *eventLoop, long long id, void *clientData)
             serverLog(LL_NOTICE, "ReIndexing unexpected type");
             break;
         }
-        auto *index_node = RedisClientPool::Acquire(index_info.index_address, index_info.index_port);
+        auto *index_node = RedisClientPool<redisContext>::Acquire(index_info.index_address, index_info.index_port);
         TextDialect::FlushIndexables(collector, key, key_type, index_node);
-        RedisClientPool::Release(index_node);
+        RedisClientPool<redisContext>::Release(index_node);
         engine->Reset();
         raxFree(collector);
         engine->Forget("@@collector@@");
@@ -651,7 +669,6 @@ int reindex(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     return RedisModule_ReplyWithSimpleString(ctx, response);
 }
 
-static int must_stop = 0;
 static void *execIndexerThread(void *ptr)
 {
     SimpleQueue *indexing_queue = (SimpleQueue *)ptr;
@@ -785,10 +802,10 @@ static void startIndexerThreads()
 
     t->key_indexing_respone_queue = new SimpleQueue();
     t->index_update_respone_queue = new SimpleQueue();
-    t->index_rxRuleApply_request_queue = new SimpleQueue();
     t->index_rxRuleApply_respone_queue = new SimpleQueue();
-    t->key_indexing_request_queue = new SimpleQueue((void *)execIndexerThread, 4);
-    t->index_update_request_queue = new SimpleQueue((void *)execUpdateRedisThread, 4);
+    t->index_rxRuleApply_request_queue = new SimpleQueue(t->index_rxRuleApply_respone_queue);
+    t->key_indexing_request_queue = new SimpleQueue((void *)execIndexerThread, 1, t->key_indexing_respone_queue);
+    t->index_update_request_queue = new SimpleQueue((void *)execUpdateRedisThread, 1, t->index_update_respone_queue);
 
     rxrule_helper_interval = 100;
     rxrule_helper_cron = rxCreateTimeEvent(1, (aeTimeProc *)rxrule_timer_handler, NULL, NULL);
@@ -801,6 +818,8 @@ static void stopIndexerThreads()
     indexerThread *t = &index_info;
     must_stop = 1;
 
+    rxDeleteTimeEvent(reindex_helper_cron);
+    rxDeleteTimeEvent(rxrule_helper_cron);
     t->key_indexing_request_queue->Release();
     t->key_indexing_respone_queue->Release();
     t->index_update_request_queue->Release();

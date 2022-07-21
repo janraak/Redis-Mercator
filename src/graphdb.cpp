@@ -7,9 +7,13 @@
 #include <iostream>
 #include <sys/stat.h>
 
+#include "client-pool.hpp"
+
 using std::string;
 #include "rxSuite.h"
+#include "sjiboleth.hpp"
 #include "graphstack.hpp"
+#include "rxGraphLoad-duplexer.hpp"
 
 extern "C"
 {
@@ -28,6 +32,7 @@ static Parser *graph_parser = NULL;
 static Parser *sentence_parser = NULL;
 
 extern dictType tokenDictType;
+
 
 string readFileIntoString3(const string &path)
 {
@@ -50,512 +55,117 @@ string readFileIntoString3(const string &path)
 
     return res;
 }
-const char *CRLF = "\r\n";
-const char *COLON = ":";
-const char *COMMA = ",";
-const char *EMPTY_STRING = "";
-const char *BEGIN_ARRAY = "[";
-const char *END_ARRAY = "]";
-const char *BEGIN_OBJECT = "{";
-const char *END_OBJECT = "}";
-const char *TANDEM_PREFIX = "^";
-const char *TANDEM_LINK_SEP = "|";
-const char *ESCAPED_APOSTROPH = "\"";
 
-const char *EDGE = "edge";
-const char *VERTICE = "vertice";
-const char *SUBJECT = "subject";
-const char *OBJECT = "object";
-const char *PREDICATE = "predicate";
-const char *TERTIARY = "tertiary";
-const char *IRI = "iri";
-const char *INVERSE_IRI = "inverse_iri";
-const char *ENTITY_TYPE = "type";
-const char *ENTITY_INVERSE_TYPE = "inverse";
-const char *WEIGHT = "weight";
+#include "graphstackentry.hpp"
 
-const char *EDGE_TYPE_EDGE_TO_SUBJECT = "ES";
-const char *EDGE_TYPE_SUBJECT_TO_EDGE = "SE";
-const char *EDGE_TYPE_EDGE_TO_OBJECT = "EO";
-const char *EDGE_TYPE_OBJECT_TO_EDGE = "OE";
-
-const char *REDIS_CMD_SADD = "SADD";
-const char *REDIS_CMD_SMEMBERS = "SMEMBERS";
-
-const char *REDIS_CMD_HSET = "HSET";
-const char *REDIS_CMD_HGETALL = "HGETALL";
-const char *OK = "OK";
-
-class GraphStackEntry
+int g_set_async(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
-public:
-    const char *token_key;
-    const char *inverse_token_key;
-    const char *token_value;
-    const char *token_type;
-    // predicate weight
-    double weight;
-    RedisModuleDict *entity;
-    RedisModuleCtx *ctx;
-    GraphStackEntry *parent;
-
-    GraphStackEntry(const char *token_value, GraphStackEntry *parent)
-    {
-        this->token_key = NULL;
-        this->inverse_token_key = NULL;
-        this->token_value = strdup(token_value);
-        this->token_type = NULL;
-        this->ctx = NULL;
-        this->entity = NULL;
-        this->parent = parent;
-        this->weight = 0.0;
-    }
-
-    GraphStackEntry(RedisModuleCtx *ctx, GraphStackEntry *parent)
-    {
-        this->token_key = NULL;
-        this->inverse_token_key = NULL;
-        this->token_value = NULL;
-        this->token_type = NULL;
-        this->parent = parent;
-        this->ctx = ctx;
-        this->entity = RedisModule_CreateDict(ctx);
-        this->weight = 0.0;
-    }
-
-    ~GraphStackEntry()
-    {
-        if (this->token_key)
-            free((void *)this->token_key);
-        token_key = NULL;
-        if (this->token_value)
-            free((void *)this->token_value);
-        token_value = NULL;
-        if (this->entity)
-            RedisModule_FreeDict(this->ctx, this->entity);
-        // dictRelease(this->entity);
-        this->ctx = NULL;
-        this->entity = NULL;
-    }
-
-    void ComposeEdgeIRI(GraphStackEntry *target)
-    {
-        // Pre-Resolve predicate IRI
-        const char *verb = target->token_type;
-        if (!verb)
-            verb = this->GetFromParent(ENTITY_TYPE);
-        const char *inverse_verb = target->inverse_token_key;
-        if (!inverse_verb)
-            inverse_verb = this->GetFromParent(ENTITY_INVERSE_TYPE);
-        const char *object_value = this->GetFromParent(OBJECT);
-        const char *subject_value = this->GetFromParent(SUBJECT);
-        if (verb && object_value && subject_value)
-        {
-            string composite_key;
-            composite_key.append((char *)verb);
-            composite_key.append(COLON);
-            composite_key.append((char *)subject_value);
-            composite_key.append(COLON);
-            composite_key.append((char *)object_value);
-            RedisModule_DictSetC(target->entity, (void *)strdup(IRI), 3, (void *)strdup(composite_key.c_str()));
-            target->token_key = strdup(composite_key.c_str());
-            // target->Dump("TARGET AFTER ComposeEdgeIRI");
-        }
-        if (inverse_verb && object_value && subject_value)
-        {
-            string composite_key;
-            composite_key.append((char *)inverse_verb);
-            composite_key.append(COLON);
-            composite_key.append((char *)object_value);
-            composite_key.append(COLON);
-            composite_key.append((char *)subject_value);
-            RedisModule_DictSetC(target->entity, (void *)strdup(INVERSE_IRI), 3, (void *)strdup(composite_key.c_str()));
-            target->inverse_token_key = strdup(composite_key.c_str());
-            // target->Dump("TARGET AFTER ComposeEdgeIRI");
-        }
-    }
-
-    void Set(GraphStackEntry *k, GraphStackEntry *v)
-    {
-        RedisModule_DictSetC(this->entity, (void *)k->token_value, strlen(k->token_value), (void *)v->token_value);
-        if (k->HasParent(TERTIARY))
-        {
-            // this->Dump("THIS FOR TERTIARY");
-            this->ComposeEdgeIRI(this);
-        }
-        if (strcmp(k->token_value, IRI) == 0)
-        {
-            this->token_key = strdup(v->token_value);
-        }
-        else if (strcmp(k->token_value, ENTITY_TYPE) == 0)
-        {
-            this->parent->token_type = strdup(v->token_value);
-            if (k->HasParent(PREDICATE))
-            {
-                k->ComposeEdgeIRI(this);
-            }
-        }
-        else if (strcmp(k->token_value, ENTITY_INVERSE_TYPE) == 0)
-        {
-            this->parent->inverse_token_key = strdup(v->token_value);
-            if (k->HasParent(PREDICATE))
-            {
-                k->ComposeEdgeIRI(this);
-            }
-        }
-        else if (strcmp(k->token_value, WEIGHT) == 0)
-        {
-
-            k->parent->weight = atof(v->token_value);
-        }
-    }
-
-    void Set(GraphStackEntry *k)
-    {
-        // Set entity type as key
-        this->token_key = strdup(k->token_value);
-    }
-
-    bool Contains(const char *key)
-    {
-        if (!this->entity)
-            return false;
-        int nokey;
-        RedisModule_DictGetC(this->entity,
-                             (void *)key,
-                             strlen(key),
-                             &nokey);
-        return nokey != 1;
-    }
-
-    bool isEdge()
-    {
-        return strcmp(this->token_key, PREDICATE) == 0;
-    }
-
-    void Link(RedisModuleCtx *ctx, string &edge_key, string &vertice, const char *direction, double weight)
-    {
-        string type;
-        char *colon = strstr((char *)edge_key.c_str(), COLON);
-        if (colon)
-        {
-            type.assign(edge_key, 0, colon - edge_key.c_str());
-        }
-        else
-        {
-            colon = strstr((char *)vertice.c_str(), COLON);
-            type.assign(vertice, 0, colon - vertice.c_str());
-        }
-        if (type.at(0) == TANDEM_PREFIX[0])
-            type = type.substr(1, type.length() - 1);
-        string link(type);
-        link.append(TANDEM_LINK_SEP);
-        link.append(vertice);
-        link.append(TANDEM_LINK_SEP);
-        link.append(direction);
-        link.append(TANDEM_LINK_SEP);
-        char w[32];
-        snprintf(w, sizeof(w), "%0.0f", weight);
-        link.append(w);
-
-        // printf("LINK %s\nTO%s \n\n", link.c_str(), edge_key.c_str());
-        RedisModuleCallReply *r = RedisModule_Call(ctx,
-                                                   REDIS_CMD_SADD, "cc",
-                                                   edge_key.c_str(),
-                                                   link.c_str());
-        if (r)
-            RedisModule_FreeCallReply(r);
-    }
-
-    const char *Get(const char *key)
-    {
-        int nokey;
-        const char *value = (const char *)RedisModule_DictGetC(this->entity,
-                                                               (void *)key,
-                                                               strlen(key),
-                                                               &nokey);
-        if (nokey == 1)
-            return NULL;
-        return value;
-    }
-
-    void Persist(RedisModuleCtx *ctx)
-    {
-        if (this->token_key == NULL)
-        {
-            printf("Missing key\n");
-            return;
-        }
-        if (strcmp(this->token_key, TERTIARY) == 0)
-        {
-            return;
-        }
-        if (this->parent)
-        {
-            this->parent->token_key = strdup(this->token_key);
-            if (this->inverse_token_key)
-                this->parent->inverse_token_key = strdup(this->inverse_token_key);
-            if (this->parent->parent)
-            {
-                RedisModule_DictSetC(this->parent->parent->entity,
-                                     (void *)this->parent->token_value,
-                                     strlen(this->parent->token_value),
-                                     (void *)strdup(this->token_key));
-                if (this->inverse_token_key)
-                    RedisModule_DictSetC(this->parent->parent->entity,
-                                         (void *)"inverse",
-                                         7,
-                                         (void *)strdup(this->inverse_token_key));
-            }
-        }
-        if (this->isEdge())
-        {
-            this->token_key = GetFromParent(PREDICATE);
-            if (!this->token_key)
-            {
-                this->token_key = GetFromParent(IRI);
-            }
-            this->inverse_token_key = GetFromParent("inverse");
-            const char *weight = GetFromParent(WEIGHT);
-            const char *subject = GetFromParent(SUBJECT);
-            const char *object = GetFromParent(OBJECT);
-            if (!this->token_key || !subject || !object)
-            {
-                this->Dump("Missing entities on PERSIST");
-                return;
-            }
-            else
-            {
-                double w = weight ? atof(weight) : 1.0;
-                string subject_key(TANDEM_PREFIX);
-                subject_key.append(subject);
-                string object_key(TANDEM_PREFIX);
-                object_key.append(object);
-                string predicate_key(TANDEM_PREFIX);
-                predicate_key.append(this->token_key);
-                string inverse_predicate_key(TANDEM_PREFIX);
-                if (this->inverse_token_key)
-                    inverse_predicate_key.append(this->inverse_token_key);
-                else
-                    inverse_predicate_key.append(this->token_key);
-                this->Link(ctx, inverse_predicate_key, subject_key, EDGE_TYPE_EDGE_TO_SUBJECT, w);
-                this->Link(ctx, subject_key, predicate_key, EDGE_TYPE_SUBJECT_TO_EDGE, w);
-                this->Link(ctx, predicate_key, object_key, EDGE_TYPE_EDGE_TO_OBJECT, w);
-                this->Link(ctx, object_key, inverse_predicate_key, EDGE_TYPE_OBJECT_TO_EDGE, w);
-                RedisModule_DictDelC(this->entity,
-                                     (void *)PREDICATE,
-                                     9, NULL);
-            }
-        }
-
-        RedisModuleDictIter *di = RedisModule_DictIteratorStartC(this->entity, TANDEM_PREFIX, NULL, 0);
-        void *key;
-        size_t keylen;
-        void *value;
-        RedisModuleCallReply *r;
-        while ((key = RedisModule_DictNextC(di, &keylen, &value)) != NULL)
-        {
-            // if (strncmp(WEIGHT, (const char *)key, keylen) == 0)
-            //     continue;
-            if (strncmp(IRI, (const char *)key, keylen) == 0)
-                continue;
-            if (strncmp("inverse", (const char *)key, keylen) == 0){
-                int segments = 0;
-                sds v = sdsnew((char *)value);
-                sds *parts = sdssplitlen(v, sdslen(v), ":", 1, &segments);
-                r = RedisModule_Call(ctx, REDIS_CMD_HSET, "ccc", inverse_token_key, "edge", token_key);
-                if (r)
-                    RedisModule_FreeCallReply(r);
-                r = RedisModule_Call(ctx, REDIS_CMD_HSET, "ccc", inverse_token_key, "type", parts[0]);
-                if (r)
-                    RedisModule_FreeCallReply(r);
-                r = RedisModule_Call(ctx, REDIS_CMD_HSET, "ccc", token_key, "edge", inverse_token_key);
-                if (r)
-                    RedisModule_FreeCallReply(r);
-                sdsfreesplitres(parts, segments);
-                continue;
-            }
-            if (strncmp("inv", (const char *)key, keylen) == 0)
-                continue;
-            if (strncmp(SUBJECT, (const char *)key, keylen) == 0)
-                continue;
-            if (strncmp(OBJECT, (const char *)key, keylen) == 0)
-                continue;
-            r = RedisModule_Call(ctx, REDIS_CMD_HSET, "cbc", token_key, key, keylen, value);
-            if (r)
-                RedisModule_FreeCallReply(r);
-        }
-        RedisModule_DictIteratorStop(di);
-        // The hashtable is no longer needed
-        RedisModule_FreeDict(this->ctx, this->entity);
-        this->entity = NULL;
-        this->ctx = NULL;
-    }
-
-    void Dump(const char *label)
-    {
-        // return;
-        GraphStackEntry *e = this;
-        int depth = 0;
-        while (e)
-        {
-            printf("++++++++++++++++++ DUMP ++++ %d ++ %s ++++++++++++++++\n", depth, label);
-            printf("this:         0x%x\n", (unsigned int)e);
-            printf("token_key:    %s\n", e->token_key);
-            printf("inv_token_key:%s\n", e->inverse_token_key);
-            printf("token_value:  %s\n", e->token_key);
-            printf("token_type:   %s\n", e->token_type);
-            printf("weight:       %0.0f\n", e->weight);
-            printf("parent:       0x%x\n", (unsigned int)e->parent);
-            printf("hash:         0x%x\n", (unsigned int)e->entity);
-            if (e->entity)
-            {
-                RedisModuleDictIter *di = RedisModule_DictIteratorStartC(e->entity, TANDEM_PREFIX, NULL, 0);
-                void *key;
-                size_t keylen;
-                void *value;
-                while ((key = RedisModule_DictNextC(di, &keylen, &value)) != NULL)
-                {
-                    sds k = sdsnewlen(key, keylen);
-                    printf("...%s=         %s\n", k, (char *)value);
-                }
-                RedisModule_DictIteratorStop(di);
-                printf("++++++++++++++++++ DUMP END+ %d ++ %s ++++++++++++++++\n", depth, label);
-            }
-            --depth;
-            e = e->parent;
-        }
-    }
-
-    bool HasParent(const char *key)
-    {
-        GraphStackEntry *e = this;
-        while (e)
-        {
-            // if(e->token_key != NULL && strcmp(e->token_key, key) == 0 )
-            //     return true;
-            if (e->token_value != NULL && strcmp(e->token_value, key) == 0)
-                return true;
-            e = e->parent;
-        }
-        return false;
-    }
-
-    const char *GetFromParent(const char *key)
-    {
-        GraphStackEntry *e = this;
-        while (e)
-        {
-            if (e->entity != NULL)
-            {
-                const char *value = e->Get(key);
-                if (value != NULL)
-                    return value;
-            }
-            e = e->parent;
-        }
-        return NULL;
-    }
+    auto *duplexer = new RxGraphLoadDuplexer(argv, argc);
+    duplexer->Start(ctx);
+    return REDISMODULE_OK;
 };
 
-int g_set(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
-{
-    size_t len;
-    const char *argS = RedisModule_StringPtrLen(argv[1], &len);
-    sds arg = sdsnew(argS);
-    sdstoupper(arg);
-    sds keyword = sdsnew("FILE");
-    if (argc == 3 && sdscmp(keyword, arg) == 0)
-    {
-        const char *pathS = RedisModule_StringPtrLen(argv[2], &len);
-        sds path = sdsnew(pathS);
+// int g_set(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
+// {
+//     size_t len;
+//     const char *argS = RedisModule_StringPtrLen(argv[1], &len);
+//     sds arg = sdsnew(argS);
+//     sdstoupper(arg);
+//     sds keyword = sdsnew("FILE");
+//     if (argc == 3 && sdscmp(keyword, arg) == 0)
+//     {
+//         const char *pathS = RedisModule_StringPtrLen(argv[2], &len);
+//         sds path = sdsnew(pathS);
 
-        string graph = readFileIntoString3(path);
+//         string graph = readFileIntoString3(path);
 
-        parseGraph(graph_parser, graph.c_str());
-        Token *t3 = NULL;
-        listIter *li = listGetIterator(graph_parser->rpn, AL_START_HEAD);
-        listNode *ln;
-        GraphStackEntry *se;
-        auto *graph_stack = new GraphStack<GraphStackEntry>();
-        // int item = 0;
-        while ((ln = listNext(li)))
-        {
-            t3 = (Token *)ln->value;
-            // printf("token: %d %d %s\n", item++, t3->token_type, t3->token);
-            switch (t3->token_type)
-            {
-            case 2: // A string token
-            {
-                // printf("-->ITEM %d --> ", item);
-                se = new GraphStackEntry(t3->token, graph_stack->Peek());
-                graph_stack->Push(se);
-                break;
-            }
-            case 3: // An operator
-            {
-                if (strcmp(t3->token, COMMA) == 0)
-                    break;
-                if (strcmp(t3->token, COLON) == 0)
-                {
-                    // printf("-->ITEM %d --> ", item);
-                    GraphStackEntry *v = graph_stack->Pop();
-                    GraphStackEntry *k = graph_stack->Pop();
-                    if (k->token_value)
-                    {
-                        GraphStackEntry *d = graph_stack->Pop();
-                        d->Set(k, v);
-                        free(v);
-                        free(k);
-                        graph_stack->Push(d);
-                    }
-                    else
-                    {
-                        k->Set(v);
-                        graph_stack->Push(k);
-                    }
-                }
-                break;
-            }
-            case 4: // Open Bracket
-            {
-                if (strcmp(t3->token, BEGIN_ARRAY) == 0)
-                    continue;
-                se = new GraphStackEntry(ctx, graph_stack->Peek());
-                graph_stack->Push(se);
-                break;
-            }
-            case 5: // Close Bracket
-            {
-                if (strcmp(t3->token, END_ARRAY) == 0)
-                    continue;
-                se = graph_stack->Pop();
-                // check edge/vertex vs graph!!!
-                if (se->Contains(SUBJECT) && se->Contains(OBJECT) && se->Contains(PREDICATE))
-                {
-                    se->Dump("Edge");
-                    se->Persist(ctx);
-                }
-                else
-                {
-                    se->Dump("Vertice");
-                    se->Persist(ctx);
-                }
-                break;
-            }
-            }
-        }
-        listReleaseIterator(li);
-        resetParser(graph_parser);
-        free(graph_stack);
+//         parseGraph(graph_parser, graph.c_str());
+//         Token *t3 = NULL;
+//         listIter *li = listGetIterator(graph_parser->rpn, AL_START_HEAD);
+//         listNode *ln;
+//         GraphStackEntry *se;
+//         auto *graph_stack = new GraphStack<GraphStackEntry>();
+//         // int item = 0;
+//         // int tally = 0;
+//         while ((ln = listNext(li)) != NULL)
+//         {
+//             // if(tally++ >= 10000)
+//             //     break;
+//             t3 = (Token *)ln->value;
+//             // printf("token: %d %d %s\n", item++, t3->token_type, t3->token);
+//             switch (t3->token_type)
+//             {
+//             case 2: // A string token
+//             {
+//                 // printf("-->ITEM %d --> ", item);
+//                 se = new GraphStackEntry(t3->token, graph_stack->Peek());
+//                 graph_stack->Push(se);
+//                 break;
+//             }
+//             case 3: // An operator
+//             {
+//                 if (strcmp(t3->token, COMMA) == 0)
+//                     break;
+//                 if (strcmp(t3->token, COLON) == 0)
+//                 {
+//                     // printf("-->ITEM %d --> ", item);
+//                     GraphStackEntry *v = graph_stack->Pop();
+//                     GraphStackEntry *k = graph_stack->Pop();
+//                     if (k->token_value)
+//                     {
+//                         GraphStackEntry *d = graph_stack->Pop();
+//                         d->Set(k, v);
+//                         free(v);
+//                         free(k);
+//                         graph_stack->Push(d);
+//                     }
+//                     else
+//                     {
+//                         k->Set(v);
+//                         graph_stack->Push(k);
+//                     }
+//                 }
+//                 break;
+//             }
+//             case 4: // Open Bracket
+//             {
+//                 if (strcmp(t3->token, BEGIN_ARRAY) == 0)
+//                     continue;
+//                 se = new GraphStackEntry(ctx, graph_stack->Peek());
+//                 graph_stack->Push(se);
+//                 break;
+//             }
+//             case 5: // Close Bracket
+//             {
+//                 if (strcmp(t3->token, END_ARRAY) == 0)
+//                     continue;
+//                 se = graph_stack->Pop();
+//                 // check edge/vertex vs graph!!!
+//                 if (se->Contains(SUBJECT) && se->Contains(OBJECT) && se->Contains(PREDICATE))
+//                 {
+//                     se->Dump("Edge");
+//                     se->Persist(ctx);
+//                 }
+//                 else
+//                 {
+//                     se->Dump("Vertice");
+//                     se->Persist(ctx);
+//                 }
+//                 break;
+//             }
+//             }
+//         }
+//         listReleaseIterator(li);
+//         resetParser(graph_parser);
+//         free(graph_stack);
 
-        return RedisModule_ReplyWithSimpleString(ctx, OK);
-    }
-    if (argc == -10)
-        return RedisModule_WrongArity(ctx);
-    const char *response = "Not yet omplemented";
-    return RedisModule_ReplyWithSimpleString(ctx, response);
-}
+//         return RedisModule_ReplyWithSimpleString(ctx, OK);
+//     }
+//     if (argc == -10)
+//         return RedisModule_WrongArity(ctx);
+//     const char *response = "Not yet omplemented";
+//     return RedisModule_ReplyWithSimpleString(ctx, response);
+// }
 
 /*
   Return the graph for the given keys.
@@ -1084,6 +694,26 @@ int get_uml(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     return RedisModule_ReplyWithSimpleString(ctx, get_uml());
 }
 
+void test(){
+    sds json = sdsnew("[    {\"subject\": {\"type\":\"bible\", \"Translation\": \"nwtsty\", \"Rendition\": \"New World Translation of the Holy Scriptures (Study Edition)\",\"Language\": \"en\",\"iri\": \"bible/en/nwtsty\"},\"object\": {\"type\":\"book\", \"Name\": \"Genesis\", \"iri\": \"bible/en/nwtsty/Genesis\"},\"predicate\": {\"type\":\"book\"}}]");
+        parseGraph(graph_parser, json);
+        Token *t3 = NULL;
+        listIter *li = listGetIterator(graph_parser->rpn, AL_START_HEAD);
+        listNode *ln;
+        printf("C      ");
+        while ((ln = listNext(li)) != NULL)
+        {
+            t3 = (Token *)ln->value;
+            printf("%s ", t3->token);
+        }
+        printf("\n");
+        Sjiboleth *parser = new GraphParser();
+        auto *parsed_json = parser->Parse(json);
+        printf("C++ G %s\n", parsed_json->ToString());
+        parser = new JsonDialect();
+        parsed_json = parser->Parse(json);
+        printf("C++ J %s\n", parsed_json->ToString());
+}
 /* This function must be present on each R
 edis module. It is used in order to
  * register the commands into the Redis server. */
@@ -1097,11 +727,13 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     if (!sentence_parser)
         sentence_parser = newParser("text");
 
+    test();
+
     if (RedisModule_Init(ctx, "graphdb", 1, REDISMODULE_APIVER_1) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     claimParsers();
     if (RedisModule_CreateCommand(ctx, "g.set",
-                                  g_set, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)
+                                  g_set_async, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "g.get",
                                   g_get, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)
