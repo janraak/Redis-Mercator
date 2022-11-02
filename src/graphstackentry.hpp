@@ -1,5 +1,5 @@
-#ifndef __GRAPHSTACKENTRY_H__
-#define __GRAPHSTACKENTRY_H__
+#ifndef __GRAPHSTACKENTRY_HPP__
+#define __GRAPHSTACKENTRY_HPP__
 
 
 #include <cstdarg>
@@ -8,18 +8,14 @@
 #include "client-pool.hpp"
 #include "simpleQueue.hpp"
 
+
+
+
+
 template class RedisClientPool<struct client>;
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-#include "adlist.h"
-#include "zmalloc.h"
-#include <stddef.h>
-#ifdef __cplusplus
-}
-#endif
+#include "graphstackentry.h"
+
 
 const char *CRLF = "\r\n";
 const char *COLON = ":";
@@ -58,6 +54,10 @@ const char *WREDIS_CMD_HGETALL = "HGETALL";
 const char *WOK = "WOK";
 
 struct client *graphStackEntry_fakeClient = NULL;
+
+#define GET_ARGUMENTS_FROM_STASH(s)              \
+    int argc = *((int *)s);                      \
+    void **argv = (void **)(s + sizeof(void *));
 
 /*
  * A redis command is stashed in a single allocated block of memory.
@@ -100,7 +100,8 @@ void *rxStashCommand(SimpleQueue *ctx, const char *command, int argc, ...)
     for (int j = 0; j < argc; j++)
     {
         sds result = va_arg(cpyArgs, sds);
-        total_string_size += preamble_len + sdslen(result) + 1;
+        int len = strlen(result);
+        total_string_size += preamble_len + len + 1;
     }
     size_t total_pointer_size = (argc + 3) * sizeof(void *);
     size_t total_robj_size = (argc + 1) * rxSizeofRobj();
@@ -147,18 +148,19 @@ void *rxStashCommand(SimpleQueue *ctx, const char *command, int argc, ...)
     va_end(args);
 
     if(ctx)
-        ctx->Enqueue((char **)stash);
+        enqueueSimpleQueue(ctx, stash);
     return stash;
 }
-void *rxStashCommand2(SimpleQueue *ctx, const char *command, int argc, sds *args)
+
+void *rxStashCommand2(SimpleQueue *ctx, const char *command, int argt, int argc, void **args)
 {
     void *stash = NULL;
 
-    size_t total_string_size = 1 + strlen(command);
+    size_t total_string_size = command == NULL ? 0 : 1 + strlen(command);
     int preamble_len = sizeof(struct sdshdr32);
     for (int j = 0; j < argc; j++)
     {
-        sds result = args[j];
+        sds result = (( argt == 1 ) ? (sds)((sds *)args[j]) : (sds)rxGetContainedObject(args[j]));
         total_string_size += preamble_len + sdslen(result) + 1;
     }
     size_t total_pointer_size = (argc + 3) * sizeof(void *);
@@ -172,53 +174,60 @@ void *rxStashCommand2(SimpleQueue *ctx, const char *command, int argc, sds *args
     stash = zmalloc(total_stash_size);
     memset(stash, 0xff, total_stash_size);
 
-    *((int *)stash) = argc + 1;
+    *((int *)stash) = argc + (command == NULL ? 0 : 1);
 
     void **argv = (void **)(stash + sizeof(void *));
     void *robj_space = ((void *)stash + total_pointer_size);
     struct sdshdr32 *sds_space = (struct sdshdr32 *)((void *)robj_space + total_robj_size);
     // char *string_space = (char *)((void *)sds_space + total_sds_size);
 
-    size_t l = strlen(command);
-    size_t total_size;
-    // strcpy(string_space, command);
-    sds s = rxSdsAttachlen(sds_space, command, l, &total_size);
-    argv[0] = rxSetStringObject(robj_space, s);
+    int j = 0;
+    int k = 0;
+    size_t total_size = 0;
+    size_t l;
+    sds s;
+    if (command != NULL)
+    {
+        l = strlen(command);
+        // strcpy(string_space, command);
+        s = rxSdsAttachlen(sds_space, command, l, &total_size);
+        argv[0] = rxSetStringObject(robj_space, s);
+    }
+    else
+        k = 1;
     sds_space = (struct sdshdr32 *)((char *)sds_space + total_size);
     robj_space = robj_space + rxSizeofRobj();
-
-    int j = 0;
     for (; j < argc; j++)
     {
 
-        sds result = args[j];
+        sds result = ( argt == 1 ) ? (sds)args[j] : (sds)rxGetContainedObject(args[j]);
         l = sdslen(result);
 
         s = rxSdsAttachlen(sds_space, result, l, &total_size);
-        argv[j + 1] = rxSetStringObject(robj_space, s);
+        argv[j - k + 1] = rxSetStringObject(robj_space, s);
 
         robj_space = robj_space + rxSizeofRobj();
         sds_space = (struct sdshdr32 *)((char *)sds_space + total_size);
     }
-    argv[j + 1] = NULL;
+    argv[j - k + 1] = NULL;
 
-    if(ctx)
-        ctx->Enqueue((char **)stash);
+    if(ctx != NULL)
+        enqueueSimpleQueue(ctx, (char **)stash);
     return stash;
 }
 
-void ExecuteRedisCommand(SimpleQueue *ctx, void *stash)
+void ExecuteRedisCommand(SimpleQueue *ctx, void *stash, const char *host_reference)
 {
     int argc = *((int *)stash);
     void **argv = (void **)(stash + sizeof(void *));
-    auto c = (struct client *)RedisClientPool<struct client>::Acquire("0.0.0.0", 6379);
+    auto *c = (struct client *)RedisClientPool<struct client>::Acquire(host_reference);
     rxAllocateClientArgs(c, argv, argc);
     sds commandName = (sds)rxGetContainedObject(argv[0]);
     void *command_definition = rxLookupCommand((sds)commandName);
     rxClientExecute(c, command_definition);
     RedisClientPool<struct client>::Release(c);
     if(ctx)
-        ctx->response_queue->Enqueue((char **)stash);
+        enqueueSimpleQueue(ctx, stash);
 }
 
 void FreeStash(void *stash)
@@ -493,13 +502,11 @@ public:
     {
         if (ctx == NULL)
             ctx = this->ctx;
-        // printf("#000# Persist # %s\n", this->token_key);
         if (this->token_key == NULL)
         {
             printf("Missing key\n");
             return;
         }
-        // printf("#010# Persist # %s\n", this->token_key);
         if (strcmp(this->token_key, TERTIARY) == 0)
         {
             return;

@@ -16,14 +16,18 @@ class GraphStack
 public:
     GraphStack()
     {
-        this->sequencer = listCreate();
+        this->Init();
     };
 
     GraphStack(list *base)
     {
-        this->sequencer = listDup(base);
+        this->sequencer = base;
     };
 
+    void Init()
+    {
+        this->sequencer = listCreate();
+    };
 
     void Use(list *base)
     {
@@ -35,6 +39,7 @@ public:
     ~GraphStack()
     {
         listRelease(this->sequencer);
+        this->sequencer = NULL;
     };
 
     GraphStack<T> *Copy()
@@ -134,6 +139,19 @@ public:
         return NULL;
     }
     listIter *sequencer_iter = NULL;
+
+    void Purge()
+    {
+        do
+        {
+            listNode *node = listIndex(this->sequencer, 0);
+            if (node == NULL)
+                return;
+            T *t = (T *)node->value;
+            listDelNode(this->sequencer, node);
+            delete t;
+        } while (1 == 1);
+    }
 
     void StartHead()
     {

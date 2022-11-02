@@ -1,5 +1,5 @@
-#include "rxSuite.h"
 #include "indexIntercepts.h"
+#include "rxSuite.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -27,6 +27,7 @@ extern "C"
 #endif
 
 extern indexerThread index_info;
+extern void *rxStashCommand2(SimpleQueue *ctx, const char *command, int argt, int argc, void **args);
 
 extern struct redisServer server;
 
@@ -53,10 +54,11 @@ void genericCommandIntercept(client *c);
 void selectCommandIntercept(client *c);
 void xaddCommandIntercept(client *c);
 void xdelCommandIntercept(client *c);
+void touchCommandIntercept(client *c);
 
 struct redisCommand interceptorCommandTable[] = {
 /* Note that we can't flag set as fast, since it may perform an
-     * implicit DEL of a large key. */
+ * implicit DEL of a large key. */
 #define SET_INTERCEPT 0
     {"set", setCommandIntercept, -3, "write use-memory @string", 0, NULL, 1, 1, 1, 0, 0, 0},
 #define SETNX_INTERCEPT 1
@@ -86,7 +88,7 @@ struct redisCommand interceptorCommandTable[] = {
 #define MOVE_INTERCEPT 13
     {"move", moveCommandIntercept, 3, "write fast @keyspace", 0, NULL, 1, 1, 1, 0, 0, 0},
 /* Like for SET, we can't mark rename as a fast command because
-     * overwriting the target key may result in an implicit slow DEL. */
+ * overwriting the target key may result in an implicit slow DEL. */
 #define RENAME_INTERCEPT 14
     {"rename", renameCommandIntercept, 3, "write @keyspace", 0, NULL, 1, 2, 1, 0, 0, 0},
 #define RENAMENX_INTERCEPT 15
@@ -106,14 +108,15 @@ struct redisCommand interceptorCommandTable[] = {
 #define XADD_INTERCEPT 22
     {"xadd", xaddCommandIntercept, -1, "write", 0, NULL, 0, 0, 0, 0, 0, 0},
 #define XDEL_INTERCEPT 23
-    {"xdel", xdelCommandIntercept, -2, "write", 0, NULL, 1, -1, 1, 0, 0, 0}};
+    {"xdel", xdelCommandIntercept, -2, "write", 0, NULL, 1, -1, 1, 0, 0, 0},
+#define TOUCH_INTERCEPT 24
+    {"NOtouch", touchCommandIntercept, -2, "write", 0, NULL, 1, -1, 1, 0, 0, 0}};
 
-
-void freeIndexingRequest(sds *kfv)
+void freeIndexingRequest(void *kfv)
 {
-    if(kfv == NULL)
+    if (kfv == NULL)
         return;
-        //TOD: Fix bug!!!
+    // TOD: Fix bug!!!
     // // Free key, fields and values
     // for (int j = 0; kfv[j] != NULL; j++)
     // {
@@ -132,30 +135,9 @@ void freeCompletedRequests()
     }
 }
 
-
 void enqueueSetCommand(client *c)
 {
-
-    sds *index_request = RedisModule_Alloc(sizeof(sds) * (c->argc + 1));
-
-
-    int j = 0;
-    for (; j < c->argc; ++j)
-    {
-        if (c->argv[j]->encoding == 1)
-        {
-            index_request[j] = sdscatfmt(sdsempty(), "%i", (int)c->argv[j]->ptr);
-        }
-        else
-        {
-            index_request[j] = sdsdup(c->argv[j]->ptr);
-        }
-    }
-    index_request[j] = NULL;
-
-    // /**/ printf("x%x #1 key_indexing_request_queue\n", (POINTER)index_request);
-    enqueueSimpleQueue(index_info.key_indexing_request_queue, index_request);
-
+    rxStashCommand2(index_info.key_indexing_request_queue, NULL, 2, c->argc, (void **)c->argv);
     freeCompletedRequests();
 }
 void setCommandIntercept(client *c)
@@ -269,14 +251,14 @@ void renamenxCommandIntercept(client *c)
 
 void selectCommandIntercept(client *c)
 {
-    index_info.database_id = sdsdup(c->argv[1]->ptr);
+    redisNodeInfo *index_config = rxIndexNode();
+    index_config->database_id = atoi(c->argv[1]->ptr);
     redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[SELECT_INTERCEPT].id];
     standard_command_proc(c);
 }
 
 void xaddCommandIntercept(client *c)
 {
-    index_info.database_id = sdsdup(c->argv[1]->ptr);
     redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[XADD_INTERCEPT].id];
     enqueueSetCommand(c);
     standard_command_proc(c);
@@ -286,6 +268,12 @@ void xdelCommandIntercept(client *c)
 {
     redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[DEL_INTERCEPT].id];
     enqueueSetCommand(c);
+    standard_command_proc(c);
+}
+
+void touchCommandIntercept(client *c)
+{
+    redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[TOUCH_INTERCEPT].id];
     standard_command_proc(c);
 }
 
@@ -313,7 +301,8 @@ void infoCommandIntercept(client *c)
     standard_command_proc(c);
 }
 
-void installIndexerInterceptors() {
+void installIndexerInterceptors()
+{
     standard_command_procs = zmalloc(sizeof(redisCommandProc *) * dictSize(server.commands));
     for (unsigned int j = 0; j < sizeof(interceptorCommandTable) / sizeof(struct redisCommand); ++j)
     {
@@ -327,7 +316,8 @@ void installIndexerInterceptors() {
     }
 }
 
-void uninstallIndexerInterceptors() {
+void uninstallIndexerInterceptors()
+{
     // Restore original command processors
     for (unsigned int j = 0; j < sizeof(interceptorCommandTable) / sizeof(struct redisCommand); ++j)
     {

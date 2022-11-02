@@ -1,11 +1,11 @@
-#ifndef __RXFETCH_DUPLEXER_H__
-#define __RXFETCH_DUPLEXER_H__
+#ifndef __RXFETCH_multiplexer_H__
+#define __RXFETCH_multiplexer_H__
 
 #define VALUE_ONLY 2
 #define FIELD_AND_VALUE_ONLY 3
 #define FIELD_OP_VALUE 4
 
-#include "command-duplexer.hpp"
+#include "command-multiplexer.hpp"
 
 
 #ifdef __cplusplus
@@ -25,7 +25,7 @@ static void FreeResultDoubleObject(void *o)
     zfree(o);
 }
 
-class RxFetchDuplexer : public Duplexer
+class RxFetchMultiplexer : public Multiplexer
 {
 public:
     dictIterator *di;
@@ -49,8 +49,8 @@ public:
     rxComparisonProc *dup_matchOperation;
     rax *dup_bucket;
 
-    RxFetchDuplexer(int argc, int dbNo, sds attribute_value)
-        : Duplexer()
+    RxFetchMultiplexer(int argc, int dbNo, sds attribute_value)
+        : Multiplexer()
     {
         this->touched = 0;
         this->hits = 0;
@@ -73,15 +73,15 @@ public:
         this->dup_bucket = this->bucket;
     }
 
-    RxFetchDuplexer(int argc, int dbNo, sds attribute_value, sds attribute)
-        : RxFetchDuplexer(argc, dbNo, attribute_value)
+    RxFetchMultiplexer(int argc, int dbNo, sds attribute_value, sds attribute)
+        : RxFetchMultiplexer(argc, dbNo, attribute_value)
     {
         this->attribute = sdsdup(attribute);
         this->attribute_len = sdslen(attribute);
     }
 
-    RxFetchDuplexer(int argc, int dbNo, sds attribute_value, sds attribute, rxComparisonProc *matchOperation)
-        : RxFetchDuplexer(argc, dbNo, attribute_value, attribute)
+    RxFetchMultiplexer(int argc, int dbNo, sds attribute_value, sds attribute, rxComparisonProc *matchOperation)
+        : RxFetchMultiplexer(argc, dbNo, attribute_value, attribute)
     {
         this->matchOperation = matchOperation;
     }
@@ -102,7 +102,7 @@ public:
         }
     }
 
-    ~RxFetchDuplexer()
+    ~RxFetchMultiplexer()
     {
         this->checkIntegrity();
         dictReleaseIterator(this->di);

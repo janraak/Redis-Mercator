@@ -7,7 +7,9 @@ extern "C"
 {
 #endif
 #include <pthread.h>
-
+#include <string.h>
+#include "stdlib.h"
+#include "zmalloc.h"
 #ifdef __cplusplus
 }
 #endif
@@ -28,13 +30,51 @@ rax *RedisClientPool<T>::Get_Thread_Registry()
 }
 
 template <typename T>
-RedisClientPool<T>::RedisClientPool(sds host, int port, int initial_number_of_connections, int extra_number_of_connections)
+RedisClientPool<T>::RedisClientPool()
 {
+    this->host_reference = NULL;
+    this->host = NULL;
+    this->port = 0;
+    grow_by = 1;
+}
+
+template <typename T>
+void RedisClientPool<T>::Init(const char *host_reference, const char *host, int port, int initial_number_of_connections, int extra_number_of_connections)
+{
+    this->free.Init();
+    this->in_use.Init();
+    this->host_reference = host_reference;
     this->host = host;
     this->port = port;
+
     grow_by = initial_number_of_connections;
     this->Grow();
     grow_by = extra_number_of_connections;
+}
+
+template <typename T>
+RedisClientPool<T> *RedisClientPool<T>::New(const char *address, int initial_number_of_connections, int extra_number_of_connections)
+{
+    RedisClientPool<T> *connector = NULL;
+
+    int l = strlen(address);
+    const char *colon = strstr(address, ":");
+    void *connectorSpace = zmalloc(sizeof(RedisClientPool<T>) + 2 * l + 1);
+    memset(connectorSpace, 0xff, sizeof(RedisClientPool<T>) + 2 * l + 1);
+    char *r = (char *)connectorSpace + sizeof(RedisClientPool<T>);
+    char *h = r + l + 1;
+    strncpy(r, address, l);
+    r[l] = 0x00;
+    strncpy(h, address, colon - address);
+    h[colon - address] = 0x00;
+    connector = ((RedisClientPool<T> *)connectorSpace);
+    connector->Init(r, h, atoi(colon + 1), initial_number_of_connections, extra_number_of_connections);
+    return connector;
+}
+
+template <typename T>
+void RedisClientPool<T>::Free(RedisClientPool *connector){
+    zfree(connector);
 }
 
 template <typename T>
@@ -91,15 +131,14 @@ int RedisClientPool<T>::Grow()
 }
 
 template <typename T>
-T *RedisClientPool<T>::Acquire(sds host, int port)
+T *RedisClientPool<T>::Acquire(const char *address)
 {
-    sds address = sdscatfmt(sdsempty(), "%s:%i", host, port);
-    auto *pool = (RedisClientPool *)raxFind(RedisClientPool<T>::Get_Thread_Registry(), (UCHAR *)address, sdslen(address));
+    auto *pool = (RedisClientPool *)raxFind(RedisClientPool<T>::Get_Thread_Registry(), (UCHAR *)address, strlen(address));
     if (pool == raxNotFound)
     {
-        pool = new RedisClientPool(host, port, 4, 4);
+        pool = RedisClientPool::New(address, 4, 4);
         void *old;
-        raxInsert(RedisClientPool<T>::Get_Thread_Registry(), (UCHAR *)address, sdslen(address), pool, &old);
+        raxInsert(RedisClientPool<T>::Get_Thread_Registry(), (UCHAR *)address, strlen(address), pool, &old);
     }
     if (!pool->free.HasEntries())
     {
@@ -112,24 +151,6 @@ T *RedisClientPool<T>::Acquire(sds host, int port)
     void *old;
     raxInsert(RedisClientPool<T>::Lookup, (UCHAR *)client, sizeof(client), pool, &old);
     return client;
-}
-template <typename T>
-T *RedisClientPool<T>::Acquire(const char *host, int port)
-{
-    if(host == NULL)
-        return NULL;
-    sds address = sdsnew(host);
-    T *ctx;
-    // do
-    // {
-        ctx = RedisClientPool<T>::Acquire(address, port);
-        if(ctx == NULL){
-            //RedisClientPool<T>::Grow();
-            rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(),"No client for %s:%d", address, port));
-        }
-    // } while (ctx == NULL);
-    sdsfree(address);
-    return ctx;
 }
 
 template <typename T>

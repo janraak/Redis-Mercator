@@ -6,9 +6,11 @@ extern "C"
 #endif
 #include <cstdlib>
 
-#include "string.h"
-#include <pthread.h>
 #include "../../deps/hiredis/hiredis.h"
+#include "string.h"
+#include "zmalloc.h"
+#include <pthread.h>
+#include <unistd.h>
 
 #include "rax.h"
 #include "rxSuiteHelpers.h"
@@ -18,15 +20,15 @@ extern "C"
 }
 #endif
 
+#include "client-pool.hpp"
 #include "sjiboleth-fablok.hpp"
 #include "sjiboleth-graph.hpp"
-#include "client-pool.hpp"
-
 
 static char RUMBLE_STRIP1[] = "AUTHOR:JAN RAAK.";
 static char RUMBLE_STRIP2[] = "2022SHORELINE,WA";
 
-rax *FaBlok::Get_Thread_Registry(){
+rax *FaBlok::Get_Thread_Registry()
+{
     pthread_t id = pthread_self();
     rax *local_registry = (rax *)raxFind(FaBlok::Registry, (UCHAR *)&id, sizeof(id));
     if(local_registry == raxNotFound){
@@ -34,6 +36,12 @@ rax *FaBlok::Get_Thread_Registry(){
         raxInsert(FaBlok::Registry, (UCHAR *)&id, sizeof(id), local_registry, NULL);
     }
     return local_registry;
+}
+
+void FaBlok::Free_Thread_Registry()
+{
+    pthread_t id = pthread_self();
+    raxRemove(FaBlok::Registry, (UCHAR *)&id, sizeof(id), NULL);
 }
 
 FaBlok *FaBlok::Get(const char *sn)
@@ -49,12 +57,12 @@ FaBlok *FaBlok::Get(const char *sn)
 
 bool FaBlok::IsValid()
 {
-    if(memcmp(this->rumble_strip1, RUMBLE_STRIP1, sizeof(this->rumble_strip1))!=0
-     || memcmp(this->rumble_strip2, RUMBLE_STRIP2, sizeof(this->rumble_strip2))!=0){
+    if (memcmp(this->rumble_strip1, RUMBLE_STRIP1, sizeof(this->rumble_strip1)) != 0 || memcmp(this->rumble_strip2, RUMBLE_STRIP2, sizeof(this->rumble_strip2)) != 0)
+    {
         printf("Rumble in the Jungle");
         return false;
-     }
-    if ((sdslen(this->setname) > 0 && this->size != raxSize(&this->keyset)) || !(this->marked_for_deletion == 653974783 || this->marked_for_deletion == 2069722765))
+    }
+    if ((strlen(this->setname) > 0 && this->size != raxSize(&this->keyset)) || !(this->marked_for_deletion == 653974783 || this->marked_for_deletion == 2069722765))
     {
         printf("FaBlok for %s may be corrupted fab: 0x%x reused:%d sz: %u set:0x%x sz: %lld  marked_for_deletion:%d temp:%d\n",
                this->setname,
@@ -75,9 +83,9 @@ FaBlok *FaBlok::Get(const char *sn, UCHAR value_type)
     FaBlok *f = (FaBlok *)raxFind(FaBlok::Get_Thread_Registry(), (UCHAR *)sn, strlen(sn));
     if (f == raxNotFound)
     {
-        FaBlok *n = new FaBlok(sdsdup(sdsnew(sn)), value_type);
+        FaBlok *n = FaBlok::New(sn, value_type);
         n->AsTemp();
-        raxInsert(FaBlok::Get_Thread_Registry(), (UCHAR *)n->setname, sdslen(n->setname), n, NULL);
+        raxInsert(FaBlok::Get_Thread_Registry(), (UCHAR *)sn, strlen(sn), n, NULL);
         n->IsValid();
         return n;
     }
@@ -86,47 +94,53 @@ FaBlok *FaBlok::Get(const char *sn, UCHAR value_type)
         f->reuse_count++;
         f->IsValid();
     }
-    if(memcmp(f->rumble_strip1, RUMBLE_STRIP1, sizeof(f->rumble_strip1))!=0
-     ||memcmp(f->rumble_strip2, RUMBLE_STRIP2, sizeof(f->rumble_strip2))!=0){
+    if (memcmp(f->rumble_strip1, RUMBLE_STRIP1, sizeof(f->rumble_strip1)) != 0 || memcmp(f->rumble_strip2, RUMBLE_STRIP2, sizeof(f->rumble_strip2)) != 0)
+    {
         printf("Rumble in the Jungle");
-     }
+    }
     return f;
 }
 
 FaBlok *FaBlok::Delete(FaBlok *d)
 {
-    if(memcmp(d->rumble_strip1, RUMBLE_STRIP1, sizeof(d->rumble_strip1))!=0
-     ||memcmp(d->rumble_strip2, RUMBLE_STRIP2, sizeof(d->rumble_strip2))!=0){
+    if (memcmp(d->rumble_strip1, RUMBLE_STRIP1, sizeof(d->rumble_strip1)) != 0 || memcmp(d->rumble_strip2, RUMBLE_STRIP2, sizeof(d->rumble_strip2)) != 0)
+    {
         printf("Rumble in the Jungle");
-     }
+    }
     // if (d->IsValueType(KeysetDescriptor_TYPE_MONITORED_SET))
     //     return NULL;
     d->marked_for_deletion = 2069722765;
     return NULL;
 }
 
-FaBlok *FaBlok::Rename(sds setname)
+FaBlok *FaBlok::Rename(const char *setname)
 {
-    auto *standing = raxFind(FaBlok::Get_Thread_Registry(), (UCHAR *)this->setname, sdslen(this->setname));
-    if(standing == this){
+    auto *standing = raxFind(FaBlok::Get_Thread_Registry(), (UCHAR *)this->setname, strlen(this->setname));
+    if (standing == this)
+    {
         void *old;
-        raxRemove(FaBlok::Get_Thread_Registry(), (UCHAR *)this->setname, sdslen(this->setname), &old);
+        raxRemove(FaBlok::Get_Thread_Registry(), (UCHAR *)this->setname, strlen(this->setname), &old);
     }
     this->setname = setname;
-    raxInsert(FaBlok::Get_Thread_Registry(), (UCHAR *)this->setname, sdslen(this->setname), this, NULL);
+    raxInsert(FaBlok::Get_Thread_Registry(), (UCHAR *)this->setname, strlen(this->setname), this, NULL);
     return this;
 }
 
-void FaBlok::LoadKey(int dbNo, sds key)
+void FaBlok::LoadKey(int dbNo, const char *k)
 {
+    sds key = sdsnew(k);
     void *zobj = rxFindKey(dbNo, key);
     if (zobj == NULL)
+    {
+        sdsfree(key);
         return;
+    }
     if (rxGetObjectType(zobj) == rxOBJ_HASH)
     {
-        this->InsertKey((UCHAR *)key, sdslen(key), zobj);
+        this->InsertKey((UCHAR *)k, strlen(key), zobj);
         this->size = raxSize(&this->keyset);
     }
+    sdsfree(key);
 }
 
 int FaBlok::AsTemp()
@@ -141,6 +155,14 @@ int FaBlok::AsTemp()
 
 FaBlok::FaBlok()
 {
+    this->Init();
+}
+
+FaBlok *FaBlok::Init()
+{
+    this->pid = getpid();
+    this->thread_id = pthread_self();
+
     this->setname = sdsempty();
     this->marked_for_deletion = 653974783;
     this->ValueType(KeysetDescriptor_TYPE_UNKNOWN);
@@ -158,8 +180,9 @@ FaBlok::FaBlok()
     this->left = NULL;
     this->right = NULL;
     this->parameter_list = NULL;
-        memcpy(this->rumble_strip1, RUMBLE_STRIP1, sizeof(this->rumble_strip1));
+    memcpy(this->rumble_strip1, RUMBLE_STRIP1, sizeof(this->rumble_strip1));
     memcpy(this->rumble_strip2, RUMBLE_STRIP2, sizeof(this->rumble_strip2));
+    return this;
 }
 
 void FaBlok::InitKeyset(bool withRootNode)
@@ -167,7 +190,7 @@ void FaBlok::InitKeyset(bool withRootNode)
     // EMBEDDED RAX INITIALIZATION
     this->keyset.numele = 0;
     this->keyset.numnodes = 1;
-    this->keyset.head = ( withRootNode == true ) ? raxNewNode(0, 0): NULL;
+    this->keyset.head = (withRootNode == true) ? raxNewNode(0, 0) : NULL;
 }
 
 FaBlok *FaBlok::Attach(rax *r)
@@ -194,23 +217,50 @@ rax *FaBlok::AsRax()
 
 FaBlok::~FaBlok()
 {
-if(this->keyset.head != NULL){
     this->IsValid();
-    rax *tmp = (rax *)malloc(sizeof(rax));
-    tmp->head = this->keyset.head;
-    tmp->numele = this->keyset.numele;
-    tmp->numnodes = this->keyset.numnodes;
-    FreeResults(tmp);
-    this->InitKeyset(false);
-}
-
-    sdsfree(this->setname);
+    if (this->value_type == 0xff)
+        return;
+    this->value_type = 0xff;
+    if (this->thread_id != pthread_self())
+        printf("Cross thread alloc/free!\n");
+    if (this->keyset.head != NULL)
+    {
+        this->IsValid();
+        if (this->size > 0)
+        {
+            raxIterator ri;
+            raxStart(&ri, &this->keyset);
+            raxSeek(&ri, "^", NULL, 0);
+            while (raxNext(&ri))
+            {
+                void *old;
+                raxRemove(FaBlok::Get_Thread_Registry(), ri.key, ri.key_len, &old);
+                raxSeek(&ri, ">", ri.key, ri.key_len);
+            }
+            raxStop(&ri);
+        }
+        this->InitKeyset(false);
+    }
+    this->value_type = 0xff;
 }
 FaBlok::FaBlok(sds sn, UCHAR value_type)
     : FaBlok()
 {
     this->setname = sn;
     this->ValueType(value_type);
+}
+
+FaBlok *FaBlok::New(const char *sn, UCHAR value_type)
+{
+    int l = strlen(sn);
+    void *fabSpace = zmalloc(sizeof(FaBlok) + l + 1);
+    char *s = (char *)fabSpace + sizeof(FaBlok);
+    strncpy(s, sn, l);
+    s[l] = 0x00;
+    auto *fab = ((FaBlok *)fabSpace)->Init();
+    fab->setname = s;
+    fab->value_type = value_type;
+    return fab;
 }
 
 bool FaBlok::HasKeySet()
@@ -222,10 +272,10 @@ rax *FaBlok::Registry = raxNew();
 
 UCHAR FaBlok::ValueType()
 {
-    if(memcmp(this->rumble_strip1, RUMBLE_STRIP1, sizeof(this->rumble_strip1))!=0
-     ||memcmp(this->rumble_strip2, RUMBLE_STRIP2, sizeof(this->rumble_strip2))!=0){
+    if (memcmp(this->rumble_strip1, RUMBLE_STRIP1, sizeof(this->rumble_strip1)) != 0 || memcmp(this->rumble_strip2, RUMBLE_STRIP2, sizeof(this->rumble_strip2)) != 0)
+    {
         printf("Rumble in the Jungle");
-     }
+    }
     return this->value_type;
 }
 
@@ -246,11 +296,11 @@ void FaBlok::pushIndexEntries(redisReply *reply)
             sds index_entry = sdsnew(item->str);
 
             int segments = 0;
-            sds *parts = sdssplitlen(index_entry, sdslen(index_entry), "\t", 1, &segments);
+            sds *parts = sdssplitlen(index_entry, strlen(index_entry), "\t", 1, &segments);
             if (segments > 0)
             {
-                void *o = rxCreateStringObject(index_entry, sdslen(index_entry));
-                this->InsertKey((UCHAR *)sdsdup(parts[0]), sdslen(parts[0]), o);
+                void *o = rxCreateStringObject(index_entry, strlen(index_entry));
+                this->InsertKey((UCHAR *)parts[0], strlen(parts[0]), o);
             }
             sdsfreesplitres(parts, segments);
         }
@@ -261,16 +311,16 @@ void FaBlok::pushIndexEntries(redisReply *reply)
 
 sds FaBlok::AsSds()
 {
-    if(memcmp(this->rumble_strip1, RUMBLE_STRIP1, sizeof(this->rumble_strip1))!=0
-     ||memcmp(this->rumble_strip2, RUMBLE_STRIP2, sizeof(this->rumble_strip2))!=0){
+    if (memcmp(this->rumble_strip1, RUMBLE_STRIP1, sizeof(this->rumble_strip1)) != 0 || memcmp(this->rumble_strip2, RUMBLE_STRIP2, sizeof(this->rumble_strip2)) != 0)
+    {
         printf("Rumble in the Jungle");
-     }
-    return this->setname;
+    }
+    return sdsnew(this->setname);
 }
 
-int FaBlok::FetchKeySet(sds host, int port, sds rh)
+int FaBlok::FetchKeySet(redisNodeInfo *serviceConfig, const char *rh)
 {
-    redisContext *index_context = RedisClientPool<redisContext>::Acquire(host, port);
+    redisContext *index_context = RedisClientPool<redisContext>::Acquire(serviceConfig->host_reference);
     if (!index_context)
         return C_ERR;
     long long start = ustime();
@@ -278,7 +328,7 @@ int FaBlok::FetchKeySet(sds host, int port, sds rh)
     {
         redisReply *rcc;
         int segments = 0;
-        sds *parts = sdssplitlen(rh, sdslen(rh), " ", 1, &segments);
+        sds *parts = sdssplitlen(rh, strlen(rh), " ", 1, &segments);
         switch (segments)
         {
         case 2:
@@ -290,8 +340,8 @@ int FaBlok::FetchKeySet(sds host, int port, sds rh)
         default:
             rcc = (redisReply *)redisCommand(index_context, "rxfetch %s", rh);
             break;
-            }
-            sdsfreesplitres(parts, segments);
+        }
+        sdsfreesplitres(parts, segments);
         this->latency = ustime() - start;
         this->pushIndexEntries(rcc);
     }
@@ -304,10 +354,10 @@ int FaBlok::FetchKeySet(sds host, int port, sds rh)
     return C_OK;
 }
 
-int FaBlok::FetchKeySet(sds h, int port, sds lh, sds rh, sds cmp)
+int FaBlok::FetchKeySet(redisNodeInfo *serviceConfig, const char *lh, const char *rh, sds cmp)
 {
-    auto *index_context = RedisClientPool<redisContext>::Acquire(h, port);
-    if(index_context == NULL)
+    auto *index_context = RedisClientPool<redisContext>::Acquire(serviceConfig->host_reference);
+    if (index_context == NULL)
         return C_OK;
     if (index_context == NULL)
         return C_ERR;
@@ -317,7 +367,7 @@ int FaBlok::FetchKeySet(sds h, int port, sds lh, sds rh, sds cmp)
     {
         rcc = (redisReply *)redisCommand(index_context, "RXFETCH %s %s %s", rh, lh, cmp);
     }
-    else if( *lh)
+    else if (*lh)
     {
         rcc = (redisReply *)redisCommand(index_context, "RXFETCH %s %s ", rh, lh);
     }
@@ -331,23 +381,15 @@ int FaBlok::FetchKeySet(sds h, int port, sds lh, sds rh, sds cmp)
     return C_OK;
 }
 
+
+void FreeFaBlok(void *o){
+            zfree(o);
+}
+
 void FaBlok::DeleteAllTempDescriptors()
 {
-    raxIterator ri;
-    raxStart(&ri, FaBlok::Get_Thread_Registry());
-    raxSeek(&ri, "^", NULL, 0);
-    while (raxNext(&ri))
-    {
-       FaBlok *kd = (FaBlok *)ri.data;
-        if (kd->marked_for_deletion == 2069722765 || kd->is_temp == 2069722765)
-        {
-            FaBlok *old;
-            raxRemove(FaBlok::Get_Thread_Registry(), ri.key, ri.key_len, (void **)&old);
-            delete kd;
-            raxSeek(&ri, ">", ri.key, ri.key_len);
-        }
-    }
-    raxStop(&ri);
+    raxFreeWithCallback(FaBlok::Get_Thread_Registry(), FreeFaBlok);
+    FaBlok::Free_Thread_Registry();
 }
 
 void FaBlok::ClearCache()
@@ -401,7 +443,7 @@ FaBlok *FaBlok::Copy(sds set_name, int value_type, RaxCopyCallProc *fnCallback, 
 
     if (raxFind(FaBlok::Get_Thread_Registry(), (UCHAR *)set_name, strlen(set_name)) == raxNotFound)
     {
-        raxInsert(FaBlok::Get_Thread_Registry(), (UCHAR *)out->setname, sdslen(out->setname), out, NULL);
+        raxInsert(FaBlok::Get_Thread_Registry(), (UCHAR *)out->setname, strlen(out->setname), out, NULL);
     }
 
     if (this->HasKeySet())
@@ -615,27 +657,33 @@ int FaBlok::CopyNotIn(FaBlok *left, FaBlok *right)
     return c;
 }
 
-void FaBlok::AddKey(sds key, void *obj)
+void FaBlok::AddKey(const char *key, void *obj)
 {
     this->Open();
     this->InsertKey(key, obj);
     this->Close();
 }
 
-void FaBlok::InsertKey(sds key, void *obj)
+void FaBlok::InsertKey(const char *key, void *obj)
 {
-    void *old = NULL;
-    if(rxGetObjectType(obj) == rxOBJ_TRIPLET){
+    void *old = raxFind(&this->keyset, (UCHAR *)key, strlen(key));
+    if (old != raxNotFound)
+        return;
+
+    old = NULL;
+    if (rxGetObjectType(obj) == rxOBJ_TRIPLET)
+    {
         auto *g = (Graph_Triplet *)rxGetContainedObject(obj);
         g->IncrRefCnt();
     }
-    raxInsert(&this->keyset, (UCHAR *)sdsdup(key), sdslen(key), obj, &old);
+    raxInsert(&this->keyset, (UCHAR *)key, strlen(key), obj, &old);
 }
 
 void FaBlok::InsertKey(unsigned char *s, size_t len, void *obj)
 {
     sds key = sdsnewlen(s, len);
-    if(rxGetObjectType(obj) == rxOBJ_TRIPLET){
+    if (rxGetObjectType(obj) == rxOBJ_TRIPLET)
+    {
         auto *g = (Graph_Triplet *)rxGetContainedObject(obj);
         g->IncrRefCnt();
     }
@@ -643,10 +691,10 @@ void FaBlok::InsertKey(unsigned char *s, size_t len, void *obj)
     sdsfree(key);
 }
 
-void *FaBlok::RemoveKey(sds key)
+void *FaBlok::RemoveKey(const char *key)
 {
     void *old;
-    raxRemove(&this->keyset, (UCHAR *)key, sdslen(key), &old);
+    raxRemove(&this->keyset, (UCHAR *)key, strlen(key), &old);
     return old;
 }
 
@@ -658,9 +706,9 @@ void *FaBlok::RemoveKey(unsigned char *s, size_t len)
     return old;
 }
 
-void *FaBlok::LookupKey(sds key)
+void *FaBlok::LookupKey(const char *key)
 {
-    void *m = raxFind(&this->keyset, (UCHAR *)key, sdslen(key));
+    void *m = raxFind(&this->keyset, (UCHAR *)key, strlen(key));
     if (m == raxNotFound)
         return NULL;
     return m;
@@ -678,11 +726,11 @@ int FaBlok::ValueType(int value_type)
     return old;
 }
 
-sds FaBlok::GetCacheReport(){
+sds FaBlok::GetCacheReport()
+{
     // TODO
     return sdsempty();
 }
 
-
-#include "sjiboleth-silnikparowy.cpp"
 #include "sjiboleth-silnikparowy-ctx.cpp"
+#include "sjiboleth-silnikparowy.cpp"

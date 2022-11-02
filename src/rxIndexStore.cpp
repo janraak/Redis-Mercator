@@ -59,8 +59,8 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc);
 #include "../../deps/hiredis/hiredis.h"
 // #include <queryEngine.h>
 
-#include "rxFetch-duplexer.hpp"
-#include "rxDescribe-duplexer.hpp"
+#include "rxFetch-multiplexer.hpp"
+#include "rxDescribe-multiplexer.hpp"
 #include "rxIndex.hpp"
 
 static Mercator_Index *mercator_index;
@@ -99,19 +99,19 @@ int rx_fetch(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     sds v;
     sds f;
     sds op;
-    RxFetchDuplexer *duplexer;
+    RxFetchMultiplexer *multiplexer;
     switch (argc)
     {
     case VALUE_ONLY:
         v = (char *)rxGetContainedObject(argv[1]);
         // f = sdsnew("*");
-        duplexer = new RxFetchDuplexer(argc, dbId, v);
+        multiplexer = new RxFetchMultiplexer(argc, dbId, v);
         // sdsfree(f);
         break;
     case FIELD_AND_VALUE_ONLY:
         v = (char *)rxGetContainedObject(argv[1]);
         f = (char *)rxGetContainedObject(argv[2]);
-        duplexer = new RxFetchDuplexer(argc, dbId, v, f);
+        multiplexer = new RxFetchMultiplexer(argc, dbId, v, f);
         break;
     case FIELD_OP_VALUE:{
         v = (char *)rxGetContainedObject(argv[1]);
@@ -120,13 +120,13 @@ int rx_fetch(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         rxComparisonProc *compare  = rxFindComparisonProc(op);
         if(compare == NULL)
             return RedisModule_ReplyWithError(ctx, "Invalid operator command! Syntax: rxFetch %value% [%field%] [ = | == | > | < | <= | >= | != ]");
-        duplexer = new RxFetchDuplexer(argc, dbId, v, f, compare);
+        multiplexer = new RxFetchMultiplexer(argc, dbId, v, f, compare);
         }
         break;
     default:
         return RedisModule_ReplyWithError(ctx, "Invalid command! Syntax: rxFetch %value% [%field%]");
     }
-    duplexer->Start(ctx);
+    multiplexer->Start(ctx);
     return REDISMODULE_OK;
 }
 
@@ -135,24 +135,24 @@ int rx_describe(struct RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     int dbId = RedisModule_GetSelectedDb(ctx);
     sds v;
     sds f;
-    RxDescribeDuplexer *duplexer;
+    RxDescribeMultiplexer *multiplexer;
     switch (argc)
     {
     case VALUE_ONLY:
         v = (char *)rxGetContainedObject(argv[1]);
         f = sdsnew("*");
-        duplexer = new RxDescribeDuplexer(dbId, v, f);
+        multiplexer = new RxDescribeMultiplexer(dbId, v, f);
         sdsfree(f);
         break;
     case FIELD_AND_VALUE_ONLY:
         v = (char *)rxGetContainedObject(argv[1]);
         f = (char *)rxGetContainedObject(argv[2]);
-        duplexer = new RxDescribeDuplexer(dbId, v, f);
+        multiplexer = new RxDescribeMultiplexer(dbId, v, f);
         break;
     default:
         return RedisModule_ReplyWithError(ctx, "Invalid command! Syntax: rxDescribe %value% [%field%]");
     }
-    duplexer->Start(ctx);
+    multiplexer->Start(ctx);
     return REDISMODULE_OK;
 }
 

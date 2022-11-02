@@ -5,16 +5,16 @@
 
 #define semicolon sdsnew(";")
 
-ParserToken *Sjiboleth::findToken(const char *token, size_t len)
+ParserToken *Sjiboleth::FindToken(const char *token, size_t len)
 {
     ParserToken *t = NULL;
         t = (ParserToken *)raxFind(this->registry, (UCHAR *)token, len);
         if (t != raxNotFound)
-            return t;
+            return ParserToken::Copy(t);
         return NULL;
 }
 
-ParserToken *Sjiboleth::newToken(eTokenType token_type, const char *token, size_t len)
+ParserToken *Sjiboleth::NewToken(eTokenType token_type, const char *token, size_t len)
 {
     ParserToken *t = NULL;
     if (token_type != _literal)
@@ -24,10 +24,12 @@ ParserToken *Sjiboleth::newToken(eTokenType token_type, const char *token, size_
         {
             if (t->Priority() == priBreak)
                 return NULL;
-            return t;
+            return ParserToken::Copy(t);
         }
+        if(token_type == _operator)
+            token_type = _literal;
     }
-    t = new ParserToken(token_type, token, len);
+    t = ParserToken::New(token_type, token, len);
     // t->keyset = NULL;
     switch (token_type)
     {
@@ -68,7 +70,7 @@ ParsedExpression *Sjiboleth::Parse(const char *query)
     if(!query)
         return root_expression;
     char *head = (char *)query;
-    while (*head && is_space(*head))
+    while (*head && IsSpace(*head))
         ++head;
     ParserToken *last_token = NULL;
     char *newHead = NULL;
@@ -76,26 +78,26 @@ ParsedExpression *Sjiboleth::Parse(const char *query)
     while (*head)
     {
         char *tail;
-        while (is_space(*head))
+        while (IsSpace(*head))
             head++;
 
         ParserToken *token = NULL;
         newHead = NULL;
         if (*head == '"' || *head == '\'')
         {
-            token = scanLiteral(head, &tail);
+            token = ScanLiteral(head, &tail);
             head = tail + 1;
             expression->stashToken(this, token, last_token);
         }
-        else if (isNumber(head))
+        else if (IsNumber(head))
         {
-            token = scanNumber(head, &tail);
+            token = ScanNumber(head, &tail);
             head = tail;
             expression->stashToken(this, token, last_token);
         }
-        else if (isoperator(*head))
+        else if (IsOperator(*head))
         {
-            token = scanOperator(head, &tail);
+            token = ScanOperator(head, &tail);
             if (token != NULL && token->HasParserContextProc())
             {
                 parserContextProc *pcp = token->ParserContextProc();
@@ -105,7 +107,7 @@ ParsedExpression *Sjiboleth::Parse(const char *query)
             {
                 // Sentence breaker!
                 expression->flushSideTrack();
-                auto *flush_token = findToken("~~~=~~~", 7);
+                auto *flush_token = FindToken("~~~=~~~", 7);
                 if (flush_token != NULL)
                     expression->emitFinal(flush_token);
                 expression = expression->Next(new ParsedExpression(this));
@@ -131,16 +133,16 @@ ParsedExpression *Sjiboleth::Parse(const char *query)
                     expression->park(token);
                 if(token->Priority() == priBreak){
                     expression->flushSideTrack();
-                    auto *flush_token = findToken("~~~=~~~", 7);
+                    auto *flush_token = FindToken("~~~=~~~", 7);
                     if(flush_token != NULL)
                         expression->emitFinal(flush_token);
                     expression = expression->Next(new ParsedExpression(this));
                 }
             }
         }
-        else if (isbracket(head, &newHead))
+        else if (IsBracket(head, &newHead))
         {
-            token = scanBracket(head, &tail);
+            token = ScanBracket(head, &tail);
             head = newHead;
             head = tail;
             if (token != NULL)
@@ -189,7 +191,7 @@ ParsedExpression *Sjiboleth::Parse(const char *query)
                         if (this->hasDefaultOperator())
                         {
                             char *dummy;
-                            ParserToken *default_token = scanOperator((char *)this->defaultOperator(), &dummy);
+                            ParserToken *default_token = ScanOperator((char *)this->defaultOperator(), &dummy);
                             expression->park(default_token);
                         }
                     }
@@ -197,15 +199,15 @@ ParsedExpression *Sjiboleth::Parse(const char *query)
                 }
             }
         }
-        else if (is_space(*head))
+        else if (IsSpace(*head))
         {
-            while (*head && is_space(*head))
+            while (*head && IsSpace(*head))
                 ++head;
             token = last_token;
         }
         else
         {
-            token = scanIdentifier(head, &tail);
+            token = ScanIdentifier(head, &tail);
             if (token->HasParserContextProc())
             {
                 parserContextProc *pcp = token->ParserContextProc();
@@ -234,15 +236,9 @@ ParsedExpression *Sjiboleth::Parse(const char *query)
         last_token = token;
     }
     expression->flushSideTrack();
-                auto *flush_token = findToken("~~~=~~~", 7);
+                auto *flush_token = FindToken("~~~=~~~", 7);
                 if (flush_token != NULL)
                     expression->emitFinal(flush_token);
-    // //printf(head);
-    // auto *e = root_expression;
-    // while(e != NULL){
-    //     e->show(query);
-    //     e = e->Next();
-    // }
     return root_expression;
 }
 
@@ -271,6 +267,7 @@ void ParsedExpression::show(const char *query)
 
 void ParsedExpression::Show(const char *query)
 {
+    // return;
     // if (p->show_debug_info)
     // {
     printf("expression: %d entries\n", this->expression->Size());
@@ -307,7 +304,7 @@ sds ParsedExpression::ToString()
     return result;
 }
 
-ParserToken *Sjiboleth::getTokenAt(list *list, int ix)
+ParserToken *Sjiboleth::GetTokenAt(list *list, int ix)
 {
     listNode *node = listIndex(list, ix);
     if (node)
@@ -378,7 +375,7 @@ bool ParsedExpression::hasParkedToken(const char *token)
     return false;
 }
 
-bool Sjiboleth::isbracket(char *aChar, char **newPos)
+bool Sjiboleth::IsBracket(char *aChar, char **newPos)
 {
     *newPos = aChar;
     switch (*aChar)
@@ -422,7 +419,7 @@ bool Sjiboleth::isbracket(char *aChar, char **newPos)
     }
 }
 
-bool Sjiboleth::Is_Bracket_Open(char *aChar, char **newPos)
+bool Sjiboleth::IsBracketOpen(char *aChar, char **newPos)
 {
     *newPos = aChar;
     switch (*aChar)
@@ -464,7 +461,7 @@ bool Sjiboleth::Is_Bracket_Open(char *aChar, char **newPos)
 }
 
 
-char *Sjiboleth::getFence(char *aChar)
+char *Sjiboleth::GetFence(char *aChar)
 {
     switch (*aChar)
     {
@@ -488,7 +485,7 @@ char *Sjiboleth::getFence(char *aChar)
         return aChar;
 }
 
-bool Sjiboleth::is_space(char aChar)
+bool Sjiboleth::IsSpace(char aChar)
 {
     switch (aChar)
     {
@@ -505,12 +502,12 @@ bool Sjiboleth::is_space(char aChar)
     }
 }
 
-bool Sjiboleth::isNumber(char *aChar)
+bool Sjiboleth::IsNumber(char *aChar)
 {
     return isdigit(*aChar) || ((*aChar == '+' || *aChar == '-') && isdigit(*(aChar + 1)));
 }
 
-bool Sjiboleth::isoperator(char aChar)
+bool Sjiboleth::IsOperator(char aChar)
 {
     // TODO: Construct from registered tokens!
     switch (aChar)
@@ -546,7 +543,7 @@ bool Sjiboleth::isoperator(char aChar)
     }
 }
 
-bool Sjiboleth::iscsym(int c)
+bool Sjiboleth::IsCsym(int c)
 {
     if (isalnum(c))
         return true;
@@ -555,12 +552,12 @@ bool Sjiboleth::iscsym(int c)
     return false;
 }
 
-ParserToken *Sjiboleth::scanIdentifier(char *head, char **tail)
+ParserToken *Sjiboleth::ScanIdentifier(char *head, char **tail)
 {
     *tail = head + 1;
     char *newTail = NULL;
     // int last_was_literal_fence = 0;
-    while (**tail && !(/*(**tail == '"' || **tail == '\'') || isNumber(*tail) ||*/ isoperator(**tail) || isbracket(*tail, &newTail) || is_space(**tail)))
+    while (**tail && !(/*(**tail == '"' || **tail == '\'') || isNumber(*tail) ||*/ IsOperator(**tail) || IsBracket(*tail, &newTail) || IsSpace(**tail)))
     {
 
         // last_was_literal_fence = (**tail == '"' || **tail == '\'');
@@ -573,40 +570,40 @@ ParserToken *Sjiboleth::scanIdentifier(char *head, char **tail)
     sdsfree(op);
     if (t != raxNotFound)
     {
-        return t;
+        return ParserToken::Copy(t);
     }
-    return newToken(_operand, head, *tail - head);
+    return NewToken(_operand, head, *tail - head);
 }
 
-ParserToken *Sjiboleth::scanLiteral(char *head, char **tail)
+ParserToken *Sjiboleth::ScanLiteral(char *head, char **tail)
 {
     char fence = *head;
     ++head;
     *tail = head;
     while (**tail && **tail != fence)
         ++*tail;
-    return newToken(_literal, head, *tail - head);
+    return NewToken(_literal, head, *tail - head);
 }
 
-ParserToken *Sjiboleth::scanOperator(char *head, char **tail)
+ParserToken *Sjiboleth::ScanOperator(char *head, char **tail)
 {
     *tail = head + 1;
-    while (isoperator(**tail))
+    while (IsOperator(**tail))
         *tail += 1;
-    ParserToken *t = newToken(_operator, head, *tail - head);
+    ParserToken *t = NewToken(_operator, head, *tail - head);
     return t;
 }
 
-ParserToken *Sjiboleth::scanBracket(char *head, char **tail)
+ParserToken *Sjiboleth::ScanBracket(char *head, char **tail)
 {
     *tail = head + 1;
-    eTokenType token_type = (Is_Bracket_Open(head, tail))
+    eTokenType token_type = (IsBracketOpen(head, tail))
                                 ?_open_bracket: _close_bracket;
     *tail = *tail + 1;
-    return newToken(token_type, head, *tail - head);
+    return NewToken(token_type, head, *tail - head);
 }
 
-ParserToken *Sjiboleth::scanNumber(char *head, char **tail)
+ParserToken *Sjiboleth::ScanNumber(char *head, char **tail)
 {
     *tail = head + 1;
     int no_of_decimal_points = 0;
@@ -621,10 +618,10 @@ ParserToken *Sjiboleth::scanNumber(char *head, char **tail)
         }
         else
         {
-            return newToken(_operand, head, *tail - head);
+            return NewToken(_operand, head, *tail - head);
         }
     }
-    return newToken(_operand, head, *tail - head);
+    return NewToken(_operand, head, *tail - head);
 }
 
 void ParsedExpression::stashToken(Sjiboleth *p, ParserToken *token, ParserToken *last_token)
@@ -633,7 +630,7 @@ void ParsedExpression::stashToken(Sjiboleth *p, ParserToken *token, ParserToken 
     {
         this->emitFinal(token);
         char *dummy;
-        ParserToken *default_token = p->scanOperator((char *)p->defaultOperator(), &dummy);
+        ParserToken *default_token = p->ScanOperator((char *)p->defaultOperator(), &dummy);
         this->park(default_token);
     }
     else
@@ -666,7 +663,27 @@ ParsedExpression::ParsedExpression(Sjiboleth *dialect)
     this->expression = new GraphStack<ParserToken>();
     this->side_track = listCreate();
     this->errors = listCreate();
+    // printf(" ParsedExpression()%x, %x, %x\n", (POINTER)this->expression, (POINTER)this->side_track, (POINTER)this->errors);
     this->next = NULL;
+};
+
+ParsedExpression::~ParsedExpression()
+{
+    // printf("~ParsedExpression()%x, %x, %x\n", (POINTER)this->expression, (POINTER)this->side_track, (POINTER)this->errors);
+    if (this->side_track)
+        listRelease(this->side_track);
+    if(this->errors)
+        listRelease(this->errors);
+
+    while(this->expression->HasEntries()){
+        auto *t = this->expression->Pop();
+        ParserToken::Purge(t);
+    }
+    delete this->expression;
+
+    this->expression = NULL;
+    this->side_track = NULL;
+    this->errors = NULL;
 };
 
 ParsedExpression *ParsedExpression::Next(ParsedExpression *next)

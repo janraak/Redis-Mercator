@@ -46,7 +46,7 @@ SJIBOLETH_HANDLER(Sjiboleth::executeNotIn)
     PushResult(out, stack);
 END_SJIBOLETH_HANDLER(Sjiboleth::executeNotIn)
 
-bool Sjiboleth::registerDefaultSyntax()
+bool Sjiboleth::RegisterDefaultSyntax()
 {
     this->RegisterSyntax("-", 30, 2, 1, &Sjiboleth::executePlusMinus);
     this->RegisterSyntax("+", 30, 2, 1, &Sjiboleth::executePlusMinus);

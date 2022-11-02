@@ -78,7 +78,7 @@ extern "C"
     int parsedWithErrors(CParsedExpression *p);
     int writeParsedErrors(CParsedExpression *p, RedisModuleCtx *ctx);
 
-    rax *executeQ(CParsedExpression *e, char *h, int port, RedisModuleCtx *module_context, list **errors);
+    rax *executeQ(CParsedExpression *e, redisNodeInfo *serviceConfig, RedisModuleCtx *module_context, list **errors);
     int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *target_setname);
     void FreeResults(rax *result);
     

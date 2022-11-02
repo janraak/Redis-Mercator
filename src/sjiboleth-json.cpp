@@ -24,47 +24,48 @@ static void Index_Text(FaBlok *v, SilNikParowy_Kontekst *text_kontekst, Sjibolet
 
 SJIBOLETH_HANDLER(IndexJson)
 {
-    STACK_CHECK(1);
-    sds field_name;
-    sds standing_field_name = sdsempty();
-    if (stack->IsMemoized("@@field@@"))
-        standing_field_name = sdsdup((sds)stack->Recall("@@field@@"));
-    if (strncmp(":", (const char *)t->TokenAsSds(), 1) == 0)
+    if (strcmp("{{{,", t->Token()) != 0 && HasMinimumStackEntries(stack, 1) == C_OK)
     {
-        FaBlok *p = stack->Pop_Last();
-        field_name = sdsdup(p->setname);
-    }
-    else if (stack->IsMemoized("@@field@@")){
-        field_name = sdsdup((sds)stack->Recall("@@field@@"));
-    }
-    else
-    {
-        field_name = sdsnew("*");
-    }
-    stack->Memoize("@@field@@", field_name);
-
-    auto *text_kontekst = (SilNikParowy_Kontekst *)stack->Recall("@@SilNikParowy_Kontekst@@");
-    auto *text_parser = (Sjiboleth *)stack->Recall("@@TEXT_PARSER@@");
-
-    while (stack->HasEntries())
-    {
-        FaBlok *p = stack->Pop();
-        if (p->IsParameterList())
+        sds field_name;
+        sds standing_field_name = sdsempty();
+        if (stack->IsMemoized("@@field@@"))
+            standing_field_name = sdsdup((sds)stack->Recall("@@field@@"));
+        if (strncmp(":", (const char *)t->TokenAsSds(), 1) == 0)
         {
-            while (p->parameter_list->HasEntries())
-            {
-                FaBlok *v = p->parameter_list->Pop();
-                Index_Text(v, text_kontekst, text_parser);
-            }
+            FaBlok *p = stack->Pop_Last();
+            field_name = sdsnew(p->setname);
+        }
+        else if (stack->IsMemoized("@@field@@"))
+        {
+            field_name = sdsdup((sds)stack->Recall("@@field@@"));
         }
         else
         {
-            Index_Text(p, text_kontekst, text_parser);
+            field_name = sdsnew("*");
         }
+        stack->Memoize("@@field@@", field_name);
+
+        auto *text_parser = (Sjiboleth *)stack->Recall("@@TEXT_PARSER@@");
+        while (stack->HasEntries())
+        {
+            FaBlok *p = stack->Pop();
+            if (p->IsParameterList())
+            {
+                while (p->parameter_list->HasEntries())
+                {
+                    FaBlok *v = p->parameter_list->Pop();
+                    Index_Text(v, stack, text_parser);
+                }
+            }
+            else
+            {
+                Index_Text(p, stack, text_parser);
+            }
+        }
+        sdsfree(field_name);
+        if (standing_field_name != sdsempty())
+            stack->Memoize("@@field@@", standing_field_name);
     }
-    sdsfree(field_name);
-    if(standing_field_name != sdsempty())
-        stack->Memoize("@@field@@", standing_field_name);
 }
 END_SJIBOLETH_HANDLER(IndexJson)
 
@@ -115,20 +116,20 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(JsonCommaScopeCheck)
     {
         sds referal = sdsnew("{{{");
         referal = sdscat(referal, ((ParserToken *)t)->TokenAsSds());
-        t = lookupToken(pO, referal);
+        t = ParserToken::Copy((ParserToken*)lookupToken(pO, referal));
         sdsfree(referal);
     }
     else if (!HasParkedToken(expression, "["))
     {
         sds referal = sdsnew("!!!");
         referal = sdscat(referal, ((ParserToken *)t)->TokenAsSds());
-        t = lookupToken(pO, referal);
+        t = ParserToken::Copy((ParserToken*)lookupToken(pO, referal));
         sdsfree(referal);
     }
 }
 END_SJIBOLETH_PARSER_CONTEXT_CHECKER(JsonCommaScopeCheck)
 
-bool JsonDialect::registerDefaultSyntax()
+bool JsonDialect::RegisterDefaultSyntax()
 {
     this->DeregisterSyntax("-");
     this->DeregisterSyntax("+");
@@ -145,7 +146,7 @@ bool JsonDialect::registerDefaultSyntax()
     this->DeregisterSyntax("not");
     this->DeregisterSyntax("NOT");
     this->DeregisterSyntax("!");
-	// Sjiboleth::registerDefaultSyntax();
+	// Sjiboleth::RegisterDefaultSyntax();
     this->RegisterSyntax(",", 15, 0, 0, executeJsonParameters, JsonCommaScopeCheck);
     this->RegisterSyntax("!!!,", priBreak, 0, 0, IndexJson);
     this->RegisterSyntax("{{{,", 5, 0, 0, IndexJson);
@@ -157,5 +158,6 @@ JsonDialect::JsonDialect()
     : Sjiboleth()
 {
     this->default_operator = sdsempty();
-    this->registerDefaultSyntax();
+    this->RegisterDefaultSyntax();
+    // this->object_and_array_controls = true;
 }

@@ -1,17 +1,17 @@
-#ifndef __RXGRAPHLOAD_DUPLEXER_H__
-#define __RXGRAPHLOAD_DUPLEXER_H__
+#ifndef __RXGRAPHLOAD_multiplexer_H__
+#define __RXGRAPHLOAD_multiplexer_H__
 
 #define VALUE_ONLY 2
 #define FIELD_AND_VALUE_ONLY 3
 #define FIELD_OP_VALUE 4
 
-#include "command-duplexer.hpp"
+#include "command-multiplexer.hpp"
 #include "simpleQueue.hpp"
 #include "sjiboleth.hpp"
 #include "client-pool.hpp"
 #include "graphstackentry.hpp"
 
-extern void ExecuteRedisCommand(SimpleQueue *ctx, void *stash);
+extern     void ExecuteRedisCommand(SimpleQueue *ctx, void *stash, const char *address, int port);
 
 typedef int comparisonProc(char *l, int ll, char *r);
 
@@ -30,6 +30,7 @@ extern "C"
 #ifdef __cplusplus
 }
 #endif
+
 
 sds readFileIntoSds(const string &path)
 {
@@ -60,10 +61,10 @@ public:
         : JsonDialect()
     {
         this->object_and_array_controls = true;
-        this->registerDefaultSyntax();
+        this->RegisterDefaultSyntax();
     }
 
-    bool registerDefaultSyntax()
+    bool RegisterDefaultSyntax()
     {
         this->DeregisterSyntax("!!!,");
         this->DeregisterSyntax(",");
@@ -167,6 +168,7 @@ long long execute_command_delay_ms = 50;
 
 int Execute_Command_Cron(struct aeEventLoop *, long long, void *clientData)
 {
+    redisNodeInfo *data_config = rxDataNode();
     auto *queue = (SimpleQueue *)clientData;
     long long start = ustime();
 
@@ -175,13 +177,12 @@ int Execute_Command_Cron(struct aeEventLoop *, long long, void *clientData)
             || queue->response_queue->QueueLength() > 0
             )
     {
-        sds *request = queue->Dequeue();
+        void *request = queue->Dequeue();
         if (request == NULL)
         {
             return execute_command_delay_ms;
         }
-        void **stash = (void **)request;
-        ExecuteRedisCommand(queue, stash);
+        ExecuteRedisCommand(queue, request, data_config->host_reference);
 
         // Check in loop! Slot time exhausted?
         if (ustime() - start >= execute_command_interval_ms * 1000)
@@ -205,7 +206,7 @@ static void *execLoadThread(void *ptr)
     loader_queue->Started();
 
     // long long start = ustime();
-    sds *load_entry = loader_queue->Dequeue();
+    void *load_entry = loader_queue->Dequeue();
     // start = ustime();
     while (load_entry == NULL)
     {
@@ -215,8 +216,9 @@ static void *execLoadThread(void *ptr)
     if (load_entry != NULL)
     {
         // TODO
+        GET_ARGUMENTS_FROM_STASH(load_entry);
         auto *parser = new GraphParser();
-        auto *parsed_json = parser->Parse(load_entry[0]);
+        auto *parsed_json = parser->Parse((sds)rxGetContainedObject(argv[1]));
         auto *sub = parsed_json;
         while (sub != NULL)
         {
@@ -229,10 +231,10 @@ static void *execLoadThread(void *ptr)
         loader_queue->response_queue->Enqueue(load_entry);
 
     // free stashed redis command on same thread as allocated
-    sds *stash = command_reponse_queue->Dequeue();
+    void *stash = command_reponse_queue->Dequeue();
     while (stash != NULL)
     {
-            zfree(stash);
+        FreeStash(stash);
         stash = command_reponse_queue->Dequeue();
     }
 
@@ -249,10 +251,10 @@ static void *execLoadThread(void *ptr)
     while ((command_reponse_queue->QueueLength() + command_request_queue->QueueLength()) > 0)
     {
         // free stashed redis command on same thread as allocated
-        sds *stash2 = command_reponse_queue->Dequeue();
+        void *stash2 = command_reponse_queue->Dequeue();
         while (stash2 != NULL)
         {
-                zfree(stash2);
+            FreeStash(stash2);
             stash2 = command_reponse_queue->Dequeue();
         }
     }
@@ -260,14 +262,14 @@ static void *execLoadThread(void *ptr)
     return NULL;
 }
 
-class RxGraphLoadDuplexer : public Duplexer
+class RxGraphLoadMultiplexer : public Multiplexer
 {
 public:
     SimpleQueue *request;
     SimpleQueue *response;
 
-    RxGraphLoadDuplexer(RedisModuleString **argv, int argc)
-        : Duplexer()
+    RxGraphLoadMultiplexer(RedisModuleString **argv, int argc)
+        : Multiplexer()
     {
         this->response = new SimpleQueue();
         this->request = new SimpleQueue((void *)execLoadThread, 1, this->response);
@@ -276,24 +278,22 @@ public:
         sds arg = sdsnew(argS);
         sdstoupper(arg);
         sds keyword = sdsnew("FILE");
-        sds *load_entry = new sds[2];
-        load_entry[1] = NULL;
+        // TODO fixed bugs from use of stashes!!!!!!
         if (argc == 3 && sdscmp(keyword, arg) == 0)
         {
             const char *pathS = RedisModule_StringPtrLen(argv[2], &len);
             sds path = sdsnew(pathS);
-
-            load_entry[0] = readFileIntoSds(path);
+            sds graph = readFileIntoSds(path);
+            rxStashCommand(this->request, "", 1, graph);
             sdsfree(arg);
         }
         else
         {
-            load_entry[0] = arg;
+            rxStashCommand(this->request, "", 1, arg);
         }
-        this->request->Enqueue(load_entry);
     }
 
-    ~RxGraphLoadDuplexer()
+    ~RxGraphLoadMultiplexer()
     {
         this->response->Release();
         this->request->Release();
@@ -309,11 +309,10 @@ public:
 
     int Execute()
     {
-        sds *response = this->response->Dequeue();
+        void *response = this->response->Dequeue();
         if (response != NULL)
         {
-            sdsfree(response[0]);
-            delete response;
+            FreeStash(response);
             return -1;
         }
         return 1;

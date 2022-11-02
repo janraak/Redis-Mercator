@@ -23,7 +23,10 @@ char *toLowerCase(char *pString)
 	return start;
 }
 
-bool TextDialect::FlushIndexables(rax *collector, sds key, char *key_type, redisContext *index)
+char *KEYTYPE_TAGS[] = {"S", "L", "C", "Z", "H", "M", "X"};
+
+
+bool TextDialect::FlushIndexables(rax *collector, sds key, int key_type, redisContext *index)
 {
 	raxIterator indexablesIterator;
 	raxStart(&indexablesIterator, collector);
@@ -39,12 +42,12 @@ bool TextDialect::FlushIndexables(rax *collector, sds key, char *key_type, redis
 		int segments = 0;
 		sds *parts = sdssplitlen(avp, indexablesIterator.key_len, "/", 1, &segments);
 		auto *indexable = (Indexable *)indexablesIterator.data;
-		rcc = (redisReply *)redisCommand(index, "RXADD %s %s %s %s %f 0", key, key_type, parts[0], parts[1], indexable->sum_w / (indexable->tally * indexable->tally));
+		rcc = (redisReply *)redisCommand(index, "RXADD %s %s %s %s %f 0", key, KEYTYPE_TAGS[key_type], parts[0], parts[1], indexable->sum_w / (indexable->tally * indexable->tally));
 		if (rcc)
 		{
 			if (index->err)
 			{
-				printf("Error: %s on %s\n", index->errstr, avp);
+				rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(), "Error: %s on %s\n", index->errstr, avp));
 			}
 			freeReplyObject(rcc);
 		}
@@ -60,8 +63,10 @@ bool TextDialect::FlushIndexables(rax *collector, sds key, char *key_type, redis
 	return true;
 }
 
-bool static CollectIndexables(rax *collector, sds field_name, sds field_value, double w)
+bool static CollectIndexables(rax *collector, sds field_name, const char * field_value, double w)
 {
+	if(collector == NULL)
+		return false;
 	sds key = sdsdup(field_name);
 	key = sdscat(key, "/");
 	key = sdscat(key, field_value);
@@ -114,11 +119,10 @@ bool isPointerBad(void *p)
 }
 
 // SJIBOLETH_HANDLER(IndexText)
-    int IndexText(CParserToken *tO, CSilNikParowy_Kontekst *stackO) 
-    {                                                        
-        // UNWRAP_SJIBOLETH_HANDLER_PARAMETERS();
-		    auto *t = (ParserToken *)tO;                    \
-    auto *stack = (SilNikParowy_Kontekst *)stackO;  
+int IndexText(CParserToken *tO, CSilNikParowy_Kontekst *stackO)
+{
+	auto *t = (ParserToken *)tO;
+	auto *stack = (SilNikParowy_Kontekst *)stackO;
 
 	if (stack->HasEntries())
 	{
@@ -127,7 +131,7 @@ bool isPointerBad(void *p)
 		if (strncmp(":", (const char *)t->TokenAsSds(), 1) == 0)
 		{
 			FaBlok *p = stack->Pop_Last();
-			field_name = sdsdup(p->setname);
+			field_name = sdsnew(p->setname);
 		}
 		else if (stack->IsMemoized("@@field@@"))
 		{
@@ -161,7 +165,7 @@ bool isPointerBad(void *p)
 			}
 			else
 			{
-				if (p->setname == NULL || isPointerBad(p->setname))
+				if (p->setname == NULL)
 				{
 					printf("%s\n", stack->expression->ToString());
 				}
@@ -171,7 +175,7 @@ bool isPointerBad(void *p)
 		}
 		sdsfree(field_name);
 	}
-        return C_OK;                                \
+	return C_OK;
 }
 // END_SJIBOLETH_HANDLER(IndexText)
 
@@ -197,7 +201,7 @@ SJIBOLETH_HANDLER(executeTextParameters)
 		PushResult(first, stack);
 		return C_OK;
 	}
-    sds setname = sdscatprintf(sdsempty(), "P_%s_%lld", t->TokenAsSds(), ustime());
+	sds setname = sdscatprintf(sdsempty(), "P_%s_%lld", t->TokenAsSds(), ustime());
 	FaBlok *pl = FaBlok::Get(setname, KeysetDescriptor_TYPE_PARAMETER_LIST);
 	pl->AsTemp();
 	pl->parameter_list = new GraphStack<FaBlok>();
@@ -292,24 +296,24 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(TextDashScopeCheck)
 }
 END_SJIBOLETH_PARSER_CONTEXT_CHECKER(TextDashScopeCheck)
 
-bool TextDialect::registerDefaultSyntax()
+bool TextDialect::RegisterDefaultSyntax()
 {
-    this->DeregisterSyntax("-");
-    this->DeregisterSyntax("+");
-    this->DeregisterSyntax("=");
-    this->DeregisterSyntax("==");
-    this->DeregisterSyntax(">=");
-    this->DeregisterSyntax("<=");
-    this->DeregisterSyntax("<");
-    this->DeregisterSyntax(">");
-    this->DeregisterSyntax("!=");
-    this->DeregisterSyntax("|");
-    this->DeregisterSyntax("&");
-    this->DeregisterSyntax("|&");
-    this->DeregisterSyntax("not");
-    this->DeregisterSyntax("NOT");
-    this->DeregisterSyntax("!");
-	// Sjiboleth::registerDefaultSyntax();
+	this->DeregisterSyntax("-");
+	this->DeregisterSyntax("+");
+	this->DeregisterSyntax("=");
+	this->DeregisterSyntax("==");
+	this->DeregisterSyntax(">=");
+	this->DeregisterSyntax("<=");
+	this->DeregisterSyntax("<");
+	this->DeregisterSyntax(">");
+	this->DeregisterSyntax("!=");
+	this->DeregisterSyntax("|");
+	this->DeregisterSyntax("&");
+	this->DeregisterSyntax("|&");
+	this->DeregisterSyntax("not");
+	this->DeregisterSyntax("NOT");
+	this->DeregisterSyntax("!");
+	// Sjiboleth::RegisterDefaultSyntax();
 	this->RegisterSyntax("=", 10, 0, 0, NULL);
 	// this->RegisterSyntax("-", 10, 0, 0, NULL, TextDashScopeCheck);
 	// this->RegisterSyntax("!!!-", priIgnore, 0, 0, NULL);
@@ -335,5 +339,5 @@ TextDialect::TextDialect()
 	: Sjiboleth()
 {
 	this->default_operator = sdsempty();
-	this->registerDefaultSyntax();
+	this->RegisterDefaultSyntax();
 }

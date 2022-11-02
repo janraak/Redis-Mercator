@@ -1,11 +1,11 @@
-#ifndef __RXDESCRIBE_DUPLEXER_H__
-#define __RXDESCRIBE_DUPLEXER_H__
+#ifndef __RXDESCRIBE_multiplexer_H__
+#define __RXDESCRIBE_multiplexer_H__
 
 #define VALUE_ONLY 2
 #define FIELD_AND_VALUE_ONLY 3
 #define FIELD_OP_VALUE 4
 
-#include "command-duplexer.hpp"
+#include "command-multiplexer.hpp"
 
 typedef int comparisonProc(char *l, int ll, char *r);
 
@@ -22,7 +22,7 @@ extern "C"
 }
 #endif
 
-class RxDescribeDuplexer : public Duplexer
+class RxDescribeMultiplexer : public Multiplexer
 {
 public:
     dictIterator *di;
@@ -32,8 +32,8 @@ public:
     int attribute_len;
     rax *bucket;
 
-    RxDescribeDuplexer(int dbNo, sds attribute_value, sds attribute)
-        : Duplexer()
+    RxDescribeMultiplexer(int dbNo, sds attribute_value, sds attribute)
+        : Multiplexer()
     {
         this->di = rxGetDatabaseIterator(dbNo);
         this->attribute_value = sdsdup(attribute_value);
@@ -43,7 +43,7 @@ public:
         this->bucket = raxNew();
     }
 
-    ~RxDescribeDuplexer()
+    ~RxDescribeMultiplexer()
     {
         dictReleaseIterator(this->di);
         raxFree(this->bucket);

@@ -75,10 +75,10 @@ int writeParsedErrors(CParsedExpression *sO, RedisModuleCtx *ctx)
     return C_OK;
 }
 
-rax *executeQ(CParsedExpression *s, char *h, int port, RedisModuleCtx *module_context, list **errors)
+rax *executeQ(CParsedExpression *s, redisNodeInfo *serviceConfig, RedisModuleCtx *module_context, list **errors)
 {
     ParsedExpression *so = (ParsedExpression *)s;
-    auto *e = new SilNikParowy_Kontekst(h, port, module_context);
+    auto *e = new SilNikParowy_Kontekst(serviceConfig, module_context);
     rax *result = e->Execute(so);
     if (errors)
     {
