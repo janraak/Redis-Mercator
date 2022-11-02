@@ -1,11 +1,14 @@
 #ifndef __GRAPHSTACKENTRY_H__
 #define __GRAPHSTACKENTRY_H__
-#include "client-pool.hpp"
 
-template class RedisClientPool<struct client>;
 
 #include <cstdarg>
 #include <typeinfo>
+
+#include "client-pool.hpp"
+#include "simpleQueue.hpp"
+
+template class RedisClientPool<struct client>;
 
 #ifdef __cplusplus
 extern "C"
@@ -47,12 +50,12 @@ const char *EDGE_TYPE_SUBJECT_TO_EDGE = "SE";
 const char *EDGE_TYPE_EDGE_TO_OBJECT = "EO";
 const char *EDGE_TYPE_OBJECT_TO_EDGE = "OE";
 
-const char *REDIS_CMD_SADD = "sadd";
-const char *REDIS_CMD_SMEMBERS = "SMEMBERS";
+const char *WREDIS_CMD_SADD = "sadd";
+const char *WREDIS_CMD_SMEMBERS = "SMEMBERS";
 
-const char *REDIS_CMD_HSET = "hset";
-const char *REDIS_CMD_HGETALL = "HGETALL";
-const char *OK = "OK";
+const char *WREDIS_CMD_HSET = "hset";
+const char *WREDIS_CMD_HGETALL = "HGETALL";
+const char *WOK = "WOK";
 
 struct client *graphStackEntry_fakeClient = NULL;
 
@@ -143,7 +146,64 @@ void *rxStashCommand(SimpleQueue *ctx, const char *command, int argc, ...)
 
     va_end(args);
 
-    ctx->Enqueue((char **)stash);
+    if(ctx)
+        ctx->Enqueue((char **)stash);
+    return stash;
+}
+void *rxStashCommand2(SimpleQueue *ctx, const char *command, int argc, sds *args)
+{
+    void *stash = NULL;
+
+    size_t total_string_size = 1 + strlen(command);
+    int preamble_len = sizeof(struct sdshdr32);
+    for (int j = 0; j < argc; j++)
+    {
+        sds result = args[j];
+        total_string_size += preamble_len + sdslen(result) + 1;
+    }
+    size_t total_pointer_size = (argc + 3) * sizeof(void *);
+    size_t total_robj_size = (argc + 1) * rxSizeofRobj();
+    size_t total_sds_size = (argc + 1) * preamble_len;
+    size_t total_stash_size = (argc + 2) * sizeof(void *) 
+                            + total_pointer_size 
+                            + total_robj_size 
+                            + total_sds_size 
+                            + total_string_size + 1;
+    stash = zmalloc(total_stash_size);
+    memset(stash, 0xff, total_stash_size);
+
+    *((int *)stash) = argc + 1;
+
+    void **argv = (void **)(stash + sizeof(void *));
+    void *robj_space = ((void *)stash + total_pointer_size);
+    struct sdshdr32 *sds_space = (struct sdshdr32 *)((void *)robj_space + total_robj_size);
+    // char *string_space = (char *)((void *)sds_space + total_sds_size);
+
+    size_t l = strlen(command);
+    size_t total_size;
+    // strcpy(string_space, command);
+    sds s = rxSdsAttachlen(sds_space, command, l, &total_size);
+    argv[0] = rxSetStringObject(robj_space, s);
+    sds_space = (struct sdshdr32 *)((char *)sds_space + total_size);
+    robj_space = robj_space + rxSizeofRobj();
+
+    int j = 0;
+    for (; j < argc; j++)
+    {
+
+        sds result = args[j];
+        l = sdslen(result);
+
+        s = rxSdsAttachlen(sds_space, result, l, &total_size);
+        argv[j + 1] = rxSetStringObject(robj_space, s);
+
+        robj_space = robj_space + rxSizeofRobj();
+        sds_space = (struct sdshdr32 *)((char *)sds_space + total_size);
+    }
+    argv[j + 1] = NULL;
+
+    if(ctx)
+        ctx->Enqueue((char **)stash);
     return stash;
 }
 
@@ -157,9 +217,16 @@ void ExecuteRedisCommand(SimpleQueue *ctx, void *stash)
     void *command_definition = rxLookupCommand((sds)commandName);
     rxClientExecute(c, command_definition);
     RedisClientPool<struct client>::Release(c);
-    ctx->response_queue->Enqueue((char **)stash);
+    if(ctx)
+        ctx->response_queue->Enqueue((char **)stash);
 }
 
+void FreeStash(void *stash)
+{
+    zfree(stash);
+}
+
+#ifndef STASHERS_ONLY
 template <typename T>
 class GraphIdentity
 {
@@ -174,7 +241,7 @@ public:
 
     ~GraphIdentity()
     {
-        string ti = typeid(this).name();
+        // string ti = typeid(this).name();
         // if(ti.compare("c") == 0)
         // {
         //     raxFreeWithCallback(this->r, [](T *o)
@@ -413,7 +480,7 @@ public:
                             vertice,
                             direction,
                             weight);
-        rxStashCommand(this->ctx, REDIS_CMD_SADD, 2, edge_key, link);
+        rxStashCommand(this->ctx, WREDIS_CMD_SADD, 2, edge_key, link);
         sdsfree(link);
     }
 
@@ -513,9 +580,9 @@ public:
                 sds *parts = sdssplitlen(v, sdslen(v), ":", 1, &segments);
                 sds e = sdsnew("edge");
                 sds t = sdsnew("type");
-                rxStashCommand(this->ctx, REDIS_CMD_HSET, 3, inverse_token_key, e, token_key);
-                rxStashCommand(this->ctx, REDIS_CMD_HSET, 3, inverse_token_key, t, parts[0]);
-                rxStashCommand(this->ctx, REDIS_CMD_HSET, 3, inverse_token_key, e, inverse_token_key);
+                rxStashCommand(this->ctx, WREDIS_CMD_HSET, 3, inverse_token_key, e, token_key);
+                rxStashCommand(this->ctx, WREDIS_CMD_HSET, 3, inverse_token_key, t, parts[0]);
+                rxStashCommand(this->ctx, WREDIS_CMD_HSET, 3, inverse_token_key, e, inverse_token_key);
                 sdsfreesplitres(parts, segments);
                 sdsfree(e);
                 sdsfree(t);
@@ -529,7 +596,7 @@ public:
                 continue;
             sds k = sdsnewlen(key, keylen);
             // printf("#500# Persist # %p %s\n", iri, iri);
-            rxStashCommand(this->ctx, REDIS_CMD_HSET, 3, iri, k, value);
+            rxStashCommand(this->ctx, WREDIS_CMD_HSET, 3, iri, k, value);
             sdsfree(k);
         }
         sdsfree(iri);
@@ -607,4 +674,5 @@ public:
     }
 };
 
+#endif
 #endif

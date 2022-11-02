@@ -299,7 +299,7 @@ public:
             if (key[0] != TANDEM_PREFIX[0])
                 edge_key.assign(TANDEM_PREFIX);
             edge_key.append(key, keylen);
-            auto *r = RedisModule_Call(ctx, REDIS_CMD_SMEMBERS, "c",
+            auto *r = RedisModule_Call(ctx, WREDIS_CMD_SMEMBERS, "c",
                                        edge_key.c_str());
             if (r)
             {
@@ -409,7 +409,7 @@ public:
             if (this->predicate)
                 emit_entity(ctx, this->predicate, this->predicate_len, entities, entities_sep, entities_emitted);
 
-            auto *r = RedisModule_Call(ctx, REDIS_CMD_SMEMBERS, "c",
+            auto *r = RedisModule_Call(ctx, WREDIS_CMD_SMEMBERS, "c",
                                        edge_key.c_str());
             if (r)
             {
@@ -527,7 +527,7 @@ void emit_entity(RedisModuleCtx *ctx, const char *key, size_t keylen, string &js
         return;
     RedisModule_DictSetC(touches, (void *)key, keylen, (void *)key);
 
-    RedisModuleCallReply *r = RedisModule_Call(ctx, REDIS_CMD_HGETALL, "b", key, keylen);
+    RedisModuleCallReply *r = RedisModule_Call(ctx, WREDIS_CMD_HGETALL, "b", key, keylen);
     switch (RedisModule_CallReplyType(r))
     {
     case REDISMODULE_REPLY_ARRAY:
@@ -727,7 +727,7 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     if (!sentence_parser)
         sentence_parser = newParser("text");
 
-    test();
+    // test();
 
     if (RedisModule_Init(ctx, "graphdb", 1, REDISMODULE_APIVER_1) == REDISMODULE_ERR)
         return REDISMODULE_ERR;

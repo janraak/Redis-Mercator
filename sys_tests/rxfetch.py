@@ -30,9 +30,9 @@ def check_server(must_flush):
     data = redis_client.execute_command("MODULE LIST")
     fetcher_loaded = False
     for m in data:
-        if m[b'name'].decode('utf-8') == "rxFetch": fetcher_loaded= True
+        if m[b'name'].decode('utf-8') == "rxIndexStore": fetcher_loaded= True
     if not fetcher_loaded:
-        redis_client.execute_command("MODULE LOAD {}/rxFetch.so ".format(modulePath))
+        redis_client.execute_command("MODULE LOAD {}/rxIndexStore.so ".format(modulePath))
 
     return redis_client
 
@@ -71,7 +71,7 @@ def verify_keys(redis_client, assertion):
             if not cm in decoded_members:
                 print("missing link:{}".format(cm))
 
-def rxfetch_test(redis_client):
+def rxIndexStore_test(redis_client):
     redis_client.execute_command("rxAdd NL H kleur rood 0.333")
     redis_client.execute_command("rxAdd NL H kleur wit 0.333")
     redis_client.execute_command("rxAdd NL H kleur blauw 0.333")
@@ -103,7 +103,7 @@ def rxfetch_test(redis_client):
 
 def main(must_flush = False):
     redis_client = check_server(must_flush)
-    rxfetch_test(redis_client)
+    rxIndexStore_test(redis_client)
     redis_client.close()
 
 if __name__ == "__main__":

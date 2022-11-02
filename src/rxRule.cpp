@@ -45,7 +45,7 @@ extern "C"
 
 #include "rxFetch-duplexer.hpp"
 
-const char *EMPTY_STRING = "";
+// const char *EMPTY_STRING = "";
 
 const char *AS_ARG = "AS";
 const char *DEBUG_ARG = "DEBUG";
@@ -75,6 +75,9 @@ const char *RX_LOADSCRIPT = "RXLOADSCRIPT";
 const char *RX_EVALSHA = "RXEVALSHA";
 const char *RX_HELP = "RXHELP";
 
+IndexerInfo index_info = {sdsempty(), 6379, 0, 0};
+IndexerInfo data_info = {sdsempty(), 6379, 0, 0};
+
 /*
     Define an active business rule.
 
@@ -99,7 +102,7 @@ int rxRuleSet(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         query = sdscatfmt(query, "%s%s", sep, q);
         sep = sdsnew(" ");
     }
-    BusinessRule *br = new BusinessRule(ruleName, query);
+    BusinessRule *br = new BusinessRule(ruleName, query, index_info);
     sdsfree(sep);
     sdsfree(query);
     sds response = sdscatfmt(sdsempty(), "Rule for: %s Expression: Expression appears to be ", ruleName);
@@ -131,7 +134,20 @@ int rxRuleDel(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     rxUNUSED(argv);
     rxUNUSED(argc);
-    RedisModule_ReplyWithSimpleString(ctx, "Command not yet implemented!");
+    rxUNUSED(argv);
+    rxUNUSED(argc);
+    size_t len;
+    const char *ruleName = RedisModule_StringPtrLen(argv[1], &len);
+    if(strcmp("*", ruleName) == 0)
+        BusinessRule::ForgetAll();
+    else {
+        auto *br = BusinessRule::Find((sds)ruleName);
+        if( br!= NULL){
+            BusinessRule::Forget(br);
+        }
+    }
+
+    RedisModule_ReplyWithSimpleString(ctx, "OK");
     return REDISMODULE_OK;
 }
 
@@ -148,8 +164,11 @@ int rxApply(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     rxUNUSED(ctx);
     rxUNUSED(argc);
     sds key = (char *)rxGetContainedObject(argv[1]);
+    rxServerLogRaw(rxLL_WARNING, 
+        sdscatprintf(sdsempty(), "Applying all rules to: %s\n", key));
     sds response = BusinessRule::ApplyAll(key);
     RedisModule_ReplyWithSimpleString(ctx, response);
+    rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(), "Applied all rules to: %s\n", key));
     sdsfree(response);
     return REDISMODULE_OK;
 }
@@ -179,7 +198,7 @@ int rxApply(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 //         RedisModule_ReplyWithArray(ctx, no_sub_expr);
 //     while (t != NULL)
 //     {
-//         // printf("%s\n", t->ToString());
+//         // rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(), "%s\n", t->ToString()));
 //         if (parsedWithErrors(t))
 //         {
 //             writeParsedErrors(t, ctx);
@@ -271,23 +290,46 @@ int rxApply(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 //     return REDISMODULE_OK;
 // }
 
+
 /* This function must be present on each R
 edis module. It is used in order to
  * register the commands into the Redis server. */
 int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
-
-    rxUNUSED(argv);
-    rxUNUSED(argc);
     initRxSuite();
-
-    // CSjiboleth *gd = newGremlinEngine();
-    // executeQ(gd);
-    // rxUNUSED(gd);
 
     if (RedisModule_Init(ctx, "rxRule", 1, REDISMODULE_APIVER_1) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
+   
+    index_info.database_no = 0;
+    index_info.is_local = 0;
+     if (argc > 0)
+    {
+        const char *s = RedisModule_StringPtrLen(argv[0], NULL);
+        index_info.index_address = sdsdup(sdsnew(s));
+    }
+    if (argc > 1)
+    {
+        const char *s = RedisModule_StringPtrLen(argv[1], NULL);
+        index_info.index_port = atoi(s);
+    }
+     if (argc > 2)
+    {
+        const char *s = RedisModule_StringPtrLen(argv[2], NULL);
+        data_info.index_address = sdsdup(sdsnew(s));
+    }
+    if (argc > 3)
+    {
+        const char *s = RedisModule_StringPtrLen(argv[3], NULL);
+        data_info.index_port = atoi(s);
+    }
+    index_info.is_local = sdscmp(index_info.index_address, data_info.index_address) == 0
+                        && index_info.index_port == data_info.index_port;
 
+    rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(), "\nrxRule loaded, is local:%d index: %s:%d data: %s:%d \n\n",
+    index_info.is_local,
+    index_info.index_address, index_info.index_port,
+    data_info.index_address, data_info.index_port));
     if (RedisModule_CreateCommand(ctx, "RULE.SET",
                                   rxRuleSet, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;

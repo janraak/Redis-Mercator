@@ -283,6 +283,7 @@ bool Sjiboleth::hasDefaultOperator()
 {
     return this->default_operator && *this->default_operator != 0x00;
 }
+
 const char *Sjiboleth::defaultOperator()
 {
     return this->default_operator;

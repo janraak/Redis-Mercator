@@ -54,11 +54,11 @@ def check_server(must_flush):
     print(data)
     for m in data:
         print(m)
-        if m[b'name'].decode('utf-8') == "rxFetch": fetcher_loaded= True
+        if m[b'name'].decode('utf-8') == "rxIndexStore": fetcher_loaded= True
     if not fetcher_loaded:
-        redis_index.execute_command("MODULE LOAD /home/pi/redis/redis-6.0.10/extensions/src/rxFetch.so a b c")
+        redis_index.execute_command("MODULE LOAD /home/pi/redis/redis-6.0.10/extensions/src/rxIndexStoreStore.so a b c")
 
-    exit(0)    
+    # exit(0)    
     
     if must_flush:
         redis_client.execute_command("FLUSHALL")
@@ -76,7 +76,7 @@ def check_server(must_flush):
 
     return redis_client
 
-def rxfetch_test(redis_client):
+def rxIndexStore_test(redis_client):
     # redis_client.execute_command("rxadd NL H kleur rood 0.333")
     # redis_client.execute_command("rxadd NL H kleur wit 0.333")
     # redis_client.execute_command("rxadd NL H kleur blauw 0.333")
@@ -159,7 +159,7 @@ def main(must_flush = False):
     redis_client = check_server(must_flush)
     nfails = 0
     try:
-        rxfetch_test(redis_client)
+        rxIndexStore_test(redis_client)
 
         for t in dataset_family.get_dataset():
             si = ""

@@ -11,13 +11,18 @@ install:
 test:
 	# cd src && $(MAKE) $@
 	# /home/pi/redis/redis-6.0.10/src/redis-server --bind 0.0.0.0 --dbfilename data.rdb --maxmemory 6G &
-	python3 sys_tests/rxfetch.py 
+	python3 sys_tests/rxIndexStore.py 
 	python3 sys_tests/gremlin_001.py 
 
 
+I:
+	# cd src && $(MAKE) $@
+	# /home/pi/redis/redis-6.0.10/src/redis-server --bind 0.0.0.0 --dbfilename data.rdb --maxmemory 6G &
+	python3 sys_tests/index_test_000.py 
+
 S:
 	# /home/pi/redis/redis-6.0.10/src/redis-server --bind 0.0.0.0 --dbfilename data.rdb --maxmemory 6G &
-	python3 sys_tests/rxfetch.py 
+	python3 sys_tests/rxIndexStore.py 
 	python3 sys_tests/gremlin_001.py 
 	# ../src/redis-cli  test.json test1 'j:{"woonplaatsen":["Oosthuizen, NH, NL", "Amsterdam, NH, NL", "Enkhuizen, NH, NL", "Hoogkarspel, NH, NL", "Oosthuizen, NH, NL", "shoreline,wa,usa"]}'
 	# ../src/redis-cli  test.json test2 'j:{"naam":"jan raak", "woonplaats":"shoreline,wa,usa"}'
@@ -36,7 +41,7 @@ S:
 T:
 	 cd src ; $(MAKE) 
 	# /home/pi/redis/redis-6.0.10/src/redis-server --bind 0.0.0.0 --dbfilename data.rdb --maxmemory 6G &
-	python3 sys_tests/rxfetch.py 
+	python3 sys_tests/rxIndexStore.py 
 	python3 sys_tests/gremlin_001.py 
 	# ../src/redis-cli  test.json test1 'j:{"woonplaatsen":["Oosthuizen, NH, NL", "Amsterdam, NH, NL", "Enkhuizen, NH, NL", "Hoogkarspel, NH, NL", "Oosthuizen, NH, NL", "shoreline,wa,usa"]}'
 	# ../src/redis-cli  test.json test2 'j:{"naam":"jan raak", "woonplaats":"shoreline,wa,usa"}'

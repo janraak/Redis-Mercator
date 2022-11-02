@@ -92,17 +92,17 @@ struct redisCommand interceptorCommandTable[] = {
 #define RENAMENX_INTERCEPT 15
     {"renamenx", renamenxCommandIntercept, 3, "write fast @keyspace", 0, NULL, 1, 2, 1, 0, 0, 0},
 #define FLUSHALL_INTERCEPT 16
-    {"flushdb", genericCommandIntercept, -1, "write @keyspace @dangerous", 0, NULL, 0, 0, 0, 0, 0, 0},
+    {"NOflushdb", genericCommandIntercept, -1, "write @keyspace @dangerous", 0, NULL, 0, 0, 0, 0, 0, 0},
 #define FLUSHDB_INTERCEPT 17
-    {"flushall", genericCommandIntercept, -1, "write @keyspace @dangerous", 0, NULL, 0, 0, 0, 0, 0, 0},
+    {"NOflushall", genericCommandIntercept, -1, "write @keyspace @dangerous", 0, NULL, 0, 0, 0, 0, 0, 0},
 #define BGSAVE_INTERCEPT 18
-    {"bgsave", genericCommandIntercept, -1, "write @keyspace @dangerous", 0, NULL, 0, 0, 0, 0, 0, 0},
+    {"NObgsave", genericCommandIntercept, -1, "write @keyspace @dangerous", 0, NULL, 0, 0, 0, 0, 0, 0},
 #define INFO_INTERCEPT 19
     {"info", infoCommandIntercept, -1, "readonly", 0, NULL, 0, 0, 0, 0, 0, 0},
 #define SELECT_INTERCEPT 20
     {"select", selectCommandIntercept, -1, "readonly", 0, NULL, 0, 0, 0, 0, 0, 0},
 #define SWAPDB_INTERCEPT 21
-    {"swapdb", genericCommandIntercept, -1, "readonly", 0, NULL, 0, 0, 0, 0, 0, 0},
+    {"NOswapdb", genericCommandIntercept, -1, "readonly", 0, NULL, 0, 0, 0, 0, 0, 0},
 #define XADD_INTERCEPT 22
     {"xadd", xaddCommandIntercept, -1, "write", 0, NULL, 0, 0, 0, 0, 0, 0},
 #define XDEL_INTERCEPT 23
@@ -113,12 +113,13 @@ void freeIndexingRequest(sds *kfv)
 {
     if(kfv == NULL)
         return;
+        //TOD: Fix bug!!!
     // // Free key, fields and values
-    for (int j = 0; kfv[j] != NULL; j++)
-    {
-        sdsfree(kfv[j]);
-    }
-    RedisModule_Free(kfv);
+    // for (int j = 0; kfv[j] != NULL; j++)
+    // {
+    //     sdsfree(kfv[j]);
+    // }
+    // RedisModule_Free(kfv);
 }
 
 void freeCompletedRequests()
@@ -296,15 +297,13 @@ void genericCommandIntercept(client *c)
     redisCommandProc *standard_command_proc = standard_command_procs[cmd->id];
     standard_command_proc(c);
 
-    // sds *redis_request = RedisModule_Alloc(sizeof(sds) * (c->argc + 1));
-    // int j = 0;
-    // for (; j < c->argc; ++j)
-    // {
-    //     redis_request[j] = sdsdup(c->argv[j]->ptr);
-    // }
-    // redis_request[j] = NULL;
-
-    // // enqueueRedisCommand(redis_request);
+    sds *redis_request = zmalloc(sizeof(sds) * (c->argc + 1));
+    int j = 0;
+    for (; j < c->argc; ++j)
+    {
+        redis_request[j] = sdsdup(c->argv[j]->ptr);
+    }
+    enqueueSimpleQueue(index_info.index_update_request_queue, redis_request);
 }
 
 void infoCommandIntercept(client *c)

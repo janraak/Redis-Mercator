@@ -17,7 +17,6 @@ extern "C"
 #endif
 #include <sys/stat.h>
 #include "util.h"
-
 #include <string.h>
 #include "zmalloc.h"
 
@@ -31,28 +30,30 @@ extern "C"
 #ifdef __cplusplus
 }
 #endif
-const char *AS_ARG = "AS";
-const char *DEBUG_ARG = "DEBUG";
-const char *RESET_ARG = "RESET";
-const char *CLEAR_ARG = "RESET";
-const char *GREMLIN_PREFX = "g:";
-const char *GREMLIN_PREFIX_ALT = "g.";
-const char *GREMLIN_DIALECT = "gremlin";
-const char *QUERY_DIALECT = "query";
+#include "rxQuery-duplexer.hpp"
 
-const char *REDIS_CMD_SADD = "SADD";
-const char *REDIS_CMD_SMEMBERS = "SMEMBERS";
+// const char *AS_ARG = "AS";
+// const char *DEBUG_ARG = "DEBUG";
+// const char *RESET_ARG = "RESET";
+// const char *CLEAR_ARG = "RESET";
+// const char *GREMLIN_PREFX = "g:";
+// const char *GREMLIN_PREFIX_ALT = "g.";
+// const char *GREMLIN_DIALECT = "gremlin";
+// const char *QUERY_DIALECT = "query";
 
-const char *REDIS_CMD_HSET = "HSET";
-const char *REDIS_CMD_HGETALL = "HGETALL";
+// const char *REDIS_CMD_SADD = "SADD";
+const char *QREDIS_CMD_SMEMBERS = "SMEMBERS";
+
+// const char *REDIS_CMD_HSET = "HSET";
+// const char *REDIS_CMD_HGETALL = "HGETALL";
 const char *REDIS_CMD_GET = "GET";
-const char *OK = "OK";
-
+// const char *OK = "OK";
 const char *REDIS_CMD_SCRIPT = "SCRIPT";
 const char *REDIS_CMD_SCRIPT_LOAD_ARG = "LOAD";
 const char *REDIS_CMD_EVALSHA = "EVALSHA";
 
 const char *RX_QUERY = "RXQUERY";
+const char *RX_QUERY_ASYNC = "RXQUERY.ASYNC";
 const char *RX_GET = "RXGET";
 const char *RXCACHE = "RXCACHE";
 const char *RX_LOADSCRIPT = "RXLOADSCRIPT";
@@ -166,7 +167,7 @@ IndexerInfo index_info = {sdsempty(), 6379, sdsnew("&"), 0};
 //                 json = sdscatprintf(json, "\"subject\":\"%s\"", t->subject_key);
 //                 json = sdscatprintf(json, ", \"objects\":[");
 //                 listIter *eli = listGetIterator(t->edges, 0);
-//                 listNode *eln;
+//                 listNode *elnarglen;
 //                 sds sep = sdsempty();
 //                 while ((eln = listNext(eli)))
 //                 {
@@ -274,6 +275,42 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     return REDISMODULE_OK;
 }
 
+int executeQueryAsyncCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
+{
+    sds cmd = (char *)rxGetContainedObject(argv[0]);
+    const char *target_setname = NULL;
+    sdstoupper(cmd);
+    // int fetch_rows = strcmp(RX_GET, cmd) == 0 ? 1 : 0;
+    sds query = sdsempty();
+    size_t arg_len;
+    sds sep = sdsnew("");
+    for (int j = 1; j < argc; ++j)
+    {
+        char *q = (char *)RedisModule_StringPtrLen(argv[j], &arg_len);
+        if (stringmatchlen(q, strlen(AS_ARG), AS_ARG, strlen(AS_ARG), 1) && strlen(q) == strlen(AS_ARG))
+        {
+            ++j;
+            q = (char *)RedisModule_StringPtrLen(argv[j], &arg_len);
+            target_setname = q;
+        }
+        else if (stringmatchlen(q, strlen(RESET_ARG), RESET_ARG, strlen(RESET_ARG), 1) && strlen(q) == strlen(RESET_ARG))
+        {
+            FaBlok::ClearCache();
+        }
+        else
+        {
+            query = sdscatfmt(query, "%s%s", sep, q);
+            sep = sdsnew(" ");
+        }
+    }
+    sdsfree(sep);
+    rxUNUSED(target_setname);
+
+    auto *duplexer = new RxQueryDuplexer(cmd, query);
+    duplexer->Start(ctx);
+    return REDISMODULE_OK;
+}
+
 int executeEvalShaCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     if (argc != 3)
@@ -282,7 +319,7 @@ int executeEvalShaCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int arg
     const char *setname = RedisModule_StringPtrLen(argv[1], &arg_len);
     const char *sha1 = RedisModule_StringPtrLen(argv[2], &arg_len);
     RedisModuleCallReply *r = RedisModule_Call(ctx,
-                                               REDIS_CMD_SMEMBERS, "c",
+                                               QREDIS_CMD_SMEMBERS, "c",
                                                setname);
     if (r && RedisModule_CallReplyType(r) == REDISMODULE_REPLY_ARRAY)
     {
@@ -381,10 +418,8 @@ int executeCacheCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     return RedisModule_ReplyWithSimpleString(ctx, response);
 }
 
-int executeHelpCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
+int executeHelpCommand(RedisModuleCtx *ctx, RedisModuleString **, int )
 {
-    rxUNUSED(argv);
-    rxUNUSED(argc);
     return RedisModule_ReplyWithSimpleString(ctx, HELP_STRING);
 }
 
@@ -421,6 +456,9 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 
     if (RedisModule_CreateCommand(ctx, RX_QUERY,
                                   executeQueryCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
+        return REDISMODULE_ERR;
+    if (RedisModule_CreateCommand(ctx, RX_QUERY_ASYNC,
+                                  executeQueryAsyncCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     if (RedisModule_CreateCommand(ctx, RX_GET,

@@ -28,7 +28,7 @@ bool TextDialect::FlushIndexables(rax *collector, sds key, char *key_type, redis
 	raxIterator indexablesIterator;
 	raxStart(&indexablesIterator, collector);
 	raxSeek(&indexablesIterator, "^", NULL, 0);
-	redisReply *rcc = (redisReply *)redisCommand(index, "MULTI");
+	redisReply *rcc = (redisReply *)redisCommand(index, "MULTI", "");
 	freeReplyObject(rcc);
 	rcc = (redisReply *)redisCommand(index, "RXBEGIN %s", key);
 	freeReplyObject(rcc);
@@ -321,8 +321,8 @@ bool TextDialect::registerDefaultSyntax()
 	this->RegisterSyntax("!!!*", priBreak, 0, 0, NULL);
 	this->RegisterSyntax(";", 10, 0, 0, NULL, TextBulletScopeCheck);
 	this->RegisterSyntax("!!!;", priBreak, 0, 0, IndexText);
-	// this->RegisterSyntax(":", 10, 0, 0, IndexText, TextColonScopeCheck);
-	// this->RegisterSyntax("!!!:", priIgnore, 0, 0, NULL);
+	this->RegisterSyntax(":", 10, 0, 0, IndexText, TextColonScopeCheck);
+	this->RegisterSyntax("!!!:", priIgnore, 0, 0, NULL);
 	this->RegisterSyntax("\t", priBreak, 0, 0, NULL);
 	this->RegisterSyntax("\n", priBreak, 0, 0, NULL);
 	this->RegisterSyntax("`", priIgnore, 0, 0, NULL);

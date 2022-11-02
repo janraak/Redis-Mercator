@@ -65,6 +65,8 @@ ParsedExpression *Sjiboleth::Parse(const char *query)
 {
     auto *expression = new ParsedExpression(this);
     auto *root_expression = expression;
+    if(!query)
+        return root_expression;
     char *head = (char *)query;
     while (*head && is_space(*head))
         ++head;

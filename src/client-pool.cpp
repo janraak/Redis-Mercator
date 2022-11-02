@@ -97,7 +97,7 @@ T *RedisClientPool<T>::Acquire(sds host, int port)
     auto *pool = (RedisClientPool *)raxFind(RedisClientPool<T>::Get_Thread_Registry(), (UCHAR *)address, sdslen(address));
     if (pool == raxNotFound)
     {
-        pool = new RedisClientPool(host, port, 1, 1);
+        pool = new RedisClientPool(host, port, 4, 4);
         void *old;
         raxInsert(RedisClientPool<T>::Get_Thread_Registry(), (UCHAR *)address, sdslen(address), pool, &old);
     }
@@ -119,7 +119,15 @@ T *RedisClientPool<T>::Acquire(const char *host, int port)
     if(host == NULL)
         return NULL;
     sds address = sdsnew(host);
-    T *ctx = RedisClientPool<T>::Acquire(address, port);
+    T *ctx;
+    // do
+    // {
+        ctx = RedisClientPool<T>::Acquire(address, port);
+        if(ctx == NULL){
+            //RedisClientPool<T>::Grow();
+            rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(),"No client for %s:%d", address, port));
+        }
+    // } while (ctx == NULL);
     sdsfree(address);
     return ctx;
 }

@@ -822,7 +822,7 @@ int fetchKeyset(redisContext *index_context, KeysetDescriptor *kd, sds l, sds r,
     redisReply *rcc;
     long long start = ustime();
     if (cmp && isdigit(*l))
-        rcc = redisCommand(index_context, "rxfetch %s %s %s", r, l, cmp);
+        rcc = redisCommand(index_context, "rxfetch '%s' '%s' '%s'", r, l, cmp);
     else if (l)
         rcc = redisCommand(index_context, "rxfetch %s %s", r, l);
     else

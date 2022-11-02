@@ -99,8 +99,8 @@ FaBlok *FaBlok::Delete(FaBlok *d)
      ||memcmp(d->rumble_strip2, RUMBLE_STRIP2, sizeof(d->rumble_strip2))!=0){
         printf("Rumble in the Jungle");
      }
-    if (d->IsValueType(KeysetDescriptor_TYPE_MONITORED_SET))
-        return NULL;
+    // if (d->IsValueType(KeysetDescriptor_TYPE_MONITORED_SET))
+    //     return NULL;
     d->marked_for_deletion = 2069722765;
     return NULL;
 }
@@ -276,7 +276,22 @@ int FaBlok::FetchKeySet(sds host, int port, sds rh)
     long long start = ustime();
     try
     {
-        redisReply *rcc = (redisReply *)redisCommand(index_context, "rxfetch %s", rh);
+        redisReply *rcc;
+        int segments = 0;
+        sds *parts = sdssplitlen(rh, sdslen(rh), " ", 1, &segments);
+        switch (segments)
+        {
+        case 2:
+            rcc = (redisReply *)redisCommand(index_context, "rxfetch %s %s", parts[0], parts[1]);
+            break;
+        case 3:
+            rcc = (redisReply *)redisCommand(index_context, "rxfetch %s %s %s", parts[0], parts[2], parts[0]);
+            break;
+        default:
+            rcc = (redisReply *)redisCommand(index_context, "rxfetch %s", rh);
+            break;
+            }
+            sdsfreesplitres(parts, segments);
         this->latency = ustime() - start;
         this->pushIndexEntries(rcc);
     }
@@ -298,7 +313,7 @@ int FaBlok::FetchKeySet(sds h, int port, sds lh, sds rh, sds cmp)
         return C_ERR;
     redisReply *rcc;
     long long start = ustime();
-    if (isdigit(*lh))
+    if (isdigit(*rh))
     {
         rcc = (redisReply *)redisCommand(index_context, "RXFETCH %s %s %s", rh, lh, cmp);
     }
@@ -343,7 +358,7 @@ void FaBlok::ClearCache()
     while (raxNext(&ri))
     {
         FaBlok *kd = (FaBlok *)ri.data;
-        if (!kd->ValueType(KeysetDescriptor_TYPE_MONITORED_SET))
+        // if (!kd->ValueType(KeysetDescriptor_TYPE_MONITORED_SET))
         {
             FaBlok *old;
             raxRemove(FaBlok::Get_Thread_Registry(), ri.key, ri.key_len, (void **)&old);

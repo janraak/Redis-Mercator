@@ -111,7 +111,6 @@ protected:
     DECLARE_SJIBOLETH_HANDLER(executeAnd);
     DECLARE_SJIBOLETH_HANDLER(executeXor);
     DECLARE_SJIBOLETH_HANDLER(executeNotIn);
-
 public:
     ParserToken *LookupToken(sds token);
 
@@ -128,6 +127,7 @@ public:
     bool DeregisterSyntax(const char *op);
 
     bool hasDefaultOperator();
+
     const char *defaultOperator();
 
     friend class ParsedExpression;

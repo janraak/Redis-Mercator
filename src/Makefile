@@ -67,12 +67,13 @@ WARNNING=-Wno-variadic-macros \
 SHOBJ_CFLAGS+= -I../../deps/hiredis -I../../deps/linenoise -I../../deps/lua/src -I/usr/include
 # Include REDIS Src
 SHOBJ_CFLAGS+= -I ../../src
+SHOBJ_CFLAGS+= -Wno-pointer-arith 
 
 .SUFFIXES: .c .so .xo .o .cpp
 
 DEBUG += -g -ggdb
 
-all:  sentenceProcessor.xo indexIntercepts.xo rxSuite.xo  rxSuiteHelpers.xo parser.xo token.xo queryEngine.xo rxIndexer.so rxQuery.so rxFetch.so rxRule.xo  rxRule.so sjiboleth.so rxGraphdb.so 
+all:  sentenceProcessor.xo indexIntercepts.xo rxSuite.xo  rxSuiteHelpers.xo parser.xo token.xo queryEngine.xo rxIndexer.so rxQuery.so rxIndexStore.so rxMercator.so rxRule.xo  rxRule.so sjiboleth.so rxGraphdb.so 
 
 .c.xo: 
 	$(CC) -I.. -I. $(CFLAGS) $(SHOBJ_CFLAGS)  -isystem -DUSE_JEMALLOC  -I../deps/hiredis -I../deps/linenoise -I../../deps/lua/src -I/usr/include -fPIC -c $< -o $@
@@ -83,7 +84,7 @@ FILT = $(filter-out $(OBSOLETEFLAGS), $(CFLAGS))
 .cpp.xo:
 	c++ -I.. -I. $(CXXFLAGS) -shared  $(WARNNING) $(FILT) $(SHOBJ_CFLAGS)   -isystem -DUSE_JEMALLOC  -Werror=main -std=c++17 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -isystem -DUSE_JEMALLOC  -I../../deps/hiredis -I../../deps/linenoise -I../../deps/lua/src -I/usr/include -fPIC  $< -o $@
 
-rxGraphdb.so: ../../src/redismodule.h graphdb.cpp graphstack.hpp   rxSuite.xo  rxSuiteHelpers.xo  queryEngine.xo parser.xo token.xo sjiboleth.so  client-pool.hpp
+rxGraphdb.so: ../../src/redismodule.h graphdb.cpp graphstack.hpp   rxSuite.xo  rxSuiteHelpers.xo  queryEngine.xo parser.xo token.xo sjiboleth.so  client-pool.hpp  client-pool.cpp 
 	g++  $(CXXFLAGS) -shared  $(WARNNING) $(FILT) $(SHOBJ_CFLAGS) -g -ggdb -o rxGraphdb.so -fPIC  graphdb.cpp  rxSuite.xo  rxSuiteHelpers.xo  queryEngine.xo  parser.xo token.xo sjiboleth.so  client-pool.cpp 
 
 # graphdb.xo: ../../src/redismodule.h graphdb.cpp graphdb.h queryEngine.c queryEngine.h  parser.c parser.h token.c token.h queryEngine.c queryEngine.h  sentenceProcessor.c sentenceProcessor.h  graphstack.hpp
@@ -105,8 +106,11 @@ rxIndexer.so: ../../src/redismodule.h rxIndexer.cpp rxIndexer.hpp rule.hpp  rxSu
 rxQuery.so: ../../src/redismodule.h rxQuery.cpp rxQuery.hpp rule.hpp  rxSuite.xo  rxSuiteHelpers.xo  sjiboleth.so 
 	g++ -shared -g -ggdb -o rxQuery.so  $(SHOBJ_CFLAGS)  -fPIC rxQuery.cpp rxSuiteHelpers.xo rxSuite.xo sjiboleth.so  
 
-rxFetch.so: ../../src/redismodule.h rxFetch.cpp rxFetch.hpp command-duplexer.hpp  rxFetch-duplexer.hpp  rxIndex.hpp rxSuiteHelpers.xo  
-	g++ -shared -g -ggdb -o rxFetch.so  $(SHOBJ_CFLAGS)  -fPIC rxFetch.cpp rxSuiteHelpers.xo   rxSuite.xo  
+rxIndexStore.so: ../../src/redismodule.h rxIndexStore.cpp rxIndexStore.hpp command-duplexer.hpp  rxFetch-duplexer.hpp  rxIndex.hpp rxSuiteHelpers.xo  
+	g++ -shared -g -ggdb -o rxIndexStore.so  $(SHOBJ_CFLAGS)  -fPIC rxIndexStore.cpp rxSuiteHelpers.xo   rxSuite.xo  
+
+rxMercator.so: ../../src/redismodule.h rxMercator.cpp rxMercator.hpp  rxSuiteHelpers.xo   client-pool.hpp client-pool.cpp
+	g++ -shared -g -ggdb -o rxMercator.so  $(SHOBJ_CFLAGS) -Wvarargs -fPIC rxMercator.cpp rxSuiteHelpers.xo   rxSuite.xo   client-pool.cpp 
 
 queryEngine.xo:       ../../src/redismodule.h  queryEngine.c       queryEngine.h       parser.c  token.c parser.h token.h 
 

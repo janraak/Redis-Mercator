@@ -4,6 +4,14 @@
 #include "sjiboleth-graph.hpp"
 #include "sjiboleth.h"
 #include "sjiboleth.hpp"
+#define STASHERS_ONLY
+#include "graphstackentry.hpp"
+// #include "simpleQueue.hpp"
+
+extern void *rxStashCommand(SimpleQueue *ctx, const char *command, int argc, ...);
+extern void ExecuteRedisCommand(SimpleQueue *ctx, void *stash);
+extern void FreeStash(void *stash);
+
 extern "C"
 {
 #include "util.h"
@@ -31,30 +39,37 @@ static FaBlok *getAllKeysByField(int dbNo, const char *regex, int on_matched, sd
 
 int breadthFirstSearch(FaBlok *leaders, list *patterns, FaBlok *kd, int traverse_direction, short filter_only, rax *terminators, rax *includes, rax *excludes);
 
-static int redis_HSET(SilNikParowy_Kontekst *p, const char *key, const char *field, const char *value)
+static int redis_HSET(SilNikParowy_Kontekst *, const char *key, const char *field, const char *value)
 {
-    RedisModuleCallReply *reply = RedisModule_Call(
-        p->module_contex,
-        "HSET",
-        "ccc",
-        key,
-        field,
-        value);
-    if (reply)
-        RedisModule_FreeCallReply(reply);
+    auto *stash = rxStashCommand(NULL, "HSET", 3, key, field, value);
+    ExecuteRedisCommand(NULL, stash);
+    FreeStash(stash);
+
+    // RedisModuleCallReply *reply = RedisModule_Call(
+    //     p->module_contex,
+    //     "HSET",
+    //     "ccc",
+    //     key,
+    //     field,
+    //     value);
+    // if (reply)
+    //     RedisModule_FreeCallReply(reply);
     return C_OK;
 }
 
-static int redis_SADD(SilNikParowy_Kontekst *p, const char *key, const char *member)
+static int redis_SADD(SilNikParowy_Kontekst *, const char *key, const char *member)
 {
-    RedisModuleCallReply *reply = RedisModule_Call(
-        p->module_contex,
-        "SADD",
-        "cc",
-        key,
-        member);
-    if (reply)
-        RedisModule_FreeCallReply(reply);
+    auto *stash = rxStashCommand(NULL, "SADD", 2, key, member);
+    ExecuteRedisCommand(NULL, stash);
+    FreeStash(stash);
+    // RedisModuleCallReply *reply = RedisModule_Call(
+    //     p->module_contex,
+    //     "SADD",
+    //     "cc",
+    //     key,
+    //     member);
+    // if (reply)
+    //     RedisModule_FreeCallReply(reply);
     return C_OK;
 }
 
@@ -348,7 +363,11 @@ SJIBOLETH_HANDLER(GremlinDialect::executeAllVertices)
         }
         else
         {
-            kd = getAllKeysByType(0, "[A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*", NO_MATCH_PATTERN, kd->AsSds());
+            auto *key_entry = rxFindKey(0, kd->setname);
+            if (key_entry != NULL)
+                kd->LoadKey(0, kd->setname);
+            else
+                kd = getAllKeysByType(0, "[A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*", NO_MATCH_PATTERN, kd->AsSds());
         }
     }
     else
@@ -483,19 +502,34 @@ SJIBOLETH_HANDLER(executeGremlinAs)
 }
 END_SJIBOLETH_HANDLER(executeGremlinAs)
 
-static bool FilterTypes(unsigned char *s, size_t len, void *data, void **privData)
+static bool FilterTypes(unsigned char *, size_t, void *data, void **privData)
 {
     short *must_match = (short *)privData[0];
     sds field = (sds)privData[1];
     int *flen = (int *)privData[2];
     sds pattern = (sds)privData[3];
     int *plen = (int *)privData[4];
+    rxComparisonProc *operatorFn = (rxComparisonProc *)privData[5];
+    sds max_pattern = (sds)privData[6];
 
-    rxUNUSED(flen);
-    rxUNUSED(s);
-    rxUNUSED(len);
-
-    return rxMatchHasValue(data, field, pattern, *plen) == *must_match;
+    if (operatorFn == NULL)
+        return rxMatchHasValue(data, field, pattern, *plen) == *must_match;
+    else
+    {
+        sds value = sdsempty();
+        switch (rxGetObjectType(data))
+        {
+        case rxOBJ_STRING:
+            value = (sds)rxGetContainedObject(data);
+            break;
+        case rxOBJ_HASH:
+            value = (sds)rxGetHashField(data, field);
+            break;
+        }
+        if (max_pattern != NULL)
+            return ((rxComparisonProc2*)operatorFn)(value, *flen, pattern, max_pattern);
+        return operatorFn(value, *flen, pattern);
+    }
 }
 
 #define MATCH_IS_FALSE 0
@@ -505,7 +539,7 @@ static SJIBOLETH_HANDLER(executeGremlinHas)
     rxUNUSED(t);
     rxUNUSED(stack);
 
-    short must_match = t->Is("HAS") ? MATCH_IS_TRUE : MATCH_IS_FALSE;
+    short must_match = t->Is("HAS") || t->Is("EQ") ? MATCH_IS_TRUE : MATCH_IS_FALSE;
 
     /* 1) Use top of stack = dict of keys/values.
        2) Filter all keys matching kvp
@@ -527,14 +561,16 @@ static SJIBOLETH_HANDLER(executeGremlinHas)
     {
         sds msg = sdscatfmt(sdsempty(), "%s requires an attribute value pair to test", t->Token());
         ERROR(msg);
-        sdsfree(msg);
+        rxServerLogRaw(rxLL_WARNING, msg);
+        // sdsfree(msg);
         return C_ERR;
     }
     else if (!ad->IsValueType(KeysetDescriptor_TYPE_SINGULAR))
     {
         sds msg = sdscatfmt(sdsempty(), "%s requires an attribute value pair to test", t->Token());
         ERROR(msg);
-        sdsfree(msg);
+        rxServerLogRaw(rxLL_WARNING, msg);
+        // sdsfree(msg);
         return C_ERR;
     }
     if (!stack->HasEntries())
@@ -559,12 +595,77 @@ static SJIBOLETH_HANDLER(executeGremlinHas)
     int field_len = sdslen(ad->AsSds());
     int plen = sdslen(vd->AsSds());
     od->AsTemp();
-    void *params[] = {&must_match, ad->AsSds(), &field_len, vd->AsSds(), &plen};
+    rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(), "About to execute executeGremlinHas on %s\n", set_name));
+    // sdsfree(msg);
+    void *params[] = {&must_match, ad->AsSds(), &field_len, vd->AsSds(), &plen, NULL, NULL};
     FaBlok *kd = od->Copy(set_name, KeysetDescriptor_TYPE_GREMLINSET, FilterTypes, params);
     kd->AsTemp();
     PushResult(kd, stack);
 }
 END_SJIBOLETH_HANDLER(executeGremlinHas)
+
+static SJIBOLETH_HANDLER(executeGremlinComparePropertyToValue)
+{
+    STACK_CHECK(2);
+    /* 1) Use top of stack = dict of keys/values.
+       2) Filter all keys matching kvp
+       3) Push filtered dict on the stack
+    */
+
+    FaBlok *condition = stack->Pop();
+    FaBlok *keyset = stack->Pop();
+    // if (!(condition->IsParameterList() && condition->parameter_list->Size() == 2)){
+    //     ERROR("property and number required")
+    // }
+
+    FaBlok *property = condition->parameter_list->Dequeue();
+    FaBlok *value = condition->parameter_list->Dequeue();
+    FaBlok::Delete(condition);
+
+    sds set_name = sdscatprintf(sdsempty(), "%s:%s%s%s", keyset->AsSds(), property->AsSds(), t->Operation(), value->AsSds());
+
+    int field_len = sdslen(property->AsSds());
+    int plen = sdslen(value->AsSds());
+    keyset->AsTemp();
+
+    void *params[] = {&plen, property->AsSds(), &field_len, value->AsSds(), &plen, (void *)rxFindComparisonProc((char *)t->Operation()), NULL};
+    FaBlok *kd = keyset->Copy(set_name, KeysetDescriptor_TYPE_GREMLINSET, FilterTypes, params);
+    kd->AsTemp();
+    PushResult(kd, stack);
+}
+END_SJIBOLETH_HANDLER(executeGremlinComparePropertyToValue)
+
+static SJIBOLETH_HANDLER(executeGremlinComparePropertyToRangeValue)
+{
+    STACK_CHECK(2);
+    /* 1) Use top of stack = dict of keys/values.
+       2) Filter all keys matching kvp
+       3) Push filtered dict on the stack
+    */
+
+    FaBlok *condition = stack->Pop();
+    FaBlok *keyset = stack->Pop();
+    // if (!(condition->IsParameterList() && condition->parameter_list->Size() == 2)){
+    //     ERROR("property and number required")
+    // }
+
+    FaBlok *property = condition->parameter_list->Dequeue();
+    FaBlok *minValue = condition->parameter_list->Dequeue();
+    FaBlok *maxValue = condition->parameter_list->Dequeue();
+    FaBlok::Delete(condition);
+
+    sds set_name = sdscatprintf(sdsempty(), "%s:%s %s %s %s", keyset->AsSds(), property->AsSds(), t->Operation(), minValue->AsSds(), maxValue->AsSds());
+
+    int field_len = sdslen(property->AsSds());
+    int plen = sdslen(minValue->AsSds());
+    keyset->AsTemp();
+
+    void *params[] = {&plen, property->AsSds(), &field_len, minValue->AsSds(), &plen, (void *)rxFindComparisonProc((char *)t->Operation()), maxValue->AsSds()};
+    FaBlok *kd = keyset->Copy(set_name, KeysetDescriptor_TYPE_GREMLINSET, FilterTypes, params);
+    kd->AsTemp();
+    PushResult(kd, stack);
+}
+END_SJIBOLETH_HANDLER(executeGremlinComparePropertyToRangeValue)
 
 static SJIBOLETH_HANDLER(executeGremlinHasLabel)
 {
@@ -596,7 +697,7 @@ static SJIBOLETH_HANDLER(executeGremlinHasLabel)
     }
     int field_len = sdslen(ad->AsSds());
     int plen = 1;
-    void *params[] = {&must_match, ad->AsSds(), &field_len, sdsnew("*"), &plen};
+    void *params[] = {&must_match, ad->AsSds(), &field_len, sdsnew("*"), &plen, NULL, NULL};
     FaBlok *kd = od->Copy(set_name, KeysetDescriptor_TYPE_GREMLINSET, FilterTypes, params);
     od->AsTemp();
     kd->AsTemp();
@@ -864,6 +965,11 @@ SJIBOLETH_HANDLER(executeGremlinLinkVertex)
         // Use existing vertex!
         vertex_set = raxNew();
         void *o = rxFindKey(0, v->setname);
+        if (o == NULL)
+        {
+            // v->setname is not a local key set!!
+            // Assume the setname to be an attribute of the left side of the predicate!
+        }
         raxInsert(vertex_set, (UCHAR *)sdsdup(v->setname), sdslen(v->setname), o, NULL);
     }
     raxIterator edge_iterator;
@@ -933,7 +1039,107 @@ SJIBOLETH_HANDLER(executeGremlinAddEdge)
     // Get parameters g:v().addV(<iri>, <type>)
     FaBlok *et = stack->Pop();
     size_t no_vertex_parms = et->IsParameterList() ? et->parameter_list->Size() : 0;
-    if (et->IsParameterList() && no_vertex_parms >= 3)
+    sds asterisk = sdsnew("@");
+    int is_link_from_property = 0;
+    if (et->IsParameterList())
+    {
+        is_link_from_property = (sdscmp(et->parameter_list->Peek()->setname, asterisk) == 0);
+    }
+    rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(), "executeGremlinAddEdge %s=%d %d parameters %d parameters", asterisk, is_link_from_property, et->parameter_list->Size(), stack->Size()));
+    sdsfree(asterisk);
+    if (et->IsParameterList() && no_vertex_parms >= 3 && is_link_from_property == 1)
+    {
+        FaBlok *e = FaBlok::Get(sdsdup(et->setname), KeysetDescriptor_TYPE_GREMLINSET);
+        FaBlok *pk = stack->Peek();
+        rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(), "executeGremlinAddEdge stack peek %s", pk->setname));
+        FaBlok *s = et->parameter_list->Dequeue(); // Ignore @ marker
+        s = stack->Pop();                          // left side subject set
+        rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(), "executeGremlinAddEdge subject set %s %d entries keyset=%x", s->setname, s->size, (POINTER)&s->keyset));
+        FaBlok *pred = et->parameter_list->Dequeue(); // predicate(type)
+        rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(), "executeGremlinAddEdge predicate %s", pred->setname));
+        FaBlok *inv_pred;
+        sds backLink = sdsempty();
+        if (no_vertex_parms >= 3)
+            inv_pred = et->parameter_list->Dequeue();
+        else
+            inv_pred = pred;
+        sds fwd_predicate = pred->setname;
+        sds bwd_predicate = inv_pred->setname;
+        rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(), "executeGremlinAddEdge inverse predicate %s", bwd_predicate));
+        // FaBlok *o = NULL; // iri of object by materializing iri from pred property on subject!
+
+        raxIterator SubjectIterator;
+        raxStart(&SubjectIterator, &s->keyset);
+        raxSeek(&SubjectIterator, "^", NULL, 0);
+        while (raxNext(&SubjectIterator))
+        {
+            sds key = sdsnewlen(SubjectIterator.key, SubjectIterator.key_len);
+            void *subject = rxFindHashKey(0, key);
+            if (subject == NULL)
+                continue;
+            sds objectKey = rxGetHashField(subject, fwd_predicate);
+            if (sdslen(objectKey) == 0)
+                continue;
+            // void *object = rxFindHashKey(0, objectKey);
+            // if(subject == NULL){
+            //     object = rxCreateHashObject();
+            // }
+
+            sds edge_name = sdscatprintf(sdsempty(), "%s:%s:%s", fwd_predicate, key, objectKey);
+            sds edge_link = sdscatprintf(sdsempty(), "^%s", edge_name);
+            sds inv_edge_name;
+            sds inv_edge_link;
+            if (sdscmp(fwd_predicate, bwd_predicate) == 0)
+            {
+                inv_edge_name = edge_name;
+                inv_edge_link = edge_link;
+            }
+            else
+            {
+                inv_edge_name = sdscatprintf(sdsempty(), "%s:%s:%s", bwd_predicate, objectKey, key);
+                inv_edge_link = sdscatprintf(sdsempty(), "^%s", inv_edge_name);
+            }
+            sds subject_link = sdscatprintf(sdsempty(), "^%s", key);
+            sds object_link = sdscatprintf(sdsempty(), "^%s", objectKey);
+
+            rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(), "edge_name: %s\nedge_link: %s\ninv_edge_name: %s\ninv_edge_link: %s\nsubjectKey: %s\nobjectKey: %s\n",
+                                                      edge_name, edge_link, inv_edge_name, inv_edge_link, key, objectKey));
+            if (pred != inv_pred)
+            {
+                backLink = sdscatprintf(backLink, "%s:%s:%s:%s", key, fwd_predicate, fwd_predicate, objectKey);
+            }
+
+            sds bridge_keys[2] = {edge_name, inv_edge_name};
+            FaBlok *bridges[2] = {pred, inv_pred};
+            for (int j = 0; j < 2; ++j)
+            {
+                redis_HSET(stack, bridge_keys[j], Graph_vertex_or_edge_type, bridges[j]->setname);
+                if (sdslen(backLink))
+                {
+                    redis_HSET(stack, bridge_keys[j], "edge", backLink);
+                }
+            }
+
+            sds SE = sdscatprintf(sdsempty(), "%s|%s|SE|1.0|+", fwd_predicate, edge_link);
+            sds ES = sdscatprintf(sdsempty(), "%s|^%s|ES|1.0", bwd_predicate, key);
+            sds EO = sdscatprintf(sdsempty(), "%s|%s|OE|1.0", bwd_predicate, inv_edge_link);
+            sds OE = sdscatprintf(sdsempty(), "%s|^%s|EO|1.0", fwd_predicate, objectKey);
+
+            sds keys[4] = {subject_link, edge_link, inv_edge_link, object_link};
+            sds member[4] = {SE, OE, ES, EO};
+            for (int j = 0; j < 4; ++j)
+            {
+                redis_SADD(stack, keys[j], member[j]);
+            }
+            void *oo = rxFindKey(0, edge_name);
+            e->InsertKey(edge_name, oo);
+            e->vertices_or_edges = EDGE_SET;
+        }
+        raxStop(&SubjectIterator);
+        PushResult(e, stack);
+        FaBlok::Delete(et);
+    }
+    else if (et->IsParameterList() && no_vertex_parms >= 3)
     {
         // addE(dge)(<subject>, <type>, <object>)
         FaBlok *s = et->parameter_list->Dequeue();    // iri of subject
@@ -944,7 +1150,7 @@ SJIBOLETH_HANDLER(executeGremlinAddEdge)
             inv_pred = et->parameter_list->Dequeue();
         else
             inv_pred = pred;
-        FaBlok *o = et->parameter_list->Dequeue(); // iri of subject
+        FaBlok *o = et->parameter_list->Dequeue(); // iri of object
 
         sds edge_name = sdscatprintf(sdsempty(), "%s:%s:%s", pred->setname, s->setname, o->setname);
         sds edge_link = sdscatprintf(sdsempty(), "^%s", edge_name);
@@ -1027,23 +1233,25 @@ SJIBOLETH_HANDLER(executeGremlinAddProperty)
             ERROR("Incorrect parameters for AddProperty, must be [<a>, <v>]...");
         }
 
+        FaBlok *a = pl->parameter_list->Dequeue();
+        FaBlok *v = pl->parameter_list->Dequeue();
+
         raxIterator targetObjectIterator;
         raxStart(&targetObjectIterator, &s->keyset);
         raxSeek(&targetObjectIterator, "^", NULL, 0);
         while (raxNext(&targetObjectIterator))
         {
             sds key = sdsnewlen(targetObjectIterator.key, targetObjectIterator.key_len);
-            while (pl->parameter_list->Size() >= 2)
+            // TODO: Allow multiple properties to be set!
+            // while (pl->parameter_list->Size() >= 2)
+            // {
+            if (stack->module_contex)
+                redis_HSET(stack, key, a->setname, v->setname);
+            else
             {
-                FaBlok *a = pl->parameter_list->Dequeue();
-                FaBlok *v = pl->parameter_list->Dequeue();
-                if (stack->module_contex)
-                    redis_HSET(stack, key, a->setname, v->setname);
-                else
-                {
-                    rxHashTypeSet(targetObjectIterator.data, a->setname, v->setname, 0);
-                }
+                rxHashTypeSet(targetObjectIterator.data, a->setname, v->setname, 0);
             }
+            // }
         }
         raxStop(&targetObjectIterator);
         FaBlok::Delete(pl);
@@ -1055,6 +1263,93 @@ SJIBOLETH_HANDLER(executeGremlinAddProperty)
     PushResult(s, stack);
 }
 END_SJIBOLETH_HANDLER(executeGremlinAddProperty)
+
+/*
+    Execute a Redis command
+
+    The redis command is constructed by concatenating the parameters.
+
+    When a token matches an object field then the field value is used.
+
+    Special tokens:
+        @key
+        @tuple
+
+
+*/
+SJIBOLETH_HANDLER(executeGremlinRedisCommand)
+{
+    rxUNUSED(t);
+
+    STACK_CHECK(2);
+
+    FaBlok *pl = stack->Pop();
+    FaBlok *s = stack->Pop();
+
+    if (pl->IsParameterList())
+    {
+        int no_of_parts = pl->parameter_list->Size();
+
+        raxIterator keysetIterator;
+        raxStart(&keysetIterator, &s->keyset);
+        raxSeek(&keysetIterator, "^", NULL, 0);
+        sds kw_key = sdsnew("@key");
+        sds kw_tuple = sdsnew("@tuple");
+        while (raxNext(&keysetIterator))
+        {
+            sds key = sdsnewlen(keysetIterator.key, keysetIterator.key_len);
+
+            void *obj = rxFindKey(0, key);
+            sds tuple = sdsempty();
+            switch (rxGetObjectType(obj))
+            {
+            case rxOBJ_HASH:
+                tuple = rxHashAsJson(key, obj);
+                break;
+            case OBJ_TRIPLET:
+            {
+                Graph_Triplet *t = (Graph_Triplet *)rxGetContainedObject(obj);
+                tuple = t->Json(key);
+            }
+            break;
+            default:
+                tuple = sdsnew("{}");
+                break;
+            }
+
+            sds *parts = new sds[no_of_parts];
+            int n = 0;
+            pl->parameter_list->StartHead();
+            FaBlok *p = NULL;
+            while ((p = pl->parameter_list->Next()) != NULL)
+            {
+                if (sdscmp(p->setname, kw_key) == 0)
+                    parts[n] = key;
+                else if (sdscmp(p->setname, kw_tuple) == 0)
+                    parts[n] = tuple;
+                else
+                    parts[n] = sdsdup(p->setname);
+                ++n;
+            }
+
+            void *stashed_cmd = rxStashCommand2(NULL, parts[0], no_of_parts - 1, &parts[1]);
+            ExecuteRedisCommand(NULL, stashed_cmd);
+            FreeStash(stashed_cmd);
+            sdsfree(key);
+            sdsfree(tuple);
+        }
+        sdsfree(kw_key);
+        sdsfree(kw_tuple);
+        raxStop(&keysetIterator);
+        FaBlok::Delete(pl);
+    }
+    else
+    {
+        ERROR("Incorrect parameters for executeGremlinRedisCommand, must be [<token> | <literal>]...");
+    }
+    PushResult(s, stack);
+}
+END_SJIBOLETH_HANDLER(executeGremlinRedisCommand)
 
 GremlinDialect::GremlinDialect()
     : Sjiboleth()
@@ -1123,6 +1418,14 @@ bool GremlinDialect::registerDefaultSyntax()
     this->RegisterSyntax("object", 500, 2, 1, &executeGremlinLinkVertex, &GremlinScopeCheck);
     this->RegisterSyntax("from", 500, 2, 1, &executeGremlinLinkVertex);
     this->RegisterSyntax("subject", 500, 2, 1, &executeGremlinLinkVertex, &GremlinScopeCheck);
+    this->RegisterSyntax("eq", 500, 2, 1, &executeGremlinComparePropertyToValue);
+    this->RegisterSyntax("ne", 500, 2, 1, &executeGremlinComparePropertyToValue);
+    this->RegisterSyntax("gt", 500, 2, 1, &executeGremlinComparePropertyToValue);
+    this->RegisterSyntax("ge", 500, 2, 1, &executeGremlinComparePropertyToValue);
+    this->RegisterSyntax("lt", 500, 2, 1, &executeGremlinComparePropertyToValue);
+    this->RegisterSyntax("le", 500, 2, 1, &executeGremlinComparePropertyToValue);
+    this->RegisterSyntax("between", 500, 2, 1, &executeGremlinComparePropertyToRangeValue);
+    this->RegisterSyntax("contains", 500, 2, 1, &executeGremlinComparePropertyToValue);
     return true;
 }
 

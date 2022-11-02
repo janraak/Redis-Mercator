@@ -1,5 +1,5 @@
-#ifndef __RXFETCH_H__
-#define __RXFETCH_H__
+#ifndef __RXMERCATOR_H__
+#define __RXMERCATOR_H__
 
 #define REDISMODULE_EXPERIMENTAL_API
 

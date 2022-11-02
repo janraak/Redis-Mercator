@@ -27,6 +27,7 @@ rax *SilNikParowy_Kontekst::Execute(ParsedExpression *e)
     if(engine == NULL)
         rxModulePanic((char *)"Engine expected");
     this->expression = e;
+    engine->Preload(e, this);
     return engine->Execute(e, this);
 }
 
@@ -121,7 +122,7 @@ void SilNikParowy_Kontekst::DumpStack()
 FaBlok *SilNikParowy_Kontekst::GetOperationPair(sds operation, int load_left_and_or_right)
 {
     FaBlok *l = this->Pop();
-    if ((load_left_and_or_right & QE_LOAD_LEFT_ONLY))
+    if (((load_left_and_or_right & QE_LOAD_LEFT_ONLY) && l->size == 0))
     {
         sds lk = sdsdup(l->setname);
         l->FetchKeySet(this->host, this->port, lk);
@@ -129,7 +130,7 @@ FaBlok *SilNikParowy_Kontekst::GetOperationPair(sds operation, int load_left_and
     }
 
     FaBlok *r = this->Pop();
-    if ((load_left_and_or_right & QE_LOAD_RIGHT_ONLY))
+    if (((load_left_and_or_right & QE_LOAD_RIGHT_ONLY)) && r->size == 0)
     {
         sds rk = sdsdup(r->setname);
         r->FetchKeySet(this->host, this->port, rk);

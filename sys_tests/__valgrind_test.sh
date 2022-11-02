@@ -25,7 +25,7 @@ python3 sys_tests/gremlin_001.py
 # src/redis-cli test "g.as($$ISCOUNTRY)"
 ../src/redis-cli rxindex wait
 ../src/redis-cli  module unload rxIndexer
-../src/redis-cli  module unload rxFetch
+../src/redis-cli  module unload rxIndexStore
 ../src/redis-cli  module unload rxRule
 ../src/redis-cli  module unload RXQUERY
 ../src/redis-cli  module unload graphdb

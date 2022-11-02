@@ -25,7 +25,7 @@ flowchart TD;
     id1[(REDIS Server - DATABASE)];
     id2[[rxIndexer]];
     id3[(REDIS Server - INDEX)];
-    id4[[rxFetch]];
+    id4[[rxIndexStore]];
     id5[[rxQuery]];
     id6[[rxRule]];
     id7[[rxGraphDB]];
@@ -120,9 +120,9 @@ graph LR;
 
 Nested *Triplets* are allowed.
 
-## rxFetch.so   
+## rxIndexStore.so   
 
-The rxFetch module turns a Redis Server in a Mercator index and performs the following:
+The rxIndexStore module turns a Redis Server in a Mercator index and performs the following:
 1) Maintains the index.
 2) Fetch atomair query expresssions for set based queries.
 

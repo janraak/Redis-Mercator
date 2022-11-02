@@ -161,6 +161,27 @@ public:
         listReleaseIterator(li);
     }
 
+    sds Json(sds json)
+    {
+        json = sdscatprintf(json, "{\"object\":\"%s\", \"data\":\"%x\"", 
+            this->object_key, (POINTER)this->object);
+
+        if(listLength(this->path) > 0){
+            char sep = ' ';
+            listIter *li = listGetIterator(this->path, 0);
+            listNode *ln;
+            while ((ln = listNext(li)) != NULL)
+            {
+                json = sdscatprintf(json, "%c\"%s\"", sep, (char *)ln->value);
+                sep = ',';
+            }
+            json = sdscat(json, "]");
+            listReleaseIterator(li);
+        }
+        json = sdscat(json, "}");
+        return json;
+    }
+
     void Write(RedisModuleCtx * ctx, bool nested){
         if(nested)
             RedisModule_ReplyWithArray(ctx, 4);
@@ -443,6 +464,43 @@ public:
             this->edges.Stop();
         }
         printf("== End of Triplet ==\n");
+    }
+
+    sds Json(sds key)
+    {
+        sds json = sdscatprintf( sdsempty(), "{\"key\":\"%s\", \"value\":\"{\"", key);
+        json = sdscatprintf(json, "\"subject\":\"%s\", \"data\":\"%x\", \"length\":\"%f\" ", 
+        subject_key, (POINTER)subject, length);
+
+        // if (this->containers.HasEntries())
+        // {
+        //     this->containers.StartHead();
+        //     FaBlok *e;
+        //     while ((e = this->containers.Next()) != NULL)
+        //     {
+        //         json = sdscatprintf( json, "--> %s\n", e->AsSds());
+        //     }
+        //     this->containers.Stop();
+        // }else
+        //         json = sdscatprintf( json, "roving\n");
+        
+        if (this->edges.HasEntries())
+        {
+            json = sdscat(json, ", \"edges\": [");
+            this->edges.StartHead();
+            Graph_Triplet_Edge *e;
+            char sep[2] = {' ', 0x00};
+            while ((e = this->edges.Next()) != NULL)
+            {
+                json = sdscat(json, sep);
+                json = e->Json(json);
+                sep[0] = ',';
+            }
+            this->edges.Stop();
+            json = sdscat(json, "]");
+        }
+        json = sdscat(json, "}");
+        return json;
     }
 
     void Write(RedisModuleCtx * ctx){

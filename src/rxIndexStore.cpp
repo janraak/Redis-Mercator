@@ -1,4 +1,4 @@
-/* rxFetch -- An example of modules dictionary API
+/* rxIndexStore -- An example of modules dictionary API
  *
  * This module implements a full text index on string and hash keyes.
  *
@@ -31,10 +31,10 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#include "rxFetch.hpp"
+#include "rxIndexStore.hpp"
 /*
  * TODO:
- * 1) Add A/V and V/A indices (rax trees) for rxFetch Performance improvements.
+ * 1) Add A/V and V/A indices (rax trees) for rxIndexStore Performance improvements.
  *    a) A rxFetch %value% can be optimized using a raxTree.
  *    b) A rxFetch %value%* can be optimized using a raxTree.
  *    c) A rxFetch *%value%[*] will require a database scan
@@ -63,7 +63,6 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc);
 #include "rxDescribe-duplexer.hpp"
 #include "rxIndex.hpp"
 
-static rax *ComparisonsMap = NULL;
 static Mercator_Index *mercator_index;
 void initComparisonsStatic();
 // extern int keyIsExpired(redisDb *db, robj *key);
@@ -118,8 +117,8 @@ int rx_fetch(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         v = (char *)rxGetContainedObject(argv[1]);
         f = (char *)rxGetContainedObject(argv[2]);
         op = (char *)rxGetContainedObject(argv[3]);
-        comparisonProc *compare  = (comparisonProc *)raxFind(ComparisonsMap, (UCHAR *)op, sdslen(op));
-        if(compare == raxNotFound)
+        rxComparisonProc *compare  = rxFindComparisonProc(op);
+        if(compare == NULL)
             return RedisModule_ReplyWithError(ctx, "Invalid operator command! Syntax: rxFetch %value% [%field%] [ = | == | > | < | <= | >= | != ]");
         duplexer = new RxFetchDuplexer(argc, dbId, v, f, compare);
         }
@@ -186,6 +185,33 @@ int rx_add(struct RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     
     return RedisModule_ReplyWithSimpleString(ctx, "OK");
 }
+int rx_del(struct RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
+{
+        // "RXADD %s %s %s %s %d", objectKey, keyType, fieldName, tokenValue, confidence
+
+    if(argc <= 4)
+        return RedisModule_ReplyWithError(ctx,REDISMODULE_ERRORMSG_WRONGTYPE);
+    sds objectKey = (char *)rxGetContainedObject(argv[1]);
+    sds keyType = (char *)rxGetContainedObject(argv[2]);
+    sds fieldName = (char *)rxGetContainedObject(argv[3]);
+    sds tokenValue = (char *)rxGetContainedObject(argv[4]);
+    int dbId = RedisModule_GetSelectedDb(ctx);
+
+    sds valueIndexkey = sdscatfmt(sdsempty(), "_zx_:%s:%s", tokenValue, fieldName);
+    // TODO: Forlater
+    // sds vakey = sdscatfmt(sdsempty(), "%s:%s", tokenValue, fieldName);
+    // sds avkey = sdscatfmt(sdsempty(), "%s:%s", fieldName, tokenValue);
+    sds objectReference = sdscatprintf(sdsempty(), "%s\t%s", objectKey, keyType);
+    sds objectIndexkey = sdscatfmt(sdsempty(), "_ox_:%s", objectKey);
+
+    rxDeleteSortedSetMember(valueIndexkey, dbId, objectReference);
+    rxDeleteSetMember(objectIndexkey, dbId, valueIndexkey);
+
+    sdsfree(valueIndexkey);
+    sdsfree(objectReference);
+    
+    return RedisModule_ReplyWithSimpleString(ctx, "OK");
+}
 
 int rx_begin_key(struct RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
@@ -216,13 +242,13 @@ int rx_rollback_key(struct RedisModuleCtx *ctx, RedisModuleString **argv, int ar
 
 /* This function must be present on each Redis module. It is used in order to
  * register the commands into the Redis server. */
-int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
+int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **, int)
 {
-    // serverLog(LL_NOTICE, "Loading rxFetch");
-    REDISMODULE_NOT_USED(argv);
-    REDISMODULE_NOT_USED(argc);
+    // serverLog(LL_NOTICE, "Loading rxIndexStore");
 
-    if (RedisModule_Init(ctx, "rxFetch", 1, REDISMODULE_APIVER_1) == REDISMODULE_ERR)
+    rxInitComparisonsProcs();
+
+    if (RedisModule_Init(ctx, "rxIndexStore", 1, REDISMODULE_APIVER_1) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     if (RedisModule_CreateCommand(ctx, "rxFetch",
@@ -231,6 +257,11 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 
     if (RedisModule_CreateCommand(ctx, "rxAdd",
                                   rx_add, "readonly", 1, 1, 0) == REDISMODULE_ERR)
+        return REDISMODULE_ERR;
+
+
+    if (RedisModule_CreateCommand(ctx, "rxDel",
+                                  rx_del, "readonly", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     if (RedisModule_CreateCommand(ctx, "rxBegin",
@@ -262,76 +293,4 @@ int RedisModule_OnUnload(RedisModuleCtx *ctx)
     rxadd_log = NULL;
     REDISMODULE_NOT_USED(ctx);
     return REDISMODULE_OK;
-}
-
-int compareEquals(char *l, int ll, char *r){
-    if(isdigit(*l)){
-        double v = atof(l);
-        double t = atof(r);
-        return v == t;
-    }else
-        return strncmp(l, r, ll) == 0;
- }
-
-int compareGreaterEquals(char *l, int ll, char *r){
-    if(isdigit(*l)){
-        double v = atof(l);
-        double t = atof(r);
-        return v >= t;
-    }else
-        return strncmp(l, r, ll) >= 0;
-
- }
-
-int compareGreater(char *l, int ll, char *r){
-    if(isdigit(*l)){
-        double v = atof(l);
-        double t = atof(r);
-        return v > t;
-    }else
-        return strncmp(l, r, ll) > 0;
-
- }
-
-int compareLessEquals(char *l, int ll, char *r){
-    if(isdigit(*l)){
-        double v = atof(l);
-        double t = atof(r);
-        return v <= t;
-    }else
-        return strncmp(l, r, ll) <= 0;
-
- }
-
-int compareLess(char *l, int ll, char *r){
-    if(isdigit(*l)){
-        double v = atof(l);
-        double t = atof(r);
-        return v < t;
-    }else
-        return strncmp(l, r, ll) < 0;
-
- }
-
-int compareNotEquals(char *l, int ll, char *r){
-    if(isdigit(*l)){
-        double v = atof(l);
-        double t = atof(r);
-        return v != t;
-    }else
-        return strncmp(l, r, ll) != 0;
-
- }
-
-void initComparisonsStatic()
-{
-	ComparisonsMap = raxNew();
-    void *old;
-    raxTryInsert(ComparisonsMap, (UCHAR *)"=", 1, (void *)compareEquals, &old);
-    raxTryInsert(ComparisonsMap, (UCHAR *)"==", 2, (void *)compareEquals, &old);
-	raxTryInsert(ComparisonsMap, (UCHAR *)">=", 2, (void *)compareGreaterEquals, &old);
-	raxTryInsert(ComparisonsMap, (UCHAR *)"<=", 2, (void *)compareLessEquals, &old);
-	raxTryInsert(ComparisonsMap, (UCHAR *)">", 2, (void *)compareGreater, &old);
-	raxTryInsert(ComparisonsMap, (UCHAR *)"<", 2, (void *)compareLess, &old);
-	raxTryInsert(ComparisonsMap, (UCHAR *)"!=", 2, (void *)compareNotEquals, &old);
 }

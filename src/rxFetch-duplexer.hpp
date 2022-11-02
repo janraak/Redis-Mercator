@@ -7,7 +7,6 @@
 
 #include "command-duplexer.hpp"
 
-typedef int comparisonProc(char *l, int ll, char *r);
 
 #ifdef __cplusplus
 extern "C"
@@ -34,7 +33,7 @@ public:
     int attribute_value_len;
     sds attribute;
     int attribute_len;
-    comparisonProc *matchOperation;
+    rxComparisonProc *matchOperation;
     long long touched;
     long long strings;
     long long hashes;
@@ -47,7 +46,7 @@ public:
     int dbNo;
 
     dictIterator *dup_di;
-    comparisonProc *dup_matchOperation;
+    rxComparisonProc *dup_matchOperation;
     rax *dup_bucket;
 
     RxFetchDuplexer(int argc, int dbNo, sds attribute_value)
@@ -81,7 +80,7 @@ public:
         this->attribute_len = sdslen(attribute);
     }
 
-    RxFetchDuplexer(int argc, int dbNo, sds attribute_value, sds attribute, comparisonProc *matchOperation)
+    RxFetchDuplexer(int argc, int dbNo, sds attribute_value, sds attribute, rxComparisonProc *matchOperation)
         : RxFetchDuplexer(argc, dbNo, attribute_value, attribute)
     {
         this->matchOperation = matchOperation;

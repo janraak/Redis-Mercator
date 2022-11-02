@@ -26,12 +26,36 @@ extern "C"
 rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, const char *key)
 {
     FaBlok *v = FaBlok::Get((char *)key, KeysetDescriptor_TYPE_KEYSET);
+    v->InitKeyset(true);
     v->AsTemp();
-    v->LoadKey(0, v->setname);
+    // if(v->size <= 0 )
+        v->LoadKey(0, v->setname);
     stack->Push(v);
+    this->Preload(e, stack);
     rax *result = this->Execute(e, stack);
     // delete v;
     return result;
+}
+
+
+void SilNikParowy::Preload(ParsedExpression *e, SilNikParowy_Kontekst *)
+{
+    e->expression->StartHead();
+    ParserToken *t;
+    while ((t = e->expression->Next()) != NULL)
+    {
+        switch (t->TokenType())
+        {
+        case _operand:
+            FaBlok::Get(t->Token(), KeysetDescriptor_TYPE_SINGULAR);
+            break;
+        case _literal:
+            FaBlok::Get(t->Token(), KeysetDescriptor_TYPE_SINGULAR);
+            break;
+        default:
+            break;
+        }
+    }
 }
 
 rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack)

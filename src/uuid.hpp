@@ -5,7 +5,7 @@
     https://stackoverflow.com/questions/24365331/how-can-i-generate-uuid-in-c-without-using-boost-library    
 
     As noted in the article this may not generated a 'TRUE' UUID.
-    however for rxFetch the uniqueness seems to be sufficient. (for now)
+    however for rxIndexStore the uniqueness seems to be sufficient. (for now)
 */
 #include <random>
 #include <sstream>

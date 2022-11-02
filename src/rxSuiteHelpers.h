@@ -10,6 +10,7 @@
 extern "C"
 {
 #endif
+
 #include "ae.h"
 #include "rax.h"
 #include "../../src/dict.h"
@@ -66,12 +67,14 @@ extern "C"
     void *rxFindHashKey(int dbNo, sds key);
     void *rxScanKeys(int dbNo, void **diO, char **key);
     void *rxScanSetMembers(void *obj, void **siO, char **member, int64_t *member_len);
+    sds rxRandomSetMember(void *set);
     dictIterator *rxGetDatabaseIterator(int dbNo);
     long long rxDatabaseSize(int dbNo);
     
     void rxAllocateClientArgs(void *cO, void ** argV, int argC);
     void rxClientExecute(void *cO, void *pO);
 
+    int rxIsAddrBound(char *addr, int port);
 #define MATCH_IS_FALSE 0
 #define MATCH_IS_TRUE 1
 
@@ -106,7 +109,7 @@ int rxMatchHasValue(void *oO, sds field, sds pattern, int plen);
     int rxHashTypeGetValue(void *o, sds field, unsigned char **vstr, POINTER *vlen, long long *vll);
     sds rxGetHashField(void *o, sds field);
     int rxHashTypeSet(void *o, sds field, sds value, int flags);
-
+    sds rxHashAsJson(sds key, void *o);
     struct rxHashTypeIterator *rxHashTypeInitIterator(void *subject);
     void rxHashTypeReleaseIterator(struct rxHashTypeIterator *hi);
 
@@ -129,19 +132,28 @@ long long rxCreateTimeEvent(long long milliseconds,
 void rxDeleteTimeEvent(long long id);
 
 void rxModulePanic(char *msg);
+#define rxLL_DEBUG 0
+#define rxLL_VERBOSE 1
+#define rxLL_NOTICE 2
+#define rxLL_WARNING 3
 
+void rxServerLogRaw(int level, sds msg);
 void rxHarvestSortedSetMembers(void *zobj, rax *bucket);
 double rxAddSortedSetMember(sds key, int dbNo, double score, sds member);
 int rxAddSetMember(sds key, int dbNo, sds member);
+double rxDeleteSortedSetMember(sds key, int dbNo, sds member);
+int rxDeleteSetMember(sds key, int dbNo, sds member);
 
 void *rxRemoveKeyRetainValue(int dbNo, sds key);
 void *rxRestoreKeyRetainValue(int dbNo, sds key, void *obj);
-void *rxCommitKeyRetainValue(int dbNo, sds key, void *old_state);
+void *rxCommitKeyRetainValue(int dbNo, sds key, void *old_2te);
 
 unsigned long long mem_avail();
 
-// #include <stdarg.h>
-// void * rxStashCommand(const char *command, int argc, va_list *args);
+typedef int rxComparisonProc(char *l, int ll, char *r);
+typedef int rxComparisonProc2(char *l, int ll, char *r, char *h);
+void rxInitComparisonsProcs();
+rxComparisonProc *rxFindComparisonProc(char *op);
 
 #ifdef __cplusplus
 }

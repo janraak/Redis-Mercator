@@ -162,7 +162,8 @@ protected:
         RedisModuleCtx *module_contex;
 
        virtual rax *Execute(ParsedExpression *e);
-        virtual rax *Execute(ParsedExpression *e, const char *key);
+        virtual rax *Execute(ParsedExpression *e, const char *key)
+        ;
      
 
         SilNikParowy_Kontekst(SilNikParowy *engine, ParsedExpression *e, char *h, int port);
@@ -200,6 +201,7 @@ class SilNikParowy
         after Polish translation of Steam Engine.
     */
 public:
+    virtual void Preload(ParsedExpression *e, SilNikParowy_Kontekst *ctx);
     virtual rax *Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack);
     virtual rax *Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, const char *key);
 

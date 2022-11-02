@@ -1,4 +1,4 @@
-/* rxIndexer -- An example of modules dictionary API
+/* rxIndexer -- A module for Redis/Mercator by Rocksoft
  *
  * This module implements a full text index on string and hash keyes.
  *
@@ -334,7 +334,10 @@ static int indexingHandler(sds *kfv)
             e->Forget("@@field@@");
         }
     }
-    TextDialect::FlushIndexables(collector, key, key_type, index_node);
+    if(!index_node)
+        index_node = RedisClientPool<redisContext>::Acquire(index_info.index_address, index_info.index_port);
+    if(raxSize(collector) > 0)
+        TextDialect::FlushIndexables(collector, key, key_type, index_node);
     RedisClientPool<redisContext>::Release(index_node);
     raxFree(collector);
     e->Forget("@@SilNikParowy_Kontekst@@");
@@ -399,7 +402,7 @@ int indexerInfo(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     response = sdscatfmt(response, "Number of RXADD commands:                  %i\n", index_info.rxadd_tally);
     response = sdscatfmt(response, "Number of RXCOMMIT commands:               %i\n", index_info.rxcommit_tally);
     response = sdscatfmt(response, "Number of completed requests:              %i\n", index_info.key_indexing_respone_queue->QueueLength());
-    // response = sdscatfmt(response, "Number of key_indexing_enqueues:           %i\n", index_info.key_indexing_respone_queue->enqueue_fifo_tally);
+    //response = sdscatfmt(response, "Number of key_indexing_enqueues:           %i\n", index_info.key_indexing_respone_queue->enqueue_fifo_tally);
     // response = sdscatfmt(response, "Number of key_indexing_dequeues:           %i\n", index_info.key_indexing_respone_queue->dequeue_fifo_tally);
     response = sdscatfmt(response, "Number of completed Redis requests:        %i\n", index_info.index_update_request_queue->QueueLength());
     // response = sdscatfmt(response, "Number of redis_enqueues:                  %i\n", index_info.index_update_request_queue->enqueue_fifo_tally);
