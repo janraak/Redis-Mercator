@@ -1,11 +1,11 @@
-#ifndef __RXDESCRIBE_DUPLEXER_H__
-#define __RXDESCRIBE_DUPLEXER_H__
+#ifndef __RXDESCRIBE_multiplexer_H__
+#define __RXDESCRIBE_multiplexer_H__
 
 #define VALUE_ONLY 2
 #define FIELD_AND_VALUE_ONLY 3
 #define FIELD_OP_VALUE 4
 
-#include "command-duplexer.hpp"
+#include "command-multiplexer.hpp"
 #include "simpleQueue.hpp"
 
 typedef int comparisonProc(char *l, int ll, char *r);
@@ -23,14 +23,14 @@ extern "C"
 }
 #endif
 
-class RxWaitIndexingDuplexer : public Duplexer
+class RxWaitIndexingMultiplexer : public Multiplexer
 {
 public:
     SimpleQueue *queue;
     dictIterator **reindex_iterator;
 
-    RxWaitIndexingDuplexer(SimpleQueue *queue, dictIterator **reindex_iterator)
-        : Duplexer()
+    RxWaitIndexingMultiplexer(SimpleQueue *queue, dictIterator **reindex_iterator)
+        : Multiplexer()
     {
         this->queue = queue;
         this->reindex_iterator = reindex_iterator;

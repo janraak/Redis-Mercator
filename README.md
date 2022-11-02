@@ -11,6 +11,8 @@ Redis Mercator provides alternative views and traversals on your Redis data, off
 # Build instructions
 1) Create a folder 'Extensions' in your Redis folder
 2) Clone this project in the extensions folder.
+    fetch https://github.com/cameron314/concurrentqueue.git in deps
+    pip3 install redis
 3) 'MAKE' to compile
 4) 'MAKE test' to execute the system tests.
 

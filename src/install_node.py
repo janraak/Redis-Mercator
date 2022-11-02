@@ -49,10 +49,10 @@ while True:
         pass
 
 if role == 'data':
-    redis_client.execute_command("MODULE LOAD extensions/src/rxIndexer.so INDEX {} {} 0 DATA {} {} 0 DEFAULT_OPERATOR &".format(ihost, iport, host, port))
-    redis_client.execute_command("MODULE LOAD extensions/src/rxQuery.so INDEX {} {} 0 DATA {} {} 0 DEFAULT_OPERATOR &".format(ihost, iport, host, port))
-    redis_client.execute_command("MODULE LOAD extensions/src/rxRule.so INDEX {} {} 0 DATA {} {} 0 DEFAULT_OPERATOR &".format(ihost, iport, host, port))
-    redis_client.execute_command("MODULE LOAD extensions/src/rxGraphdb.so INDEX {} {} 0 DATA {} {} 0 DEFAULT_OPERATOR &".format(ihost, iport, host, port))
+    redis_client.execute_command("MODULE LOAD extensions/src/rxIndexer.so {} {} {} {}".format(ihost, iport, host, port))
+    redis_client.execute_command("MODULE LOAD extensions/src/rxQuery.so {} {} {} {}  INDEX {} {} 0 DATA {} {} 0 DEFAULT_OPERATOR &".format(ihost, iport, host, port, ihost, iport, host, port))
+    redis_client.execute_command("MODULE LOAD extensions/src/rxRule.so {} {} {} {}".format(ihost, iport, host, port))
+    redis_client.execute_command("MODULE LOAD extensions/src/rxGraphdb.so {} {} {} {}".format(ihost, iport, host, port))
     # redis_client.execute_command("ACL SETUSER admin ON >admin +@all +@admin".format(cid, cid))
     # redis_client.execute_command("ACL SETUSER {} ON >{} +select|0".format(cid, cid))
     # redis_client.execute_command("ACL SETUSER {} -@admin".format(cid))

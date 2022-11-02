@@ -3,19 +3,27 @@
 extern "C"
 {
 #endif
+#include "/usr/include/arm-linux-gnueabihf/bits/types/siginfo_t.h"
+#include <sched.h>
+#include <signal.h>
 
+#include "../../src/sds.h"
 #include "../../src/server.h"
 #include "../../src/sds.h"
+#include "../../src/server.h"
 #include "rax.h"
     extern struct client *createAOFClient(void);
 
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "rxSuiteHelpers.h"
 #ifdef __cplusplus
 }
 #endif
+
+
+#define rxUNUSED(x) (void)(x)
 
 long long rust_helper_cron = -1;
 
@@ -67,7 +75,7 @@ void uninstallInterceptors(interceptRule *commandTable, int no_of_commands)
     }
 }
 
-void *rxFindKey(int dbNo, sds key)
+void *rxFindKey(int dbNo, const char *key)
 {
     if (dbNo < 0 || dbNo >= server.dbnum)
         serverPanic("findKey: Invalid database");
@@ -87,7 +95,7 @@ void *rxFindKey(int dbNo, sds key)
     }
 }
 
-void *rxFindSetKey(int dbNo, sds key)
+void *rxFindSetKey(int dbNo, const char *key)
 {
     robj *o = rxFindKey(dbNo, key);
     if (o == NULL || o->type != OBJ_SET)
@@ -95,7 +103,7 @@ void *rxFindSetKey(int dbNo, sds key)
     return o;
 }
 
-void *rxFindSortedSetKey(int dbNo, sds key)
+void *rxFindSortedSetKey(int dbNo, const char *key)
 {
     robj *o = rxFindKey(dbNo, key);
     if (o == NULL || o->type != OBJ_ZSET)
@@ -103,7 +111,7 @@ void *rxFindSortedSetKey(int dbNo, sds key)
     return o;
 }
 
-void *rxFindHashKey(int dbNo, sds key)
+void *rxFindHashKey(int dbNo, const char *key)
 {
     robj *o = rxFindKey(dbNo, key);
     if (!o)
@@ -165,13 +173,15 @@ void *rxScanSetMembers(void *obj, void **siO, char **member, int64_t *member_len
     return *member;
 }
 
-sds rxRandomSetMember(void *set){
+sds rxRandomSetMember(void *set)
+{
     sds ele;
     int64_t llele;
     int encoding;
 
-    encoding = setTypeRandomElement(set,&ele,&llele);
-    if (encoding == OBJ_ENCODING_INTSET) {
+    encoding = setTypeRandomElement(set, &ele, &llele);
+    if (encoding == OBJ_ENCODING_INTSET)
+    {
         ele = sdscatfmt(sdsempty(), "%i", llele);
     }
     return ele;
@@ -192,11 +202,13 @@ rax *rxSetToRax(void *obj)
     return r;
 }
 
-int rxMatchHasValue(void *oO, sds field, sds pattern, int plen)
+int rxMatchHasValue(void *oO, const char *f, sds pattern, int plen)
 {
     robj *o = (robj *)oO;
     if (!o || o->type != OBJ_HASH)
         return MATCH_IS_FALSE;
+
+    sds field = sdsnew(f);
 
     if (o->encoding == OBJ_ENCODING_ZIPLIST)
     {
@@ -206,18 +218,26 @@ int rxMatchHasValue(void *oO, sds field, sds pattern, int plen)
 
         int ret = hashTypeGetFromZiplist(o, field, &vstr, &vlen, &vll);
         if (ret < 0)
-            return MATCH_IS_FALSE;
-        if (pattern == NULL)
-            return MATCH_IS_TRUE;
-        sds k = sdsnewlen(vstr, vlen);
-        sdstolower(k);
-        // printf(" %s ", k);
-        if (ret == 0 && stringmatchlen(pattern, plen, (const char *)k, vlen, 1))
         {
-            sdsfree(k);
+            sdsfree(field);
+            return MATCH_IS_FALSE;
+        }
+        if (pattern == NULL)
+        {
+            sdsfree(field);
             return MATCH_IS_TRUE;
         }
-        sdsfree(k);
+        if(vstr == NULL)       {
+            sdsfree(field);
+            return MATCH_IS_FALSE;
+        }
+
+        // printf(" %s ", k);
+        if (ret == 0 && stringmatchlen(pattern, plen, (const char *)vstr, vlen, 1))
+        {
+            sdsfree(field);
+            return MATCH_IS_TRUE;
+        }
     }
     else if (o->encoding == OBJ_ENCODING_HT)
     {
@@ -227,27 +247,41 @@ int rxMatchHasValue(void *oO, sds field, sds pattern, int plen)
         hashTypeGetValue(o, field, &vstr, &vlen, &vll);
         // printf(" %s ", vstr);
         if (vstr == NULL)
+        {
+            sdsfree(field);
             return MATCH_IS_FALSE;
+        }
         if (stringmatchlen(pattern, plen, (const char *)vstr, vlen, 1))
+        {
+            sdsfree(field);
             return MATCH_IS_TRUE;
+        }
     }
+    sdsfree(field);
     return MATCH_IS_FALSE;
 }
 
-int rxHashTypeSet(void *o, sds field, sds value, int flags)
+int rxHashTypeSet(void *o, const char *f, const char *v, int flags)
 {
     if (((robj *)o)->type != rxOBJ_HASH)
         return -1;
-    return hashTypeSet((robj *)o, field, value, flags);
+    sds field = sdsnew(f);
+    sds value = sdsnew(v);
+    int retval = hashTypeSet((robj *)o, field, value, flags);
+    sdsfree(field);
+    sdsfree(value);
+    return retval;
 }
 
-sds rxGetHashField(void *oO, sds field)
+sds rxGetHashField(void *oO, const char *f)
 {
+    sds field = sdsnew(f);
     robj *o = (robj *)oO;
     int ret;
 
     if (o == NULL)
     {
+        sdsfree(field);
         return sdsempty();
     }
 
@@ -262,10 +296,12 @@ sds rxGetHashField(void *oO, sds field)
         {
             if (vstr)
             {
+                sdsfree(field);
                 return sdsnewlen(vstr, vlen);
             }
             else
             {
+                sdsfree(field);
                 return sdscatfmt(sdsempty(), "%i", vll);
             }
         }
@@ -274,21 +310,60 @@ sds rxGetHashField(void *oO, sds field)
     {
         sds value = hashTypeGetFromHashTable(o, field);
         if (value != NULL)
+        {
+            sdsfree(field);
             return sdsnewlen(value, sdslen(value));
+        }
     }
     else
     {
         serverPanic("Unknown hash encoding");
     }
+    sdsfree(field);
     return sdsempty();
 }
-sds rxHashAsJson(sds key, void *o)
+
+sds rxGetHashField2(void *oO, const char *field)
+{
+    sds f = sdsnew(field);
+    sds v = rxGetHashField(oO, f);
+    sdsfree(f);
+    return v;
+}
+sds rxHashAsJson(const char *key, void *o)
 {
     sds json = sdscatprintf(sdsempty(), "{\"%s\":{", key);
 
     hashTypeIterator *hi = hashTypeInitIterator((robj *)o);
     char sep = ' ';
-    while(hashTypeNext(hi) != C_ERR)
+    while (hashTypeNext(hi) != C_ERR)
+    {
+        sds f = hashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_KEY);
+        sds v = hashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_VALUE);
+        json = sdscatprintf(json, "%c\"%s\":\"%s\"", sep, f, v);
+        sep = ',';
+        sdsfree(f);
+        sdsfree(v);
+    }
+    hashTypeReleaseIterator(hi);
+    json = sdscat(json, "}}");
+    return json;
+}
+
+sds rxGetHashField2(void *oO, const char *field)
+{
+    sds f = sdsnew(field);
+    sds v = rxGetHashField(oO, f);
+    sdsfree(f);
+    return v;
+}
+sds rxHashAsJson(const char *key, void *o)
+{
+    sds json = sdscatprintf(sdsempty(), "{\"%s\":{", key);
+
+    hashTypeIterator *hi = hashTypeInitIterator((robj *)o);
+    char sep = ' ';
+    while (hashTypeNext(hi) != C_ERR)
     {
         sds f = hashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_KEY);
         sds v = hashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_VALUE);
@@ -359,9 +434,12 @@ void *rxGetContainedObject(void *o)
     return ro->ptr;
 }
 
-int rxHashTypeGetValue(void *o, sds field, unsigned char **vstr, POINTER *vlen, long long *vll)
+int rxHashTypeGetValue(void *o, const char *f, unsigned char **vstr, POINTER *vlen, long long *vll)
 {
-    return hashTypeGetValue(o, field, vstr, vlen, vll);
+    sds field = sdsnew(f);
+    int retval = hashTypeGetValue(o, field, vstr, vlen, vll);
+    sdsfree(field);
+    return retval;
 }
 
 struct rxHashTypeIterator *rxHashTypeInitIterator(void *subject)
@@ -401,7 +479,8 @@ void rxModulePanic(char *msg)
     serverPanic(msg);
 }
 
-void rxServerLogRaw(int level, sds msg){
+void rxServerLogRaw(int level, sds msg)
+{
     serverLogRaw(level, msg);
     sdsfree(msg);
 }
@@ -422,39 +501,39 @@ static void HarvestMember(rax *bucket, unsigned char *key, int k_len, double sco
 }
 
 extern int setTypeAdd(robj *subject, sds value);
-int rxAddSetMember(sds key, int dbNo, sds member)
+int rxAddSetMember(const char *key, int dbNo, sds member)
 {
     robj *sobj = (robj *)rxFindSetKey(dbNo, key);
     if (sobj == NULL)
     {
         sobj = createSetObject();
-        robj *k = createStringObject(key, sdslen(key));
+        robj *k = createStringObject(key, strlen(key));
         dbAdd((&server.db[dbNo]), k, sobj);
         freeStringObject(k);
     }
     return setTypeAdd(sobj, member);
 }
-int rxDeleteSetMember(sds key, int dbNo, sds member)
+int rxDeleteSetMember(const char *key, int dbNo, sds member)
 {
     robj *sobj = (robj *)rxFindSetKey(dbNo, key);
     if (sobj != NULL)
     {
-        if(setTypeIsMember(sobj, member))
-            return setTypeRemove(sobj, member);        
+        if (setTypeIsMember(sobj, member))
+            return setTypeRemove(sobj, member);
     }
     return 0;
 }
 
 extern int zsetAdd(robj *zobj, double score, sds ele, int *flags, double *newscore);
 
-double rxAddSortedSetMember(sds key, int dbNo, double score, sds member)
+double rxAddSortedSetMember(const char *key, int dbNo, double score, sds member)
 {
     double newScore;
     robj *zobj = (robj *)rxFindSortedSetKey(dbNo, key);
     if (zobj == NULL)
     {
         zobj = createZsetObject();
-        robj *k = createStringObject(key, sdslen(key));
+        robj *k = createStringObject(key, strlen(key));
         dbAdd((&server.db[dbNo]), k, zobj);
         freeStringObject(k);
     }
@@ -463,7 +542,7 @@ double rxAddSortedSetMember(sds key, int dbNo, double score, sds member)
     return newScore;
 }
 
-double rxDeleteSortedSetMember(sds key, int dbNo, sds member)
+double rxDeleteSortedSetMember(const char *key, int dbNo, sds member)
 {
     robj *zobj = (robj *)rxFindSortedSetKey(dbNo, key);
     if (zobj != NULL)
@@ -474,21 +553,21 @@ double rxDeleteSortedSetMember(sds key, int dbNo, sds member)
 }
 
 extern int dbDelete(redisDb *db, robj *key);
-void *rxRemoveKeyRetainValue(int dbNo, sds key)
+void *rxRemoveKeyRetainValue(int dbNo, const char *key)
 {
     void *obj = rxFindKey(dbNo, key);
     if (obj == NULL)
         return obj;
     incrRefCount(obj);
-    robj *k = createStringObject(key, sdslen(key));
+    robj *k = createStringObject(key, strlen(key));
     dbDelete((&server.db[dbNo]), k);
     freeStringObject(k);
     return obj;
 }
 
-void *rxRestoreKeyRetainValue(int dbNo, sds key, void *obj)
+void *rxRestoreKeyRetainValue(int dbNo, const char *key, void *obj)
 {
-    robj *k = createStringObject(key, sdslen(key));
+    robj *k = createStringObject(key, strlen(key));
     dbDelete((&server.db[dbNo]), k);
     if (obj != NULL)
         dbAdd((&server.db[dbNo]), k, obj);
@@ -499,7 +578,7 @@ void *rxRestoreKeyRetainValue(int dbNo, sds key, void *obj)
 extern int zsetDel(robj *zobj, sds ele);
 unsigned long zsetLength(const robj *zobj);
 
-void *rxCommitKeyRetainValue(int dbNo, sds key, void *old_state)
+void *rxCommitKeyRetainValue(int dbNo, const char *key, void *old_state)
 {
     sds objectIndexkey = sdscatfmt(sdsempty(), "_ox_:%s", key);
     void *new_state = rxFindKey(dbNo, objectIndexkey);
@@ -682,130 +761,148 @@ struct redisCommand *rxLookupCommand(sds name)
     return lookupCommandByCString(name);
 }
 
-int rxIsAddrBound(char *addr, int port){
-    if(server.port != port)
+int rxIsAddrBound(char *addr, int port)
+{
+    if (server.port != port)
         return 0;
     for (int n = 0; n < server.bindaddr_count; ++n)
     {
-        if(strcmp(addr, server.bindaddr[n]) == 0)
+        if (strcmp(addr, server.bindaddr[n]) == 0)
             return 1;
     }
     return 0;
 }
 
-
-int compareEquals(char *l, int ll, char *r){
-    if(isdigit(*l) || isdigit(*r)){
+int compareEquals(char *l, int ll, char *r)
+{
+    if (isdigit(*l) || isdigit(*r))
+    {
         double v = atof(l);
         double t = atof(r);
         return v == t;
-    }else
+    }
+    else
         return strncmp(l, r, ll) == 0;
- }
+}
 
-int compareGreaterEquals(char *l, int ll, char *r){
-    if(isdigit(*l) || isdigit(*r)){
+int compareGreaterEquals(char *l, int ll, char *r)
+{
+    if (isdigit(*l) || isdigit(*r))
+    {
         double v = atof(l);
         double t = atof(r);
         return v >= t;
-    }else
+    }
+    else
         return strncmp(l, r, ll) >= 0;
+}
 
- }
-
-int compareGreater(char *l, int ll, char *r){
-    if(isdigit(*l) || isdigit(*r)){
+int compareGreater(char *l, int ll, char *r)
+{
+    if (isdigit(*l) || isdigit(*r))
+    {
         double v = atof(l);
         double t = atof(r);
         return v > t;
-    }else
+    }
+    else
         return strncmp(l, r, ll) > 0;
+}
 
- }
-
-int compareLessEquals(char *l, int ll, char *r){
-    if(isdigit(*l) || isdigit(*r)){
+int compareLessEquals(char *l, int ll, char *r)
+{
+    if (isdigit(*l) || isdigit(*r))
+    {
         double v = atof(l);
         double t = atof(r);
         return v <= t;
-    }else
+    }
+    else
         return strncmp(l, r, ll) <= 0;
+}
 
- }
-
-int compareLess(char *l, int ll, char *r){
-    if(isdigit(*l) || isdigit(*r)){
+int compareLess(char *l, int ll, char *r)
+{
+    if (isdigit(*l) || isdigit(*r))
+    {
         double v = atof(l);
         double t = atof(r);
         return v < t;
-    }else
+    }
+    else
         return strncmp(l, r, ll) < 0;
+}
 
- }
-
-int compareNotEquals(char *l, int ll, char *r){
-    if(isdigit(*l) || isdigit(*r)){
+int compareNotEquals(char *l, int ll, char *r)
+{
+    if (isdigit(*l) || isdigit(*r))
+    {
         double v = atof(l);
         double t = atof(r);
         return v != t;
-    }else
+    }
+    else
         return strncmp(l, r, ll) != 0;
+}
 
- }
-
-int compareContains(char *l, int ll, char *r){
+int compareContains(char *l, int ll, char *r)
+{
+    rxUNUSED(ll);
     return strstr(l, r) != NULL;
 }
 
-int compareInRange(char *value, int ll, char *low, char *high){
-        double v = atof(value);
-        double t = atof(low);
-        double m = atof(high);
-        return v >= t && v <= m;
- }
+int compareInRange(char *value, int ll, char *low, char *high)
+{
+    rxUNUSED(ll);
+    double v = atof(value);
+    double t = atof(low);
+    double m = atof(high);
+    return v >= t && v <= m;
+}
 
 rax *rxComparisonsMap = NULL;
 
 void rxInitComparisonsProcs()
 {
-    if(rxComparisonsMap != NULL)
+    if (rxComparisonsMap != NULL)
         return;
 
-	rxComparisonsMap = raxNew();
+    rxComparisonsMap = raxNew();
 
     void *old;
 
     raxTryInsert(rxComparisonsMap, (unsigned char *)"=", 1, (void *)compareEquals, &old);
     raxTryInsert(rxComparisonsMap, (unsigned char *)"==", 2, (void *)compareEquals, &old);
-	raxTryInsert(rxComparisonsMap, (unsigned char *)">=", 2, (void *)compareGreaterEquals, &old);
-	raxTryInsert(rxComparisonsMap, (unsigned char *)"<=", 2, (void *)compareLessEquals, &old);
-	raxTryInsert(rxComparisonsMap, (unsigned char *)">", 1, (void *)compareGreater, &old);
-	raxTryInsert(rxComparisonsMap, (unsigned char *)"<", 1, (void *)compareLess, &old);
-	raxTryInsert(rxComparisonsMap, (unsigned char *)"!=", 2, (void *)compareNotEquals, &old);
+    raxTryInsert(rxComparisonsMap, (unsigned char *)">=", 2, (void *)compareGreaterEquals, &old);
+    raxTryInsert(rxComparisonsMap, (unsigned char *)"<=", 2, (void *)compareLessEquals, &old);
+    raxTryInsert(rxComparisonsMap, (unsigned char *)">", 1, (void *)compareGreater, &old);
+    raxTryInsert(rxComparisonsMap, (unsigned char *)"<", 1, (void *)compareLess, &old);
+    raxTryInsert(rxComparisonsMap, (unsigned char *)"!=", 2, (void *)compareNotEquals, &old);
 
     raxTryInsert(rxComparisonsMap, (unsigned char *)"EQ", 2, (void *)compareEquals, &old);
     raxTryInsert(rxComparisonsMap, (unsigned char *)"NE", 2, (void *)compareEquals, &old);
-	raxTryInsert(rxComparisonsMap, (unsigned char *)"GE", 2, (void *)compareGreaterEquals, &old);
-	raxTryInsert(rxComparisonsMap, (unsigned char *)"LE", 2, (void *)compareLessEquals, &old);
-	raxTryInsert(rxComparisonsMap, (unsigned char *)"GT", 2, (void *)compareGreater, &old);
-	raxTryInsert(rxComparisonsMap, (unsigned char *)"LT", 2, (void *)compareLess, &old);
-	raxTryInsert(rxComparisonsMap, (unsigned char *)"CONTAINS", 8, (void *)compareContains, &old);
-	raxTryInsert(rxComparisonsMap, (unsigned char *)"BETWEEN", 7, (void *)compareInRange, &old);
+    raxTryInsert(rxComparisonsMap, (unsigned char *)"GE", 2, (void *)compareGreaterEquals, &old);
+    raxTryInsert(rxComparisonsMap, (unsigned char *)"LE", 2, (void *)compareLessEquals, &old);
+    raxTryInsert(rxComparisonsMap, (unsigned char *)"GT", 2, (void *)compareGreater, &old);
+    raxTryInsert(rxComparisonsMap, (unsigned char *)"LT", 2, (void *)compareLess, &old);
+    raxTryInsert(rxComparisonsMap, (unsigned char *)"CONTAINS", 8, (void *)compareContains, &old);
+    raxTryInsert(rxComparisonsMap, (unsigned char *)"BETWEEN", 7, (void *)compareInRange, &old);
 
     raxTryInsert(rxComparisonsMap, (unsigned char *)"eq", 2, (void *)compareEquals, &old);
     raxTryInsert(rxComparisonsMap, (unsigned char *)"ne", 2, (void *)compareEquals, &old);
-	raxTryInsert(rxComparisonsMap, (unsigned char *)"ge", 2, (void *)compareGreaterEquals, &old);
-	raxTryInsert(rxComparisonsMap, (unsigned char *)"le", 2, (void *)compareLessEquals, &old);
-	raxTryInsert(rxComparisonsMap, (unsigned char *)"gt", 2, (void *)compareGreater, &old);
-	raxTryInsert(rxComparisonsMap, (unsigned char *)"lt", 2, (void *)compareLess, &old);
-	raxTryInsert(rxComparisonsMap, (unsigned char *)"contains", 8, (void *)compareContains, &old);
-	raxTryInsert(rxComparisonsMap, (unsigned char *)"between", 7, (void *)compareInRange, &old);
+    raxTryInsert(rxComparisonsMap, (unsigned char *)"ge", 2, (void *)compareGreaterEquals, &old);
+    raxTryInsert(rxComparisonsMap, (unsigned char *)"le", 2, (void *)compareLessEquals, &old);
+    raxTryInsert(rxComparisonsMap, (unsigned char *)"gt", 2, (void *)compareGreater, &old);
+    raxTryInsert(rxComparisonsMap, (unsigned char *)"lt", 2, (void *)compareLess, &old);
+    raxTryInsert(rxComparisonsMap, (unsigned char *)"contains", 8, (void *)compareContains, &old);
+    raxTryInsert(rxComparisonsMap, (unsigned char *)"between", 7, (void *)compareInRange, &old);
 }
 
-rxComparisonProc *rxFindComparisonProc(char *op){
-    if(rxComparisonsMap == NULL)
+rxComparisonProc *rxFindComparisonProc(char *op)
+{
+    if (rxComparisonsMap == NULL)
         rxInitComparisonsProcs();
-    rxComparisonProc *compare = (rxComparisonProc *)raxFind(rxComparisonsMap, (unsigned char *)op, sdslen(op));
+    rxComparisonProc *compare = (rxComparisonProc *)raxFind(rxComparisonsMap, (unsigned char *)op, strlen(op));
     if (compare == raxNotFound)
         return NULL;
     return compare;

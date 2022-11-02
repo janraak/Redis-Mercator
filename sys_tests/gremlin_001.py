@@ -56,7 +56,7 @@ def check_server(must_flush):
         print(m)
         if m[b'name'].decode('utf-8') == "rxIndexStore": fetcher_loaded= True
     if not fetcher_loaded:
-        redis_index.execute_command("MODULE LOAD /home/pi/redis/redis-6.0.10/extensions/src/rxIndexStoreStore.so a b c")
+        redis_index.execute_command("MODULE LOAD /home/pi/redis/redis-6.0.10/extensions/src/rxIndexStore.so a b c")
 
     # exit(0)    
     

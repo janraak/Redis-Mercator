@@ -1,4 +1,5 @@
-
+#ifndef __sjiboleth_silnikparowy_CPP__
+#define __sjiboleth_silnikparowy_CPP__
 
 #ifdef __cplusplus
 extern "C"
@@ -7,7 +8,7 @@ extern "C"
 #include <cstdlib>
 
 #include "string.h"
-
+#include "zmalloc.h"
 #include "../../deps/hiredis/hiredis.h"
 
 #include "rax.h"
@@ -18,10 +19,9 @@ extern "C"
 }
 #endif
 
+#include "client-pool.hpp"
 #include "sjiboleth-fablok.hpp"
 #include "sjiboleth-graph.hpp"
-#include "client-pool.hpp"
-
 
 rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, const char *key)
 {
@@ -29,14 +29,13 @@ rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, co
     v->InitKeyset(true);
     v->AsTemp();
     // if(v->size <= 0 )
-        v->LoadKey(0, v->setname);
+    v->LoadKey(0, v->setname);
     stack->Push(v);
-    this->Preload(e, stack);
-    rax *result = this->Execute(e, stack);
+    SilNikParowy::Preload(e, stack);
+    rax *result = SilNikParowy::Execute(e, stack);
     // delete v;
     return result;
 }
-
 
 void SilNikParowy::Preload(ParsedExpression *e, SilNikParowy_Kontekst *)
 {
@@ -44,16 +43,24 @@ void SilNikParowy::Preload(ParsedExpression *e, SilNikParowy_Kontekst *)
     ParserToken *t;
     while ((t = e->expression->Next()) != NULL)
     {
-        switch (t->TokenType())
+        if (strlen(t->Token()) > 0)
         {
-        case _operand:
-            FaBlok::Get(t->Token(), KeysetDescriptor_TYPE_SINGULAR);
-            break;
-        case _literal:
-            FaBlok::Get(t->Token(), KeysetDescriptor_TYPE_SINGULAR);
-            break;
-        default:
-            break;
+            switch (t->TokenType())
+            {
+            case _operand:
+                FaBlok::Get(t->Token(), KeysetDescriptor_TYPE_SINGULAR);
+                break;
+            case _literal:
+                FaBlok::Get(t->Token(), KeysetDescriptor_TYPE_SINGULAR);
+                break;
+            default:
+                break;
+            }
+        }
+        else
+        {
+            rxServerLogRaw(rxLL_WARNING,
+                           sdsnew("Odd token"));
         }
     }
 }
@@ -97,6 +104,7 @@ rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack)
         }
     }
 end_of_loop:
+    printf("\n");
     sds error;
     rax *rx = NULL;
     if (listLength(e->errors) > 0)
@@ -104,19 +112,21 @@ end_of_loop:
         error = sdsempty();
         listNode *ln;
         listIter *li = listGetIterator(e->errors, AL_START_HEAD);
-        while((ln = listNext(li)) != NULL){
-            if(strlen((char *)ln->value) > 0){
+        while ((ln = listNext(li)) != NULL)
+        {
+            if (strlen((char *)ln->value) > 0)
+            {
                 printf("ERROR: %s\n", e->ToString());
                 printf("ERROR: %s\n", (char *)ln->value);
                 error = sdscat(error, (char *)ln->value);
                 error = sdscat(error, "\n");
             }
         }
-        if(sdslen(error) > 0){
+        if (sdslen(error) > 0)
+        {
             return NULL;
         }
     }
-
 
     {
         ParserToken *t = NULL;
@@ -134,7 +144,7 @@ end_of_loop:
             r = stack->Pop();
             if (r->IsValueType(KeysetDescriptor_TYPE_MONITORED_SET))
                 stack->RetainResult();
-            if ((r->IsValueType(KeysetDescriptor_TYPE_KEYSET) || r->IsValueType(KeysetDescriptor_TYPE_SINGULAR) )&& !r->HasKeySet())
+            if ((r->IsValueType(KeysetDescriptor_TYPE_KEYSET) || r->IsValueType(KeysetDescriptor_TYPE_SINGULAR)) && !r->HasKeySet())
             {
                 stack->FetchKeySet(r);
             }
@@ -156,25 +166,30 @@ end_of_loop:
                 e->AddError(error);
                 return NULL;
             }
-            if ((r->IsValueType(KeysetDescriptor_TYPE_KEYSET) || r->IsValueType(KeysetDescriptor_TYPE_SINGULAR))
-            && !r->HasKeySet())
+            if ((r->IsValueType(KeysetDescriptor_TYPE_KEYSET) || r->IsValueType(KeysetDescriptor_TYPE_SINGULAR)) && !r->HasKeySet())
             {
-                r->FetchKeySet(stack->host, stack->port, sdsempty(), r->setname, sdsempty());
+                r->FetchKeySet(stack->serviceConfig, sdsempty(), r->setname, sdsempty());
                 // stack->Push(r);
             }
             if (r->IsValueType(KeysetDescriptor_TYPE_MONITORED_SET))
                 stack->RetainResult();
             e->final_result_value_type = r->ValueType();
             rx = r->AsRax();
+
+            while (stack->HasEntries())
+            {
+                stack->Pop();
+            }
+
             return rx;
         }
         break;
-        // default:
-        //     error = sdsnew("Invalid expression, ");
-        //     error = sdscatfmt(error, "%i  results yielded!\n", stack->Size());
-        //     e->AddError(error);
-        //     this->ClearStack();
-        //     break;
+            // default:
+            //     error = sdsnew("Invalid expression, ");
+            //     error = sdscatfmt(error, "%i  results yielded!\n", stack->Size());
+            //     e->AddError(error);
+            //     this->ClearStack();
+            //     break;
         }
     }
     return NULL;
@@ -187,3 +202,4 @@ SilNikParowy::SilNikParowy()
 SilNikParowy::~SilNikParowy()
 {
 }
+#endif

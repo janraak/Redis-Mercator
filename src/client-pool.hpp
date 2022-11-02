@@ -27,20 +27,22 @@ public:
     static rax *Registry;
     static rax *Lookup;
 
-    sds host;
+    const char *host_reference;
+    const char *host;
     int port;
     int grow_by;
 
     GraphStack<T> in_use;
     GraphStack<T> free;
 
-    RedisClientPool(sds host, int port, int initial_number_of_connections, int extra_number_of_connections);
-
+    RedisClientPool();
+    void Init(const char *host_reference, const char *host, int port, int initial_number_of_connections, int extra_number_of_connections);
+    static RedisClientPool<T> *New(const char *address, int initial_number_of_connections, int extra_number_of_connections);
+    static void Free(RedisClientPool<T> *connector);
     T *NewInstance();
     int Grow();
 
-    static T *Acquire(sds host, int port);
-    static T *Acquire(const char *host, int port);
+    static T *Acquire(const char *host_reference);
 
     static void Release(T *client);
 };

@@ -9,10 +9,10 @@ CPPSOURCES := $(wildcard*.cpp)
 # Compile flags for linux / osx
 CFLAGS ?= -std=c99
 ifeq ($(uname_S),Linux)
-	SHOBJ_CFLAGS ?= -W -Wall -fno-common -g -ggdb -O2  -fPIC
+	SHOBJ_CFLAGS ?= -W -Wall -fno-common -g -ggdb -O0  -fPIC
 	SHOBJ_LDFLAGS ?= -shared 
 else
-	SHOBJ_CFLAGS ?= -W -Wall -dynamic -fno-common -g -ggdb -O2  -fPIC
+	SHOBJ_CFLAGS ?= -W -Wall -dynamic -fno-common -g -ggdb -O0  -fPIC
 	SHOBJ_LDFLAGS ?= -bundle -undefined dynamic_lookup
 endif
 
@@ -97,8 +97,8 @@ sjiboleth.so: ../../src/redismodule.h sjiboleth.cpp sjiboleth.hpp   rxSuite.xo  
 makefile:
 	echo "build complete"
 
-rxRule.so: ../../src/redismodule.h rxRule.cpp rule.hpp    rxSuite.xo  rxSuiteHelpers.xo   sjiboleth.so   client-pool.hpp
-	g++ -shared -g -ggdb -o rxRule.so  $(SHOBJ_CFLAGS)  -fPIC rxRule.cpp rxSuiteHelpers.xo rxSuite.xo  sjiboleth.so  
+rxRule.so: ../../src/redismodule.h rxRule.cpp rule.hpp    rxSuite.xo  rxSuiteHelpers.xo   sjiboleth.so   client-pool.hpp simpleQueue.hpp   simpleQueue.cpp  
+	g++ -shared -g -ggdb -o rxRule.so  $(SHOBJ_CFLAGS)  -fPIC rxRule.cpp rxSuiteHelpers.xo rxSuite.xo  sjiboleth.so  client-pool.cpp  simpleQueue.cpp  
 
 rxIndexer.so: ../../src/redismodule.h rxIndexer.cpp rxIndexer.hpp rule.hpp  rxSuite.xo  rxSuiteHelpers.xo  sjiboleth.so indexIntercepts.xo simpleQueue.hpp client-pool.hpp client-pool.cpp
 	g++ -shared -g -ggdb -o rxIndexer.so  $(SHOBJ_CFLAGS) -fPIC rxIndexer.cpp rxSuiteHelpers.xo rxSuite.xo sjiboleth.so  indexIntercepts.xo client-pool.cpp
@@ -106,7 +106,7 @@ rxIndexer.so: ../../src/redismodule.h rxIndexer.cpp rxIndexer.hpp rule.hpp  rxSu
 rxQuery.so: ../../src/redismodule.h rxQuery.cpp rxQuery.hpp rule.hpp  rxSuite.xo  rxSuiteHelpers.xo  sjiboleth.so 
 	g++ -shared -g -ggdb -o rxQuery.so  $(SHOBJ_CFLAGS)  -fPIC rxQuery.cpp rxSuiteHelpers.xo rxSuite.xo sjiboleth.so  
 
-rxIndexStore.so: ../../src/redismodule.h rxIndexStore.cpp rxIndexStore.hpp command-duplexer.hpp  rxFetch-duplexer.hpp  rxIndex.hpp rxSuiteHelpers.xo  
+rxIndexStore.so: ../../src/redismodule.h rxIndexStore.cpp rxIndexStore.hpp command-multiplexer.hpp  rxFetch-multiplexer.hpp  rxIndex.hpp rxSuiteHelpers.xo  
 	g++ -shared -g -ggdb -o rxIndexStore.so  $(SHOBJ_CFLAGS)  -fPIC rxIndexStore.cpp rxSuiteHelpers.xo   rxSuite.xo  
 
 rxMercator.so: ../../src/redismodule.h rxMercator.cpp rxMercator.hpp  rxSuiteHelpers.xo   client-pool.hpp client-pool.cpp

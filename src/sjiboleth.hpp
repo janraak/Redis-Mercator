@@ -12,7 +12,7 @@ class SilNikParowy;
 class ParserToken
 {
 protected:
-    sds op;
+    const char *op;
     int op_len;
     eTokenType token_type;
     short token_priority;
@@ -28,23 +28,25 @@ protected:
 
 public:
     ParserToken();
-    ParserToken(eTokenType token_type,
-                const char *op,
-                int op_len);
-    ParserToken(const char *op,
-                eTokenType token_type,
-                short token_priority,
-                short no_of_stack_entries_consumed,
-                short no_of_stack_entries_produced);
-    ParserToken(const char *op,
-                eTokenType token_type,
-                short token_priority,
-                short no_of_stack_entries_consumed,
-                short no_of_stack_entries_produced,
-                operationProc *opf);
-    ParserToken(const char *op, short token_priority, operationProc *opf);
+    static ParserToken *New(eTokenType token_type,
+                            const char *op,
+                            int op_len);
+    static ParserToken *New(const char *op,
+                            eTokenType token_type,
+                            short token_priority,
+                            short no_of_stack_entries_consumed,
+                            short no_of_stack_entries_produced);
+    static ParserToken *New(const char *op,
+                            eTokenType token_type,
+                            short token_priority,
+                            short no_of_stack_entries_consumed,
+                            short no_of_stack_entries_produced,
+                            operationProc *opf);
+    static ParserToken *New(const char *op, short token_priority, operationProc *opf);
+    ParserToken *Init(eTokenType token_type, const char *op, int op_len);
+    static ParserToken *Copy(ParserToken *base);
     ~ParserToken();
-
+    static void Purge(ParserToken *token);
     ParserToken *Copy();
 
     void ParserContextProc(parserContextProc *pcf);
@@ -58,9 +60,9 @@ public:
     void TokenType(eTokenType tt);
 
     const char *Token();
-    sds TokenAsSds();
+    const char *TokenAsSds();
     bool Is(const char *aStr);
-    int CompareToken(sds);
+    int CompareToken(const char *);
 
     short Priority();
     void Priority(short token_priority);
@@ -85,24 +87,24 @@ protected:
     bool crlftab_as_operator;
     bool object_and_array_controls;
 
-    ParserToken *getTokenAt(list *list, int ix);
-    ParserToken *newToken(eTokenType token_type, const char *token, size_t len);
-    ParserToken *findToken(const char *token, size_t len);
-    bool isoperator(char aChar);
-    bool isNumber(char *aChar);
-    bool is_space(char aChar);
-    bool isbracket(char *aChar, char **newPos);
-    bool Is_Bracket_Open(char *aChar, char **newPos);
-    char *getFence(char *aChar);
-    bool iscsym(int c);
-    ParserToken *scanIdentifier(char *head, char **tail);
-    ParserToken *scanLiteral(char *head, char **tail);
-    ParserToken *scanOperator(char *head, char **tail);
-    ParserToken *scanBracket(char *head, char **tail);
-    ParserToken *scanNumber(char *head, char **tail);
+    ParserToken *GetTokenAt(list *list, int ix);
+    ParserToken *NewToken(eTokenType token_type, const char *token, size_t len);
+    ParserToken *FindToken(const char *token, size_t len);
+    bool IsOperator(char aChar);
+    bool IsNumber(char *aChar);
+    bool IsSpace(char aChar);
+    bool IsBracket(char *aChar, char **newPos);
+    bool IsBracketOpen(char *aChar, char **newPos);
+    char *GetFence(char *aChar);
+    bool IsCsym(int c);
+    ParserToken *ScanIdentifier(char *head, char **tail);
+    ParserToken *ScanLiteral(char *head, char **tail);
+    ParserToken *ScanOperator(char *head, char **tail);
+    ParserToken *ScanBracket(char *head, char **tail);
+    ParserToken *ScanNumber(char *head, char **tail);
 
-    virtual bool registerDefaultSyntax();
-    bool resetSyntax();
+    virtual bool RegisterDefaultSyntax();
+    bool ResetSyntax();
 
     DECLARE_SJIBOLETH_HANDLER(executePlusMinus);
     DECLARE_SJIBOLETH_HANDLER(executeStore);
@@ -133,13 +135,12 @@ public:
     friend class ParsedExpression;
 
     virtual SilNikParowy *GetEngine();
-
 };
 
 class QueryDialect : public Sjiboleth
 {
 protected:
-    virtual bool registerDefaultSyntax();
+    virtual bool RegisterDefaultSyntax();
 
 public:
     virtual SilNikParowy *GetEngine();
@@ -148,7 +149,7 @@ public:
 class GremlinDialect : public Sjiboleth
 {
 public:
-    virtual bool registerDefaultSyntax();
+    virtual bool RegisterDefaultSyntax();
 
 public:
     DECLARE_SJIBOLETH_HANDLER(executeMatch);
@@ -164,18 +165,20 @@ public:
 class JsonDialect : public Sjiboleth
 {
 public:
-    virtual bool registerDefaultSyntax();
+    virtual bool RegisterDefaultSyntax();
     JsonDialect();
+    virtual SilNikParowy *GetEngine();
 };
 
 class TextDialect : public Sjiboleth
 {
 public:
-    virtual bool registerDefaultSyntax();
+    virtual bool RegisterDefaultSyntax();
 
-    bool static FlushIndexables(rax *collector, sds key, char *key_type, redisContext *index);
-    
+    bool static FlushIndexables(rax *collector, sds key, int key_type, redisContext *index);
+
     TextDialect();
+    virtual SilNikParowy *GetEngine();
 };
 
 class SilNikParowy;
@@ -190,7 +193,6 @@ protected:
     ParsedExpression *next;
 
 public:
-
     UCHAR final_result_value_type;
     ParserToken *lastInstruction();
     friend class SilNikParowy;
@@ -216,6 +218,7 @@ public:
     void show(const char *query);
     void Show(const char *query);
     ParsedExpression(Sjiboleth *dialect);
+    ~ParsedExpression();
 
     SilNikParowy *GetEngine();
 

@@ -1,5 +1,5 @@
-#ifndef __AMZRUSTHELPER_H__
-#define __AMZRUSTHELPER_H__
+#ifndef __RXSUITEHELPERS_H__
+#define __RXSUITEHELPERS_H__
 
 #undef _GNU_SOURCE
 #undef _DEFAULT_SOURCE
@@ -62,9 +62,9 @@ extern "C"
     // redisCommandProc **rxUninstallIndexerInterceptors(struct redisCommand *interceptorCommandTable, unsigned int interceptorCommandTable_size, redisCommandProc **standard_command_procs);
     // #endif
 
-    void *rxFindKey(int dbNo, sds key);
-    void *rxFindSetKey(int dbNo, sds key);
-    void *rxFindHashKey(int dbNo, sds key);
+    void *rxFindKey(int dbNo, const char *key);
+    void *rxFindSetKey(int dbNo, const char *key);
+    void *rxFindHashKey(int dbNo, const char *key);
     void *rxScanKeys(int dbNo, void **diO, char **key);
     void *rxScanSetMembers(void *obj, void **siO, char **member, int64_t *member_len);
     sds rxRandomSetMember(void *set);
@@ -84,7 +84,7 @@ extern "C"
 
   struct rxHashTypeIterator;
 
-int rxMatchHasValue(void *oO, sds field, sds pattern, int plen);
+int rxMatchHasValue(void *oO, const char *field, sds pattern, int plen);
 
 // Wrappers
 #define rxOBJ_STRING 0    /* String object. */
@@ -92,6 +92,8 @@ int rxMatchHasValue(void *oO, sds field, sds pattern, int plen);
 #define rxOBJ_SET 2       /* Set object. */
 #define rxOBJ_ZSET 3      /* Sorted set object. */
 #define rxOBJ_HASH 4      /* Hash object. */
+#define rxOBJ_STREAM 6      /* Hash object. */
+#define rxOBJ_RAX 14  /* Rax object. */
 #define rxOBJ_TRIPLET 15  /* RX triplet object. */
 
 
@@ -106,10 +108,11 @@ int rxMatchHasValue(void *oO, sds field, sds pattern, int plen);
     void *rxCreateObject(int type, void *ptr);
     void *rxCreateStringObject(const char *ptr, size_t len);
     void *rxCreateHashObject(void);
-    int rxHashTypeGetValue(void *o, sds field, unsigned char **vstr, POINTER *vlen, long long *vll);
-    sds rxGetHashField(void *o, sds field);
-    int rxHashTypeSet(void *o, sds field, sds value, int flags);
-    sds rxHashAsJson(sds key, void *o);
+    int rxHashTypeGetValue(void *o, const char *field, unsigned char **vstr, POINTER *vlen, long long *vll);
+    sds rxGetHashField(void *o, const char *field);
+    sds rxGetHashField2(void *oO, const char *field);
+    int rxHashTypeSet(void *o, const char *field, const char * value, int flags);
+    sds rxHashAsJson(const char * key, void *o);
     struct rxHashTypeIterator *rxHashTypeInitIterator(void *subject);
     void rxHashTypeReleaseIterator(struct rxHashTypeIterator *hi);
 
@@ -139,14 +142,14 @@ void rxModulePanic(char *msg);
 
 void rxServerLogRaw(int level, sds msg);
 void rxHarvestSortedSetMembers(void *zobj, rax *bucket);
-double rxAddSortedSetMember(sds key, int dbNo, double score, sds member);
-int rxAddSetMember(sds key, int dbNo, sds member);
-double rxDeleteSortedSetMember(sds key, int dbNo, sds member);
-int rxDeleteSetMember(sds key, int dbNo, sds member);
+double rxAddSortedSetMember(const char *key, int dbNo, double score, sds member);
+int rxAddSetMember(const char *key, int dbNo, sds member);
+double rxDeleteSortedSetMember(const char *key, int dbNo, sds member);
+int rxDeleteSetMember(const char *key, int dbNo, sds member);
 
-void *rxRemoveKeyRetainValue(int dbNo, sds key);
-void *rxRestoreKeyRetainValue(int dbNo, sds key, void *obj);
-void *rxCommitKeyRetainValue(int dbNo, sds key, void *old_2te);
+void *rxRemoveKeyRetainValue(int dbNo, const char *key);
+void *rxRestoreKeyRetainValue(int dbNo, const char *key, void *obj);
+void *rxCommitKeyRetainValue(int dbNo, const char *key, void *old_2te);
 
 unsigned long long mem_avail();
 

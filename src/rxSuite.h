@@ -27,21 +27,41 @@ extern "C" {
 #define POINTER unsigned int
 #define UCHAR unsigned char
 
-#ifndef RXSUITE_SIMPLE
-
+// #ifndef RXSUITE_SIMPLE
 typedef struct{
+    sds host_reference;
+    sds host;
+    int port;
+    int database_id;
+    int is_local;
+    void *executor;
+} redisNodeInfo;
+typedef struct
+{
     dict *OperationMap;
     dict *KeysetCache;
     int parserClaimCount;
     dictType *tokenDictType;
+    redisNodeInfo indexNode;
+    redisNodeInfo dataNode;
+    sds defaultQueryOperator;
 } rxSuiteShared;
 
 void initRxSuite();
 rxSuiteShared *getRxSuite();
+redisNodeInfo *rxIndexNode();
+redisNodeInfo *rxDataNode();
+void rxRegisterConfig(RedisModuleCtx *ctx, RedisModuleString **argv, int argc);
+
 void finalizeRxSuite();
-#endif
+// #endif
 
 int sdscharcount(char *s, char c);
+
+/* Apply tolower() to every character of the string 's'. */
+void strtolower(const char *s);
+/* Apply toupper() to every character of the string 's'. */
+void strtoupper(const char *s);
 
 #ifdef __cplusplus
 }

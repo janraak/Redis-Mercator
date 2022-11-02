@@ -13,7 +13,7 @@ using std::string;
 #include "rxSuite.h"
 #include "sjiboleth.hpp"
 #include "graphstack.hpp"
-#include "rxGraphLoad-duplexer.hpp"
+#include "rxGraphLoad-multiplexer.hpp"
 
 extern "C"
 {
@@ -60,8 +60,8 @@ string readFileIntoString3(const string &path)
 
 int g_set_async(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
-    auto *duplexer = new RxGraphLoadDuplexer(argv, argc);
-    duplexer->Start(ctx);
+    auto *multiplexer = new RxGraphLoadMultiplexer(argv, argc);
+    multiplexer->Start(ctx);
     return REDISMODULE_OK;
 };
 
@@ -719,19 +719,17 @@ edis module. It is used in order to
  * register the commands into the Redis server. */
 int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
-    UNUSED(argv);
-    UNUSED(argc);
     initRxSuite();
     if (!graph_parser)
         graph_parser = newParser("graph");
     if (!sentence_parser)
         sentence_parser = newParser("text");
 
-    // test();
-
     if (RedisModule_Init(ctx, "graphdb", 1, REDISMODULE_APIVER_1) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     claimParsers();
+    rxRegisterConfig(ctx, argv, argc);
+
     if (RedisModule_CreateCommand(ctx, "g.set",
                                   g_set_async, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;

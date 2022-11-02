@@ -16,7 +16,7 @@ extern "C"
 
 void installIndexerInterceptors();
 void uninstallIndexerInterceptors();
-void freeIndexingRequest(sds *kfv);
+void freeIndexingRequest(void *kfv);
 
 #ifdef __cplusplus
 }
@@ -38,10 +38,8 @@ typedef struct indexerThread
     int set_tally;
     int hset_tally;
 
-    sds index_address;
-    int index_port;
-
-    sds database_id;
     long long start_batch_ms;
+    void *executor;
+
 } indexerThread;
 #endif

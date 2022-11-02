@@ -1,8 +1,8 @@
 # cd src/modules
 # make
 # cd ../..
-src/redis-cli module unload rxfetch
-src/redis-cli module load src/modules/rxFetch.so
+src/redis-cli module unload rxIndexStore
+src/redis-cli module load src/modules/rxIndexStore.so
 src/redis-cli flushall
 
 src/redis-cli rxadd nl s kleur rood 0.33
@@ -65,7 +65,7 @@ src/redis-cli zinterstore roodwit 2 _zx_:wit:kleur _zx_:rood:kleur aggregate max
 src/redis-cli zrange roodwit 0 3 withscores
 src/redis-cli zrevrange roodwit 0 3 withscores
 
-src/redis-cli rxfetch ge
+src/redis-cli rxIndexStore ge
 src/redis-cli zcount _geel_gekruist 0 10
 src/redis-cli zrevrange _geel_gekruist 0 7
 src/redis-cli 

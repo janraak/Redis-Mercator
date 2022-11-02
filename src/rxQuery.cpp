@@ -30,7 +30,7 @@ extern "C"
 #ifdef __cplusplus
 }
 #endif
-#include "rxQuery-duplexer.hpp"
+#include "rxQuery-multiplexer.hpp"
 
 // const char *AS_ARG = "AS";
 // const char *DEBUG_ARG = "DEBUG";
@@ -118,16 +118,6 @@ const char *HELP_STRING = "RX Query Commands:\n"
 #define STRINGTYPE 'S'
 #include "adlist.h"
 
-typedef struct indexerThreadRX_LOADSCRIPT
-{
-    sds index_address;
-    int index_port;
-    sds default_query_operator;
-    int database_no;
-} IndexerInfo;
-
-IndexerInfo index_info = {sdsempty(), 6379, sdsnew("&"), 0};
-
 // sds hashToJson(robj *o, sds json)
 // {
 //     hashTypeIterator *hi = hashTypeInitIterator(o);
@@ -208,12 +198,21 @@ IndexerInfo index_info = {sdsempty(), 6379, sdsnew("&"), 0};
 void executeTest(Sjiboleth *parser, const char *cmd, int fetch_rows, RedisModuleCtx *ctx, list *errors){
     rxUNUSED(errors);
     rxUNUSED(fetch_rows);
+
+    redisNodeInfo *index_config = rxIndexNode();
+    redisNodeInfo *data_config = rxDataNode();
     auto *t = parser->Parse(cmd);
     if(parsedWithErrors(t)){
         writeParsedErrors(t, ctx);
         return;
     }
-    auto *e = new SilNikParowy_Kontekst((char *)index_info.index_address, index_info.index_port, ctx);
+    t->Show(cmd);
+    auto *e = (SilNikParowy_Kontekst *)data_config->executor;
+    if(data_config->executor == NULL){
+        e = new SilNikParowy_Kontekst(index_config, ctx);
+        data_config->executor = e;
+        index_config->executor = e;
+    }
     rax *r = e->Execute(t);
     if (r)
     {
@@ -236,7 +235,7 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     sds query = sdsempty();
     int dialect_skippy = 0;
     size_t arg_len;
-    sds sep = sdsnew("");
+    char sep[2] = {0x00, 0x00};
     for (int j = 1; j < argc; ++j)
     {
         char *q = (char *)RedisModule_StringPtrLen(argv[j], &arg_len);
@@ -253,10 +252,9 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         else
         {
             query = sdscatfmt(query, "%s%s", sep, q);
-            sep = sdsnew(" ");
+            sep[0] = ' ';
         }
     }
-    sdsfree(sep);
     rxUNUSED(target_setname);
     Sjiboleth *parser;
     if (
@@ -277,37 +275,11 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 
 int executeQueryAsyncCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
+    // redisNodeInfo *index_config = rxIndexNode();
+    redisNodeInfo *data_config = rxDataNode();
     sds cmd = (char *)rxGetContainedObject(argv[0]);
-    const char *target_setname = NULL;
-    sdstoupper(cmd);
-    // int fetch_rows = strcmp(RX_GET, cmd) == 0 ? 1 : 0;
-    sds query = sdsempty();
-    size_t arg_len;
-    sds sep = sdsnew("");
-    for (int j = 1; j < argc; ++j)
-    {
-        char *q = (char *)RedisModule_StringPtrLen(argv[j], &arg_len);
-        if (stringmatchlen(q, strlen(AS_ARG), AS_ARG, strlen(AS_ARG), 1) && strlen(q) == strlen(AS_ARG))
-        {
-            ++j;
-            q = (char *)RedisModule_StringPtrLen(argv[j], &arg_len);
-            target_setname = q;
-        }
-        else if (stringmatchlen(q, strlen(RESET_ARG), RESET_ARG, strlen(RESET_ARG), 1) && strlen(q) == strlen(RESET_ARG))
-        {
-            FaBlok::ClearCache();
-        }
-        else
-        {
-            query = sdscatfmt(query, "%s%s", sep, q);
-            sep = sdsnew(" ");
-        }
-    }
-    sdsfree(sep);
-    rxUNUSED(target_setname);
-
-    auto *duplexer = new RxQueryDuplexer(cmd, query);
-    duplexer->Start(ctx);
+    auto *multiplexer = new RxQueryMultiplexer(rxStashCommand2(NULL, cmd, 1, argc, (void **)argv), data_config);
+    multiplexer->Start(ctx);
     return REDISMODULE_OK;
 }
 
@@ -430,35 +402,10 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     if (RedisModule_Init(ctx, RX_QUERY, 1, REDISMODULE_APIVER_1) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     initRxSuite();
-    const char *INDEX_SERVER_ADDRESS = "127.0.0.1";
-    int INDEX_SERVER_PORT = 6379;
-    const char *DEFAULT_QUERY_OPERATOR = "&";
-
-    size_t arg_len;
-    if (argc >= 1)
-    {
-        INDEX_SERVER_ADDRESS = RedisModule_StringPtrLen(argv[0], &arg_len);
-        if (argc >= 2)
-        {
-            const char *port = RedisModule_StringPtrLen(argv[1], &arg_len);
-            INDEX_SERVER_PORT = atoi(port);
-            if (argc >= 3)
-            {
-                DEFAULT_QUERY_OPERATOR = RedisModule_StringPtrLen(argv[2], &arg_len);
-            }
-        }
-    }
-
-    index_info.index_address = sdsdup(sdsnew(INDEX_SERVER_ADDRESS));
-    index_info.index_port = INDEX_SERVER_PORT;
-    index_info.default_query_operator = sdsdup(sdsnew(DEFAULT_QUERY_OPERATOR));
-    index_info.database_no = 0;
+    rxRegisterConfig(ctx, argv, argc);
 
     if (RedisModule_CreateCommand(ctx, RX_QUERY,
                                   executeQueryCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
-        return REDISMODULE_ERR;
-    if (RedisModule_CreateCommand(ctx, RX_QUERY_ASYNC,
-                                  executeQueryAsyncCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     if (RedisModule_CreateCommand(ctx, RX_GET,
@@ -478,6 +425,13 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
                                   executeHelpCommand, "", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
+    redisNodeInfo *index_config = rxIndexNode();
+    auto *c = (struct client *)RedisClientPool<struct client>::Acquire(index_config->host_reference);
+    RedisClientPool<struct client>::Release(c);
+    redisNodeInfo *data_config = rxDataNode();
+    c = (struct client *)RedisClientPool<struct client>::Acquire(data_config->host_reference);
+    RedisClientPool<struct client>::Release(c);
+
     return REDISMODULE_OK;
 }
 
@@ -487,3 +441,4 @@ int RedisModule_OnUnload(RedisModuleCtx *ctx)
     finalizeRxSuite();
     return REDISMODULE_OK;
 }
+ 

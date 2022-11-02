@@ -1,5 +1,5 @@
-#ifndef __SIMPLEQQUEUE_H__
-#define __SIMPLEQQUEUE_H__
+#ifndef __SIMPLEQQUEUE_HPP__
+#define __SIMPLEQQUEUE_HPP__
 #include <pthread.h>
 
 #include "adlist.h"
@@ -15,7 +15,7 @@
 class SimpleQueue
 {
 public:
-    moodycamel::ConcurrentQueue<sds *> fifo;
+    moodycamel::ConcurrentQueue<void *> fifo;
 
     std::atomic<int> enqueue_fifo_tally;
     std::atomic<int> dequeue_fifo_tally;
@@ -56,17 +56,17 @@ public:
         }
     }
 
-    void Enqueue(sds *o)
+    void Enqueue(void *o)
     {
-        this->fifo.enqueue((sds *)o);
+        this->fifo.enqueue((void *)o);
         this->enqueue_fifo_tally++;
     }
 
-    sds *Dequeue()
+    void *Dequeue()
     {
         if (this->fifo.size_approx() == 0)
             return NULL;
-        sds *item;
+        void *item;
         bool found = this->fifo.try_dequeue(item);
         if (found)
         {
@@ -76,7 +76,7 @@ public:
         return NULL;
     }
 
-    int CanDequeueSimpleQueue()
+    int CanDequeue()
     {
         return this->QueueLength() > 0;
     }
@@ -108,7 +108,7 @@ extern "C" {
 void enqueueSimpleQueue(void *qO, void *o)
 {
     SimpleQueue *q = (SimpleQueue *) qO;
-    q->Enqueue((sds *)o);
+    q->Enqueue((void *)o);
 }
 
 void *dequeueSimpleQueue(void *qO)

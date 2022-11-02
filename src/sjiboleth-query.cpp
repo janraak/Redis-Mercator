@@ -1,7 +1,7 @@
 #include "sjiboleth.hpp"
 
-bool QueryDialect::registerDefaultSyntax()
+bool QueryDialect::RegisterDefaultSyntax()
 {
-    Sjiboleth::registerDefaultSyntax();
+    Sjiboleth::RegisterDefaultSyntax();
 	return true;
 }
