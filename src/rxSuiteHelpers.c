@@ -770,124 +770,109 @@ int compareEquals(char *l, int ll, char *r)
         return strncmp(l, r, ll) == 0;
 }
 
-int compareGreaterEquals(char *l, int ll, char *r)
-{
-    if (isdigit(*l) || isdigit(*r))
-    {
+int compareGreaterEquals(char *l, int ll, char *r){
+    if(isdigit(*l) || isdigit(*r)){
         double v = atof(l);
         double t = atof(r);
         return v >= t;
-    }
-    else
+    }else
         return strncmp(l, r, ll) >= 0;
-}
 
-int compareGreater(char *l, int ll, char *r)
-{
-    if (isdigit(*l) || isdigit(*r))
-    {
+ }
+
+int compareGreater(char *l, int ll, char *r){
+    if(isdigit(*l) || isdigit(*r)){
         double v = atof(l);
         double t = atof(r);
         return v > t;
-    }
-    else
+    }else
         return strncmp(l, r, ll) > 0;
-}
 
-int compareLessEquals(char *l, int ll, char *r)
-{
-    if (isdigit(*l) || isdigit(*r))
-    {
+ }
+
+int compareLessEquals(char *l, int ll, char *r){
+    if(isdigit(*l) || isdigit(*r)){
         double v = atof(l);
         double t = atof(r);
         return v <= t;
-    }
-    else
+    }else
         return strncmp(l, r, ll) <= 0;
-}
 
-int compareLess(char *l, int ll, char *r)
-{
-    if (isdigit(*l) || isdigit(*r))
-    {
+ }
+
+int compareLess(char *l, int ll, char *r){
+    if(isdigit(*l) || isdigit(*r)){
         double v = atof(l);
         double t = atof(r);
         return v < t;
-    }
-    else
+    }else
         return strncmp(l, r, ll) < 0;
-}
 
-int compareNotEquals(char *l, int ll, char *r)
-{
-    if (isdigit(*l) || isdigit(*r))
-    {
+ }
+
+int compareNotEquals(char *l, int ll, char *r){
+    if(isdigit(*l) || isdigit(*r)){
         double v = atof(l);
         double t = atof(r);
         return v != t;
-    }
-    else
+    }else
         return strncmp(l, r, ll) != 0;
-}
 
-int compareContains(char *l, int ll, char *r)
-{
-    rxUNUSED(ll);
+ }
+
+int compareContains(char *l, int ll, char *r){
     return strstr(l, r) != NULL;
 }
 
-int compareInRange(char *value, int ll, char *low, char *high)
-{
-    rxUNUSED(ll);
-    double v = atof(value);
-    double t = atof(low);
-    double m = atof(high);
-    return v >= t && v <= m;
-}
+int compareInRange(char *value, int ll, char *low, char *high){
+        double v = atof(value);
+        double t = atof(low);
+        double m = atof(high);
+        return v >= t && v <= m;
+ }
 
 rax *rxComparisonsMap = NULL;
 
 void rxInitComparisonsProcs()
 {
-    if (rxComparisonsMap != NULL)
+    if(rxComparisonsMap != NULL)
         return;
 
-    rxComparisonsMap = raxNew();
+	rxComparisonsMap = raxNew();
 
     void *old;
 
     raxTryInsert(rxComparisonsMap, (unsigned char *)"=", 1, (void *)compareEquals, &old);
     raxTryInsert(rxComparisonsMap, (unsigned char *)"==", 2, (void *)compareEquals, &old);
-    raxTryInsert(rxComparisonsMap, (unsigned char *)">=", 2, (void *)compareGreaterEquals, &old);
-    raxTryInsert(rxComparisonsMap, (unsigned char *)"<=", 2, (void *)compareLessEquals, &old);
-    raxTryInsert(rxComparisonsMap, (unsigned char *)">", 1, (void *)compareGreater, &old);
-    raxTryInsert(rxComparisonsMap, (unsigned char *)"<", 1, (void *)compareLess, &old);
-    raxTryInsert(rxComparisonsMap, (unsigned char *)"!=", 2, (void *)compareNotEquals, &old);
+	raxTryInsert(rxComparisonsMap, (unsigned char *)">=", 2, (void *)compareGreaterEquals, &old);
+	raxTryInsert(rxComparisonsMap, (unsigned char *)"<=", 2, (void *)compareLessEquals, &old);
+	raxTryInsert(rxComparisonsMap, (unsigned char *)">", 1, (void *)compareGreater, &old);
+	raxTryInsert(rxComparisonsMap, (unsigned char *)"<", 1, (void *)compareLess, &old);
+	raxTryInsert(rxComparisonsMap, (unsigned char *)"!=", 2, (void *)compareNotEquals, &old);
 
     raxTryInsert(rxComparisonsMap, (unsigned char *)"EQ", 2, (void *)compareEquals, &old);
     raxTryInsert(rxComparisonsMap, (unsigned char *)"NE", 2, (void *)compareEquals, &old);
-    raxTryInsert(rxComparisonsMap, (unsigned char *)"GE", 2, (void *)compareGreaterEquals, &old);
-    raxTryInsert(rxComparisonsMap, (unsigned char *)"LE", 2, (void *)compareLessEquals, &old);
-    raxTryInsert(rxComparisonsMap, (unsigned char *)"GT", 2, (void *)compareGreater, &old);
-    raxTryInsert(rxComparisonsMap, (unsigned char *)"LT", 2, (void *)compareLess, &old);
-    raxTryInsert(rxComparisonsMap, (unsigned char *)"CONTAINS", 8, (void *)compareContains, &old);
-    raxTryInsert(rxComparisonsMap, (unsigned char *)"BETWEEN", 7, (void *)compareInRange, &old);
+	raxTryInsert(rxComparisonsMap, (unsigned char *)"GE", 2, (void *)compareGreaterEquals, &old);
+	raxTryInsert(rxComparisonsMap, (unsigned char *)"LE", 2, (void *)compareLessEquals, &old);
+	raxTryInsert(rxComparisonsMap, (unsigned char *)"GT", 2, (void *)compareGreater, &old);
+	raxTryInsert(rxComparisonsMap, (unsigned char *)"LT", 2, (void *)compareLess, &old);
+	raxTryInsert(rxComparisonsMap, (unsigned char *)"CONTAINS", 8, (void *)compareContains, &old);
+	raxTryInsert(rxComparisonsMap, (unsigned char *)"BETWEEN", 7, (void *)compareInRange, &old);
 
     raxTryInsert(rxComparisonsMap, (unsigned char *)"eq", 2, (void *)compareEquals, &old);
     raxTryInsert(rxComparisonsMap, (unsigned char *)"ne", 2, (void *)compareEquals, &old);
-    raxTryInsert(rxComparisonsMap, (unsigned char *)"ge", 2, (void *)compareGreaterEquals, &old);
-    raxTryInsert(rxComparisonsMap, (unsigned char *)"le", 2, (void *)compareLessEquals, &old);
-    raxTryInsert(rxComparisonsMap, (unsigned char *)"gt", 2, (void *)compareGreater, &old);
-    raxTryInsert(rxComparisonsMap, (unsigned char *)"lt", 2, (void *)compareLess, &old);
-    raxTryInsert(rxComparisonsMap, (unsigned char *)"contains", 8, (void *)compareContains, &old);
-    raxTryInsert(rxComparisonsMap, (unsigned char *)"between", 7, (void *)compareInRange, &old);
+	raxTryInsert(rxComparisonsMap, (unsigned char *)"ge", 2, (void *)compareGreaterEquals, &old);
+	raxTryInsert(rxComparisonsMap, (unsigned char *)"le", 2, (void *)compareLessEquals, &old);
+	raxTryInsert(rxComparisonsMap, (unsigned char *)"gt", 2, (void *)compareGreater, &old);
+	raxTryInsert(rxComparisonsMap, (unsigned char *)"lt", 2, (void *)compareLess, &old);
+	raxTryInsert(rxComparisonsMap, (unsigned char *)"contains", 8, (void *)compareContains, &old);
+	raxTryInsert(rxComparisonsMap, (unsigned char *)"between", 7, (void *)compareInRange, &old);
 }
 
-rxComparisonProc *rxFindComparisonProc(char *op)
-{
-    if (rxComparisonsMap == NULL)
+rxComparisonProc *rxFindComparisonProc(char *op){
+    if(rxComparisonsMap == NULL)
         rxInitComparisonsProcs();
-    rxComparisonProc *compare = (rxComparisonProc *)raxFind(rxComparisonsMap, (unsigned char *)op, strlen(op));
+    rxComparisonProc *compare = (rxComparisonProc *)raxFind(rxComparisonsMap, (unsigned char *)op, sdslen(op));
     if (compare == raxNotFound)
         return NULL;
     return compare;
