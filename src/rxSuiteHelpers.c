@@ -330,33 +330,7 @@ sds rxGetHashField2(void *oO, const char *field)
     sdsfree(f);
     return v;
 }
-sds rxHashAsJson(const char *key, void *o)
-{
-    sds json = sdscatprintf(sdsempty(), "{\"%s\":{", key);
 
-    hashTypeIterator *hi = hashTypeInitIterator((robj *)o);
-    char sep = ' ';
-    while (hashTypeNext(hi) != C_ERR)
-    {
-        sds f = hashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_KEY);
-        sds v = hashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_VALUE);
-        json = sdscatprintf(json, "%c\"%s\":\"%s\"", sep, f, v);
-        sep = ',';
-        sdsfree(f);
-        sdsfree(v);
-    }
-    hashTypeReleaseIterator(hi);
-    json = sdscat(json, "}}");
-    return json;
-}
-
-sds rxGetHashField2(void *oO, const char *field)
-{
-    sds f = sdsnew(field);
-    sds v = rxGetHashField(oO, f);
-    sdsfree(f);
-    return v;
-}
 sds rxHashAsJson(const char *key, void *o)
 {
     sds json = sdscatprintf(sdsempty(), "{\"%s\":{", key);

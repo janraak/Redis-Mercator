@@ -57,7 +57,6 @@ public:
     long long apply_skipped_count;
     long long apply_hit_count;
     long long apply_miss_count;
-    IndexerInfo *index_info;
 
     static GremlinDialect *RuleParser;
 
@@ -196,10 +195,9 @@ public:
         this->apply_skipped_count = 0;
         this->apply_hit_count = 0;
         this->apply_miss_count = 0;
-        this->index_info = NULL;
     };
 
-    BusinessRule(const char *setName, const char *query, IndexerInfo &index_info)
+    BusinessRule(const char *setName, const char *query)
         : BusinessRule()
     {
         this->setName = sdsnew(setName);

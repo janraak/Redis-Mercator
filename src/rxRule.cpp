@@ -77,9 +77,6 @@ const char *RX_LOADSCRIPT = "RXLOADSCRIPT";
 const char *RX_EVALSHA = "RXEVALSHA";
 const char *RX_HELP = "RXHELP";
 
-IndexerInfo index_info = {sdsempty(), 6379, 0, 0};
-IndexerInfo data_info = {sdsempty(), 6379, 0, 0};
-
 /*
     Define an active business rule.
 
@@ -104,7 +101,7 @@ int rxRuleSet(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         query = sdscatfmt(query, "%s%s", sep, q);
         sep = sdsnew(" ");
     }
-    BusinessRule *br = new BusinessRule(ruleName, query, index_info);
+    BusinessRule *br = new BusinessRule(ruleName, query);
     sdsfree(sep);
     sdsfree(query);
     sds response = sdscatfmt(sdsempty(), "Rule for: %s Expression: Expression appears to be ", ruleName);
