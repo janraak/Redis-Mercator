@@ -403,14 +403,14 @@ int rx_start_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
     while (rxScanSetMembers(nodes, &si, (char **)&node, &l) != NULL)
     {
         void *node_info = rxFindHashKey(0, node);
-        rxString port = rxGetHashField2(node_info, PORT_FIELD);
-        rxString address = rxGetHashField2(node_info, ADDRESS_FIELD);
-        rxString role = rxGetHashField2(node_info, ROLE_FIELD);
-        rxString shard = rxGetHashField2(node_info, ORDER_FIELD);
-        rxString index_name = rxGetHashField2(node_info, INDEX_FIELD);
+        rxString port = rxGetHashField(node_info, PORT_FIELD);
+        rxString address = rxGetHashField(node_info, ADDRESS_FIELD);
+        rxString role = rxGetHashField(node_info, ROLE_FIELD);
+        rxString shard = rxGetHashField(node_info, ORDER_FIELD);
+        rxString index_name = rxGetHashField(node_info, INDEX_FIELD);
         void *index_node_info = rxFindHashKey(0, index_name);
-        rxString index_address = rxGetHashField2(index_node_info, ADDRESS_FIELD);
-        rxString index_port = rxGetHashField2(index_node_info, PORT_FIELD);
+        rxString index_address = rxGetHashField(index_node_info, ADDRESS_FIELD);
+        rxString index_port = rxGetHashField(index_node_info, PORT_FIELD);
         if (strlen(index_address) == 0)
         {
             index_address = rxStringDup(address);
@@ -426,6 +426,7 @@ int rx_start_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
                                            role,
                                            index_address, index_port);
 
+        rxServerLog(rxLL_NOTICE, "%s\n", startup_command);
         start_redis(startup_command);
         // TODO use a multiplexer!!
 

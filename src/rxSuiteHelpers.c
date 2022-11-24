@@ -303,7 +303,7 @@ rxString rxGetHashField(void *oO, const char *f)
             else
             {
                 rxStringFree(field);
-                return rxStringFormat("%d", vll);
+                return rxStringFormat("%lld", vll);
             }
         }
     }
@@ -313,7 +313,7 @@ rxString rxGetHashField(void *oO, const char *f)
         if (value != NULL)
         {
             rxStringFree(field);
-            return rxStringNewLen(value, strlen(value));
+            return rxStringDup(value);
         }
     }
     else
