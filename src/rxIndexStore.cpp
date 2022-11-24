@@ -243,10 +243,15 @@ int rx_rollback_key(struct RedisModuleCtx *ctx, RedisModuleString **argv, int ar
  * register the commands into the Redis server. */
 int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **, int)
 {
-    rxInitComparisonsProcs();
+    rxServerLog(rxLL_NOTICE, "OnLoad rxIndexStore.");
 
-    if (RedisModule_Init(ctx, "rxIndexStore", 1, REDISMODULE_APIVER_1) == REDISMODULE_ERR)
+    if (RedisModule_Init(ctx, "rxIndexStore", 1, REDISMODULE_APIVER_1) == REDISMODULE_ERR){
+        rxServerLog(rxLL_NOTICE, "OnLoad rxIndexStore. Init error!");
         return REDISMODULE_ERR;
+    }
+
+    rxInitComparisonsProcs();
+    rxServerLog(rxLL_NOTICE, "OnLoad rxIndexStore. Comparers initializrf");
 
     if (RedisModule_CreateCommand(ctx, "rxFetch",
                                   rx_fetch, "readonly", 1, 1, 0) == REDISMODULE_ERR)
@@ -277,8 +282,11 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **, int)
                                   rx_describe, "readonly", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
+    rxServerLog(rxLL_NOTICE, "OnLoad rxIndexStore. Commands added");
     rxadd_log = fopen ("/tmp/rxadd.log", "w");
+    rxServerLog(rxLL_NOTICE, "OnLoad rxIndexStore. Logfile prepared");
     mercator_index = new Mercator_Index();
+    rxServerLog(rxLL_NOTICE, "OnLoad rxIndexStore. Done");
     return REDISMODULE_OK;
 }
 

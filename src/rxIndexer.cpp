@@ -333,16 +333,9 @@ void freeCompletedRedisRequests()
     }
 }
 
-int indexerInfo(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
+int indexerInfo(RedisModuleCtx *ctx, RedisModuleString **, int)
 {
-    if (argc == -10)
-        return RedisModule_WrongArity(ctx);
-    // RedisModule_DictSet(Keyspace,argv[1],argv[2]);
-    // /* We need to keep a reference to the value stored at the key, otherwise
-    //  * it would be freed when this callback returns. */
-    REDISMODULE_NOT_USED(argv);
-    rxString response = rxStringEmpty();
-    response = rxStringFormat("%sNumber of SET commands intercepts:         %d\n", index_info.set_tally);
+    rxString response = rxStringFormat("Number of SET commands intercepts:         %d\n", index_info.set_tally);
     response = rxStringFormat("%sNumber of HSET commands intercepts:        %d\n", response, index_info.hset_tally);
     response = rxStringFormat("%sNumber of indexing queued requests:        %d\n", response, index_info.key_indexing_request_queue->QueueLength());
     response = rxStringFormat("%sNumber of queued redis requests:           %d\n", response, index_info.index_update_request_queue->QueueLength());

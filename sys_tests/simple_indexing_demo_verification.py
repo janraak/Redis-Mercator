@@ -74,9 +74,9 @@ def execute(n,client, cmd):
     return r
 
 def main(must_flush = False):
-    run_length = 5
-    repeat_length = 5
-    query_repeat_length = 5
+    run_length = 1
+    repeat_length = 1
+    query_repeat_length = 1
     t = check_server(must_flush)
     redis_client = t[0]
     redis_index = t[1]
