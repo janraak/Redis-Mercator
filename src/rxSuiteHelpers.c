@@ -495,7 +495,7 @@ int rxDeleteSetMember(const char *key, int dbNo, rxString member)
 }
 
 #if REDIS_VERSION_NUM < 0x00060200
-extern int zsetAdd(robj *zobj, double score, rxString ele, int *flags, double *newscore);
+extern int zsetAdd(robj *zobj, double score, sds ele, int *flags, double *newscore);
 #else
 extern int zsetAdd(robj *zobj, double score, sds ele, int in_flags, int *out_flags, double *newscore);
 #endif
