@@ -20,7 +20,7 @@ extern "C"
 #include <stddef.h>
 #include <stdint.h>
 #include "rax.h"
-#include "sds.h"
+#include "sdsWrapper.h"
 
 #include "rxSuite.h"
 #include "rxSuiteHelpers.h"
@@ -107,7 +107,7 @@ public:
 
   public:
       int FetchKeySet(redisNodeInfo *serviceConfig, const char *rh);
-      int FetchKeySet(redisNodeInfo *serviceConfig, const char *lh, const char *rh, sds cmp);
+      int FetchKeySet(redisNodeInfo *serviceConfig, const char *lh, const char *rh, rxString cmp);
 
       static FaBlok *Get(const char *sn);
       static FaBlok *Get(const char *sn, UCHAR value_type);
@@ -115,7 +115,7 @@ public:
       FaBlok *Rename(const char *setname);
       static void DeleteAllTempDescriptors();
       static void ClearCache();
-      static sds GetCacheReport();
+      static rxString GetCacheReport();
       void AddKey(const char *key, void *obj);
       void InsertKey(const char *key, void *obj);
       void InsertKey(unsigned char *s, size_t len, void *obj);
@@ -127,7 +127,7 @@ public:
       FaBlok *Right();
       FaBlok *Left();
 
-      FaBlok *Copy(sds set_name, int value_type, RaxCopyCallProc *fnCallback, void **privData);
+      FaBlok *Copy(rxString set_name, int value_type, RaxCopyCallProc *fnCallback, void **privData);
 
       int CopyTo(FaBlok *out);
       int MergeInto(FaBlok *out);
@@ -137,12 +137,12 @@ public:
       FaBlok *Attach(rax *d);
       rax *AsRax();
 
-      sds AsSds();
+      rxString AsSds();
 
       bool IsParameterList();
       FaBlok();
       FaBlok *Init();
-      FaBlok(sds sn, UCHAR value_type);
+      FaBlok(rxString sn, UCHAR value_type);
       void InitKeyset(bool withRootNode);
       ~FaBlok();
 
@@ -199,7 +199,7 @@ protected:
     SilNikParowy_Kontekst(redisNodeInfo *serviceConfig, RedisModuleCtx *module_context);
     virtual ~SilNikParowy_Kontekst();
     void Reset();
-    void AddError(sds msg);
+    void AddError(rxString msg);
 
 };
 
@@ -223,27 +223,27 @@ public:
     if (HasMinimumStackEntries(stack, minSize) == C_ERR) \
     {                                                    \
         auto *t = (ParserToken *)tO;                     \
-        sds msg = sdscatprintf(sdsempty(), "%s requires %d sets!", t->Token(), minSize); \
+        rxString msg = rxStringFormat("%s requires %d sets!", t->Token(), minSize); \
         stack->AddError(msg);                                \
-        sdsfree(msg);                                    \
+        rxStringFree(msg);                                    \
         return C_ERR;                                    \
     }
 
 #define ERROR(msg)                                    \
     {                                                 \
-        sds m = sdsnew(msg);                          \
+        rxString m = rxStringNew(msg);                          \
         stack->AddError(m);                             \
         printf("ERROR: %s\n", m);                             \
-        sdsfree(m);                                   \
+        rxStringFree(m);                                   \
         return C_ERR;                                 \
     }
 
 #define ERROR_RETURN_NULL(msg)                        \
     {                                                 \
-        sds m = sdsnew(msg);                          \
+        rxString m = rxStringNew(msg);                          \
         printf("ERROR: %s\n", m);                     \
         stack->AddError(m);                           \
-        sdsfree(m);                                   \
+        rxStringFree(m);                                   \
         return NULL;                                  \
     }
 

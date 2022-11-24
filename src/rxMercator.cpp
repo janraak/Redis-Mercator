@@ -63,7 +63,6 @@ extern "C"
 #include "rxSuite.h"
 #include "rxSuiteHelpers.h"
 #include "sha1.h"
-#include "util.h"
 
     int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc);
 #ifdef __cplusplus
@@ -122,7 +121,7 @@ const char *HELP_STRING = "Mercator Demo Cluster Manager Commands:\n"
                           " mercator.remove.server %name% ...\n"
                           "\n";
 
-sds getSha1(const char *codes, ...)
+rxString getSha1(const char *codes, ...)
 {
     int argc = strlen(codes);
     std::va_list args;
@@ -139,8 +138,8 @@ sds getSha1(const char *codes, ...)
         {
         case 's':
         {
-            sds s = va_arg(args, sds);
-            SHA1Update(&ctx, (const unsigned char *)s, sdslen(s));
+            rxString s = va_arg(args, rxString);
+            SHA1Update(&ctx, (const unsigned char *)s, strlen(s));
         }
         break;
         case 'i':
@@ -166,33 +165,33 @@ sds getSha1(const char *codes, ...)
         sprintf(filler, "%02x", hash[i]);
     }
     *filler = 0x00;
-    return sdsnew(sha1);
+    return rxStringNew(sha1);
 }
 
-void freeSha1(sds sha1)
+void freeSha1(rxString sha1)
 {
-    sdsfree(sha1);
+    rxStringFree(sha1);
 }
 
-sds CreateClusterNode(sds cluster_key, sds sha1, const char *role, const char *order, const char *shard, RedisModuleCtx *ctx)
+rxString CreateClusterNode(rxString cluster_key, rxString sha1, const char *role, const char *order, const char *shard, RedisModuleCtx *ctx)
 {
-    sds __MERCATOR__SERVERS__ = sdsnew("__MERCATOR__SERVERS__");
+    rxString __MERCATOR__SERVERS__ = rxStringNew("__MERCATOR__SERVERS__");
     void *servers = rxFindSetKey(0, __MERCATOR__SERVERS__);
-    sds server = rxRandomSetMember(servers);
+    rxString server = rxRandomSetMember(servers);
 
     void *server_info = rxFindHashKey(0, server);
 
-    sds free_ports_key = rxGetHashField2(server_info, PORTS_FIELD);
+    rxString free_ports_key = rxGetHashField2(server_info, PORTS_FIELD);
 
-    sds address = rxGetHashField2(server_info, ADDRESS_FIELD);
+    rxString address = rxGetHashField2(server_info, ADDRESS_FIELD);
 
     void *free_ports = rxFindSetKey(0, free_ports_key);
     if(free_ports == NULL){
         return NULL;
     }
-    sds port = rxRandomSetMember(free_ports);
+    rxString port = rxRandomSetMember(free_ports);
 
-    sds key = sdscatfmt(sdsempty(), "__MERCATOR__INSTANCE__%s_%s_%s", sha1, server, port);
+    rxString key = rxStringFormat("__MERCATOR__INSTANCE__%s_%s_%s", sha1, server, port);
 
     RedisModule_FreeCallReply(
         RedisModule_Call(ctx, HMSET_COMMAND, "ccccccccccccccccc", (char *)key, OWNER_FIELD, sha1, SERVER_FIELD, server, ADDRESS_FIELD, address, MAXMEM_FIELD, MAXMEM_FIELD, PORT_FIELD, port, ROLE_FIELD, role, ORDER_FIELD, order, ORDER_FIELD, shard));
@@ -203,8 +202,8 @@ sds CreateClusterNode(sds cluster_key, sds sha1, const char *role, const char *o
     RedisModule_FreeCallReply(
         RedisModule_Call(ctx, "SREM", "cc", free_ports_key, port));
 
-    sdsfree(address);
-    sdsfree(free_ports_key);
+    rxStringFree(address);
+    rxStringFree(free_ports_key);
     return key;
 }
 /*
@@ -248,31 +247,31 @@ int rx_create_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     int replication_requested = 0;
     int clustering_requested = 0;
     int start_requested = 0;
-    sds c_ip = sdsempty();
+    rxString c_ip = rxStringEmpty();
     size_t arg_len;
     for (int j = 1; j < argc; ++j)
     {
         char *q = (char *)RedisModule_StringPtrLen(argv[j], &arg_len);
-        if (stringmatchlen(q, strlen(REPLICATION_ARG), REPLICATION_ARG, strlen(REPLICATION_ARG), 1) && strlen(q) == strlen(REPLICATION_ARG))
+        if (rxStringMatch(q, REPLICATION_ARG, 1) && strlen(q) == strlen(REPLICATION_ARG))
             replication_requested = 1;
-        else if (stringmatchlen(q, strlen(CLUSTERING_ARG), CLUSTERING_ARG, strlen(CLUSTERING_ARG), 1) && strlen(q) == strlen(CLUSTERING_ARG))
+        else if (rxStringMatch(q, CLUSTERING_ARG, 1) && strlen(q) == strlen(CLUSTERING_ARG))
             clustering_requested = 2;
-        else if (stringmatchlen(q, strlen(START_ARG), START_ARG, strlen(START_ARG), 1) && strlen(q) == strlen(START_ARG))
+        else if (rxStringMatch(q, START_ARG, 1) && strlen(q) == strlen(START_ARG))
             start_requested = 4;
         else
-            c_ip = sdsnew(q);
+            c_ip = rxStringNew(q);
     }
-    sds sha1 = getSha1("sii", c_ip, replication_requested, clustering_requested);
-    sds cluster_key = sdscatfmt(sdsempty(), "__MERCATOR__CLUSTER__%s", sha1);
+    rxString sha1 = getSha1("sii", c_ip, replication_requested, clustering_requested);
+    rxString cluster_key = rxStringFormat("__MERCATOR__CLUSTER__%s", sha1);
     void *nodes = rxFindSetKey(0, cluster_key);
     if (nodes)
         return RedisModule_ReplyWithSimpleString(ctx, sha1);
 
     RedisModule_FreeCallReply(
         RedisModule_Call(ctx, "SADD", "cc", (char *)"__MERCATOR__CLUSTERS__", cluster_key));
-    sds data;
-    sds index;
-    sds data2;
+    rxString data;
+    rxString index;
+    rxString data2;
     switch (replication_requested + clustering_requested)
     {
     case 0: // Not Replicated, Not Clustered
@@ -366,7 +365,7 @@ std::string exec(const char *cmd)
     }
     return result;
 }
-int start_redis(sds command)
+int start_redis(rxString command)
 {
     pid_t child_pid;
     child_pid = fork(); // Create a new child process;
@@ -390,7 +389,7 @@ int rx_start_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
     size_t arg_len;
     char *sha1 = (char *)RedisModule_StringPtrLen(argv[1], &arg_len);
 
-    sds cluster_key = sdscatfmt(sdsempty(), "__MERCATOR__CLUSTER__%s", sha1);
+    rxString cluster_key = rxStringFormat("__MERCATOR__CLUSTER__%s", sha1);
     void *nodes = rxFindSetKey(0, cluster_key);
     if (!nodes)
         return RedisModule_ReplyWithSimpleString(ctx, "cluster not found");
@@ -398,30 +397,30 @@ int rx_start_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
     GetCurrentDir(cwd, FILENAME_MAX);
 
     void *si = NULL;
-    sds node;
+    rxString node;
     int64_t l;
-    rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(), "Starting cluster:%s\n", sha1));
-    while (rxScanSetMembers(nodes, &si, &node, &l) != NULL)
+    rxServerLogRaw(rxLL_WARNING, rxStringFormat("Starting cluster:%s\n", sha1));
+    while (rxScanSetMembers(nodes, &si, (char **)&node, &l) != NULL)
     {
         void *node_info = rxFindHashKey(0, node);
-        sds port = rxGetHashField2(node_info, PORT_FIELD);
-        sds address = rxGetHashField2(node_info, ADDRESS_FIELD);
-        sds role = rxGetHashField2(node_info, ROLE_FIELD);
-        sds shard = rxGetHashField2(node_info, ORDER_FIELD);
-        sds index_name = rxGetHashField2(node_info, INDEX_FIELD);
+        rxString port = rxGetHashField2(node_info, PORT_FIELD);
+        rxString address = rxGetHashField2(node_info, ADDRESS_FIELD);
+        rxString role = rxGetHashField2(node_info, ROLE_FIELD);
+        rxString shard = rxGetHashField2(node_info, ORDER_FIELD);
+        rxString index_name = rxGetHashField2(node_info, INDEX_FIELD);
         void *index_node_info = rxFindHashKey(0, index_name);
-        sds index_address = rxGetHashField2(index_node_info, ADDRESS_FIELD);
-        sds index_port = rxGetHashField2(index_node_info, PORT_FIELD);
-        if (sdslen(index_address) == 0)
+        rxString index_address = rxGetHashField2(index_node_info, ADDRESS_FIELD);
+        rxString index_port = rxGetHashField2(index_node_info, PORT_FIELD);
+        if (strlen(index_address) == 0)
         {
-            index_address = sdsdup(address);
-            index_port = sdsdup(port);
+            index_address = rxStringDup(address);
+            index_port = rxStringDup(port);
         }
         printf("INDEX: %s %s %s\n", index_name, index_address, index_port);
 
-        sds primary_name = rxGetHashField2(node_info, PRIMARY_FIELD);
+        rxString primary_name = rxGetHashField2(node_info, PRIMARY_FIELD);
         printf(".... starting node:%s %s:%s role:%s shard:%s index_name:%s primary_name:%s \n", node, address, port, role, shard, index_name, primary_name);
-        sds startup_command = sdscatprintf(sdsempty(),
+        rxString startup_command = rxStringFormat(
                                            "python3 %s/extensions/src/start_node.py %s %s %s %s %s %s",
                                            cwd, sha1, address, port,
                                            role,
@@ -457,25 +456,25 @@ int rx_start_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
             start_redis(startup_command);
         }
 
-        if (sdscmp(primary_name, sdsempty()) != 0)
+        if (strcmp(primary_name, rxStringEmpty()) != 0)
         {
             void *primary_node_info = rxFindHashKey(0, primary_name);
-            sds primary_address = rxGetHashField2(primary_node_info, ADDRESS_FIELD);
-            sds primary_port = rxGetHashField2(primary_node_info, PORT_FIELD);
+            rxString primary_address = rxGetHashField2(primary_node_info, ADDRESS_FIELD);
+            rxString primary_port = rxGetHashField2(primary_node_info, PORT_FIELD);
 
-            startup_command = sdscatprintf(sdsempty(), "%s/src/redis-cli -h %s -p %s REPLICAOF %s %s", cwd, address, port, primary_address, primary_port);
+            startup_command = rxStringFormat("%s/src/redis-cli -h %s -p %s REPLICAOF %s %s", cwd, address, port, primary_address, primary_port);
             string out = exec(startup_command);
-            sdsfree(startup_command);
-            sdsfree(primary_address);
-            sdsfree(primary_port);
+            rxStringFree(startup_command);
+            rxStringFree(primary_address);
+            rxStringFree(primary_port);
         }
-        sdsfree(port);
-        sdsfree(address);
-        sdsfree(role);
-        sdsfree(shard);
-        sdsfree(index_name);
-        sdsfree(index_address);
-        sdsfree(index_port);
+        rxStringFree(port);
+        rxStringFree(address);
+        rxStringFree(role);
+        rxStringFree(shard);
+        rxStringFree(index_name);
+        rxStringFree(index_address);
+        rxStringFree(index_port);
     }
 
     return RedisModule_ReplyWithSimpleString(ctx, cwd);
@@ -486,7 +485,7 @@ int rx_stop_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
     size_t arg_len;
     char *sha1 = (char *)RedisModule_StringPtrLen(argv[1], &arg_len);
 
-    sds cluster_key = sdscatfmt(sdsempty(), "__MERCATOR__CLUSTER__%s", sha1);
+    rxString cluster_key = rxStringFormat("__MERCATOR__CLUSTER__%s", sha1);
     void *nodes = rxFindSetKey(0, cluster_key);
     if (!nodes)
         return RedisModule_ReplyWithSimpleString(ctx, "cluster not found");
@@ -494,22 +493,22 @@ int rx_stop_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
     GetCurrentDir(cwd, FILENAME_MAX);
 
     void *si = NULL;
-    sds node;
+    rxString node;
     int64_t l;
     printf("Stopping cluster:%s\n", sha1);
-    while (rxScanSetMembers(nodes, &si, &node, &l) != NULL)
+    while (rxScanSetMembers(nodes, &si, (char **)&node, &l) != NULL)
     {
         void *node_info = rxFindHashKey(0, node);
-        sds port = rxGetHashField2(node_info, PORT_FIELD);
-        sds address = rxGetHashField2(node_info, ADDRESS_FIELD);
+        rxString port = rxGetHashField2(node_info, PORT_FIELD);
+        rxString address = rxGetHashField2(node_info, ADDRESS_FIELD);
         printf(".... stopping node:%s %s:%s\n", node, address, port);
 
-        sds startup_command = sdscatprintf(sdsempty(), "%s/src/redis-cli -h %s -p %s SHUTDOWN", cwd, address, port);
+        rxString startup_command = rxStringFormat("%s/src/redis-cli -h %s -p %s SHUTDOWN", cwd, address, port);
         string out = exec(startup_command);
         printf("%s\n%s\n", startup_command, out.c_str());
-        sdsfree(startup_command);
-        sdsfree(port);
-        sdsfree(address);
+        rxStringFree(startup_command);
+        rxStringFree(port);
+        rxStringFree(address);
     }
     return RedisModule_ReplyWithSimpleString(ctx, cwd);
 }
@@ -526,7 +525,7 @@ int rx_snapshot_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
     size_t arg_len;
     char *sha1 = (char *)RedisModule_StringPtrLen(argv[1], &arg_len);
 
-    sds cluster_key = sdscatfmt(sdsempty(), "__MERCATOR__CLUSTER__%s", sha1);
+    rxString cluster_key = rxStringFormat("__MERCATOR__CLUSTER__%s", sha1);
     void *nodes = rxFindSetKey(0, cluster_key);
     if (!nodes)
         return RedisModule_ReplyWithSimpleString(ctx, "cluster not found");
@@ -534,20 +533,20 @@ int rx_snapshot_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
     GetCurrentDir(cwd, FILENAME_MAX);
 
     void *si = NULL;
-    sds node;
+    rxString node;
     int64_t l;
-    while (rxScanSetMembers(nodes, &si, &node, &l) != NULL)
+    while (rxScanSetMembers(nodes, &si, (char **)&node, &l) != NULL)
     {
         void *node_info = rxFindHashKey(0, node);
-        sds port = rxGetHashField2(node_info, PORT_FIELD);
-        sds address = rxGetHashField2(node_info, ADDRESS_FIELD);
+        rxString port = rxGetHashField2(node_info, PORT_FIELD);
+        rxString address = rxGetHashField2(node_info, ADDRESS_FIELD);
 
-        sds startup_command = sdscatprintf(sdsempty(), "%s/src/redis-cli -h %s -p %s BGSAVE", cwd, address, port);
+        rxString startup_command = rxStringFormat("%s/src/redis-cli -h %s -p %s BGSAVE", cwd, address, port);
         string out = exec(startup_command);
-        rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(), "%s\n%s\n", startup_command, out.c_str()));
-        sdsfree(startup_command);
-        sdsfree(port);
-        sdsfree(address);
+        rxServerLogRaw(rxLL_WARNING, rxStringFormat("%s\n%s\n", startup_command, out.c_str()));
+        rxStringFree(startup_command);
+        rxStringFree(port);
+        rxStringFree(address);
     }
 
     return RedisModule_ReplyWithSimpleString(ctx, cwd);
@@ -558,19 +557,19 @@ int rx_flush_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
     size_t arg_len;
     char *sha1 = (char *)RedisModule_StringPtrLen(argv[1], &arg_len);
 
-    sds cluster_key = sdscatfmt(sdsempty(), "__MERCATOR__CLUSTER__%s", sha1);
+    rxString cluster_key = rxStringFormat("__MERCATOR__CLUSTER__%s", sha1);
     void *nodes = rxFindSetKey(0, cluster_key);
     if (!nodes)
         return RedisModule_ReplyWithSimpleString(ctx, "cluster not found");
 
     void *si = NULL;
-    sds node;
+    rxString node;
     int64_t l;
-    while (rxScanSetMembers(nodes, &si, &node, &l) != NULL)
+    while (rxScanSetMembers(nodes, &si, (char **)&node, &l) != NULL)
     {
         void *node_info = rxFindHashKey(0, node);
-        sds port = rxGetHashField2(node_info, PORT_FIELD);
-        sds address = rxGetHashField2(node_info, ADDRESS_FIELD);
+        rxString port = rxGetHashField2(node_info, PORT_FIELD);
+        rxString address = rxGetHashField2(node_info, ADDRESS_FIELD);
             char controller[24];
             snprintf(controller, sizeof(controller), "%s:%s", address, port);
         
@@ -578,18 +577,18 @@ int rx_flush_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
         if (redis_node != NULL)
         {
             redisReply *rcc = (redisReply *)redisCommand(redis_node, "AUTH", "%s %s", "admin", "admin");
-            rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(), " AUTH:  %s\n", rcc ? rcc->str : NULL));
+            rxServerLogRaw(rxLL_WARNING, rxStringFormat(" AUTH:  %s\n", rcc ? rcc->str : NULL));
             freeReplyObject(rcc);
             rcc = (redisReply *)redisCommand(redis_node, "FLUSHALL");
-            rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(), " flush: %s:%s --> %s\n", address, port, rcc ? rcc->str : NULL));
+            rxServerLogRaw(rxLL_WARNING, rxStringFormat(" flush: %s:%s --> %s\n", address, port, rcc ? rcc->str : NULL));
             freeReplyObject(rcc);
             rcc = (redisReply *)redisCommand(redis_node, "RULE.DEL", "*", "");
-            rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(), " RULE.DEL *: %s:%s --> %s\n", address, port, rcc ? rcc->str : NULL));
+            rxServerLogRaw(rxLL_WARNING, rxStringFormat(" RULE.DEL *: %s:%s --> %s\n", address, port, rcc ? rcc->str : NULL));
             freeReplyObject(rcc);
             RedisClientPool<redisContext>::Release(redis_node);
         }
-        sdsfree(port);
-        sdsfree(address);
+        rxStringFree(port);
+        rxStringFree(address);
     }
 
     return RedisModule_ReplyWithSimpleString(ctx, "OK");
@@ -600,45 +599,45 @@ int rx_info_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
     size_t arg_len;
     char *sha1 = (char *)RedisModule_StringPtrLen(argv[1], &arg_len);
 
-    sds info = sdsnew("{ \"id\":\"");
-    info = sdscat(info, sha1);
-    info = sdscat(info, "\", \"nodes\":[");
+    rxString info = rxStringNew("{ \"id\":\"");
+    info = rxStringFormat("%s%s", info, sha1);
+    info = rxStringFormat("%s%s", info, "\", \"nodes\":[");
 
-    sds cluster_key = sdscatfmt(sdsempty(), "__MERCATOR__CLUSTER__%s", sha1);
+    rxString cluster_key = rxStringFormat("__MERCATOR__CLUSTER__%s", sha1);
     void *nodes = rxFindSetKey(0, cluster_key);
     if (!nodes)
     {
-        info = sdscat(info, "]}");
+        info = rxStringFormat("%s%s", info, "]}");
         return RedisModule_ReplyWithSimpleString(ctx, info);
     }
 
     void *si = NULL;
-    sds node;
+    rxString node;
     int64_t l;
-    rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(), "Starting cluster:%s\n", sha1));
+    rxServerLogRaw(rxLL_WARNING, rxStringFormat("Starting cluster:%s\n", sha1));
     char sep[3] = {' ', 0x00, 0x00};
-    while (rxScanSetMembers(nodes, &si, &node, &l) != NULL)
+    while (rxScanSetMembers(nodes, &si, (char **)&node, &l) != NULL)
     {
         void *node_info = rxFindHashKey(0, node);
-        sds port = rxGetHashField2(node_info, PORT_FIELD);
-        sds address = rxGetHashField2(node_info, ADDRESS_FIELD);
-        sds role = rxGetHashField2(node_info, ROLE_FIELD);
-        sds shard = rxGetHashField2(node_info, "shard");
-        sds index_name = rxGetHashField2(node_info, INDEX_FIELD);
-        sds primary_name = rxGetHashField2(node_info, PRIMARY_FIELD);
+        rxString port = rxGetHashField2(node_info, PORT_FIELD);
+        rxString address = rxGetHashField2(node_info, ADDRESS_FIELD);
+        rxString role = rxGetHashField2(node_info, ROLE_FIELD);
+        rxString shard = rxGetHashField2(node_info, "shard");
+        rxString index_name = rxGetHashField2(node_info, INDEX_FIELD);
+        rxString primary_name = rxGetHashField2(node_info, PRIMARY_FIELD);
 
-        info = sdscatprintf(info, "%s{ \"node\":\"%s\", \"ip\":\"%s\", \"port\":\"%s\", \"role\":\"%s\", \"shard\":\"%s\", \"index_name\":\"%s\", \"primary_name\":\"%s\" }\n", sep, node, address, port, role, shard, index_name, primary_name);
+        info = rxStringFormat("%s%s{ \"node\":\"%s\", \"ip\":\"%s\", \"port\":\"%s\", \"role\":\"%s\", \"shard\":\"%s\", \"index_name\":\"%s\", \"primary_name\":\"%s\" }\n", info, sep, node, address, port, role, shard, index_name, primary_name);
         sep[0] = ',';
-        sdsfree(port);
-        sdsfree(address);
-        sdsfree(role);
-        sdsfree(shard);
-        sdsfree(index_name);
-        sdsfree(primary_name);
+        rxStringFree(port);
+        rxStringFree(address);
+        rxStringFree(role);
+        rxStringFree(shard);
+        rxStringFree(index_name);
+        rxStringFree(primary_name);
     }
 
-    sdsfree(cluster_key);
-    info = sdscat(info, "]}");
+    rxStringFree(cluster_key);
+    info = rxStringFormat("%s%s", info, "]}");
     return RedisModule_ReplyWithSimpleString(ctx, info);
 }
 
@@ -657,14 +656,14 @@ int rx_add_server(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         char *node_ip = (char *)RedisModule_StringPtrLen(argv[j + 1], &arg_len);
         char *node_mem = (char *)RedisModule_StringPtrLen(argv[j + 2], &arg_len);
         char *node_ports = (char *)RedisModule_StringPtrLen(argv[j + 3], &arg_len);
-        sds key = sdsnew("__MERCATOR__SERVER__");
-        key = sdscat(key, node_name);
-        sds key2 = sdsnew("__MERCATOR__SERVER__");
-        key2 = sdscat(key2, node_name);
-        key2 = sdscat(key2, "__FREEPORTS__");
-        sds key3 = sdsnew("__MERCATOR__");
-        key3 = sdscat(key3, node_name);
-        key3 = sdscat(key3, "__USEDPORTS__");
+        rxString key = rxStringNew("__MERCATOR__SERVER__");
+        key = rxStringFormat("%s%s", key, node_name);
+        rxString key2 = rxStringNew("__MERCATOR__SERVER__");
+        key2 = rxStringFormat("%s%s", key2, node_name);
+        key2 = rxStringFormat("%s%s", key2, "__FREEPORTS__");
+        rxString key3 = rxStringNew("__MERCATOR__");
+        key3 = rxStringFormat("%s%s", key3, node_name);
+        key3 = rxStringFormat("%s%s", key3, "__USEDPORTS__");
         RedisModule_FreeCallReply(
             RedisModule_Call(ctx, HMSET_COMMAND, "ccccccccccc", (char *)key, "name", node_name, ADDRESS_FIELD, node_ip, MAXMEM_FIELD, node_mem, PORTS_FIELD, key2, "claims", key3));
         RedisModule_FreeCallReply(
@@ -683,7 +682,7 @@ int rx_add_server(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 
 /* This function must be present on each Redis module. It is used in order to
  * register the commands into the Redis server. */
-int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString ** argv, int )
+int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **, int )
 {
     if (RedisModule_Init(ctx, "rxMercator", 1, REDISMODULE_APIVER_1) == REDISMODULE_ERR)
         return REDISMODULE_ERR;

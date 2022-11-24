@@ -7,7 +7,6 @@ extern "C"
 #endif
 
 #include "rax.h"
-#include "util.h"
 #include "zmalloc.h"
 
 #ifdef __cplusplus
@@ -31,29 +30,29 @@ class Mercator_Index{
         raxFree(this->keys_in_transaction);
     }
 
-    void Open_Key(sds key, int dbNo){
-        if(raxFind(this->keys_in_transaction, (UCHAR *)key, sdslen(key)) != raxNotFound){
+    void Open_Key(rxString key, int dbNo){
+        if(raxFind(this->keys_in_transaction, (UCHAR *)key, strlen(key)) != raxNotFound){
             this->Rollback_Key(key, dbNo);
         }
-        sds objectIndexkey = sdscatfmt(sdsempty(), "_ox_:%s", key);
+        rxString objectIndexkey = rxStringFormat("_ox_:%s", key);
         void *obj = rxRemoveKeyRetainValue(dbNo, objectIndexkey);
-        raxInsert(this->keys_in_transaction, (UCHAR *)key, sdslen(key), obj, &obj);
-        sdsfree(objectIndexkey);
+        raxInsert(this->keys_in_transaction, (UCHAR *)key, strlen(key), obj, &obj);
+        rxStringFree(objectIndexkey);
     }
 
-    void Commit_Key(sds key, int dbNo){
+    void Commit_Key(rxString key, int dbNo){
         rxUNUSED(dbNo);
         void *obj;
-        raxRemove(this->keys_in_transaction, (UCHAR *)key, sdslen(key), &obj);
-        rxCommitKeyRetainValue(dbNo, sdsdup(key), obj);
+        raxRemove(this->keys_in_transaction, (UCHAR *)key, strlen(key), &obj);
+        rxCommitKeyRetainValue(dbNo, rxStringDup(key), obj);
     }
 
-    void Rollback_Key(sds key, int dbNo){
+    void Rollback_Key(rxString key, int dbNo){
         void *obj;
-        sds objectIndexkey = sdscatfmt(sdsempty(), "_ox_:%s", key);
-        raxRemove(this->keys_in_transaction, (UCHAR *)key, sdslen(key), &obj);
+        rxString objectIndexkey = rxStringFormat("_ox_:%s", key);
+        raxRemove(this->keys_in_transaction, (UCHAR *)key, strlen(key), &obj);
         rxRestoreKeyRetainValue(dbNo, objectIndexkey, obj);
-        sdsfree(objectIndexkey);
+        rxStringFree(objectIndexkey);
     }
 };
 #endif

@@ -19,31 +19,31 @@ static void Index_Text(FaBlok *v, SilNikParowy_Kontekst *text_kontekst, Sjibolet
     }
     delete t;
 
-    // sdsfree(text);
+    // rxStringFree(text);
 }
 
 SJIBOLETH_HANDLER(IndexJson)
 {
     if (strcmp("{{{,", t->Token()) != 0 && HasMinimumStackEntries(stack, 1) == C_OK)
     {
-        sds field_name;
-        sds standing_field_name = sdsempty();
+        rxString field_name;
+        rxString standing_field_name = rxStringEmpty();
         if (stack->IsMemoized("@@field@@"))
-            standing_field_name = sdsdup((sds)stack->Recall("@@field@@"));
+            standing_field_name = rxStringDup((rxString)stack->Recall("@@field@@"));
         if (strncmp(":", (const char *)t->TokenAsSds(), 1) == 0)
         {
             FaBlok *p = stack->Pop_Last();
-            field_name = sdsnew(p->setname);
+            field_name = rxStringNew(p->setname);
         }
         else if (stack->IsMemoized("@@field@@"))
         {
-            field_name = sdsdup((sds)stack->Recall("@@field@@"));
+            field_name = rxStringDup((rxString)stack->Recall("@@field@@"));
         }
         else
         {
-            field_name = sdsnew("*");
+            field_name = rxStringNew("*");
         }
-        stack->Memoize("@@field@@", field_name);
+        stack->Memoize("@@field@@", (void *)field_name);
 
         auto *text_parser = (Sjiboleth *)stack->Recall("@@TEXT_PARSER@@");
         while (stack->HasEntries())
@@ -62,9 +62,9 @@ SJIBOLETH_HANDLER(IndexJson)
                 Index_Text(p, stack, text_parser);
             }
         }
-        sdsfree(field_name);
-        if (standing_field_name != sdsempty())
-            stack->Memoize("@@field@@", standing_field_name);
+        rxStringFree(field_name);
+        if (standing_field_name != rxStringEmpty())
+            stack->Memoize("@@field@@", (void *)standing_field_name);
     }
 }
 END_SJIBOLETH_HANDLER(IndexJson)
@@ -91,13 +91,13 @@ SJIBOLETH_HANDLER(executeJsonParameters)
         PushResult(first, stack);
         return C_OK;
     }
-    sds setname = sdscatprintf(sdsempty(), "P_%s_%lld", t->TokenAsSds(), ustime());
+    rxString setname = rxStringFormat("P_%s_%lld", t->TokenAsSds(), ustime());
     FaBlok *pl = FaBlok::Get(setname, KeysetDescriptor_TYPE_PARAMETER_LIST);
     pl->AsTemp();
     pl->parameter_list = new GraphStack<FaBlok>();
     pl->parameter_list->Enqueue(first);
     pl->parameter_list->Enqueue(second);
-    sdsfree(setname);
+    rxStringFree(setname);
     PushResult(pl, stack);
 }
 END_SJIBOLETH_HANDLER(executeJsonParameters)
@@ -114,17 +114,17 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(JsonCommaScopeCheck)
     rxUNUSED(expression);
     if (!HasParkedToken(expression, "{"))
     {
-        sds referal = sdsnew("{{{");
-        referal = sdscat(referal, ((ParserToken *)t)->TokenAsSds());
+        rxString referal = rxStringNew("{{{");
+        referal = rxStringFormat("%s%s", referal, ((ParserToken *)t)->TokenAsSds());
         t = ParserToken::Copy((ParserToken*)lookupToken(pO, referal));
-        sdsfree(referal);
+        rxStringFree(referal);
     }
     else if (!HasParkedToken(expression, "["))
     {
-        sds referal = sdsnew("!!!");
-        referal = sdscat(referal, ((ParserToken *)t)->TokenAsSds());
+        rxString referal = rxStringNew("!!!");
+        referal = rxStringFormat("%s%s", referal, ((ParserToken *)t)->TokenAsSds());
         t = ParserToken::Copy((ParserToken*)lookupToken(pO, referal));
-        sdsfree(referal);
+        rxStringFree(referal);
     }
 }
 END_SJIBOLETH_PARSER_CONTEXT_CHECKER(JsonCommaScopeCheck)
@@ -157,7 +157,7 @@ bool JsonDialect::RegisterDefaultSyntax()
 JsonDialect::JsonDialect()
     : Sjiboleth()
 {
-    this->default_operator = sdsempty();
+    this->default_operator = rxStringEmpty();
     this->RegisterDefaultSyntax();
     // this->object_and_array_controls = true;
 }

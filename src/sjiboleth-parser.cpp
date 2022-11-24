@@ -3,7 +3,7 @@
 #include "stdio.h"
 #include <cstring>
 
-#define semicolon sdsnew(";")
+#define semicolon rxStringNew(";")
 
 ParserToken *Sjiboleth::FindToken(const char *token, size_t len)
 {
@@ -167,7 +167,7 @@ ParsedExpression *Sjiboleth::Parse(const char *query)
                         }
                     }
                     else
-                        expression->AddError(sdsnew("unbalanced brackets"));
+                        expression->AddError(rxStringNew("unbalanced brackets"));
                     if (token->Is(";"))
                         expression->emitFinal(token);
                     if (this->object_and_array_controls)
@@ -288,18 +288,18 @@ void ParsedExpression::Show(const char *query)
     // }
 }
 
-sds ParsedExpression::ToString()
+rxString ParsedExpression::ToString()
 {
-    sds result = sdsempty();
+    rxString result = rxStringEmpty();
     this->expression->StartHead();
     ParserToken *t;
     while ((t = this->expression->Next()) != NULL)
     {
-        result = sdscatprintf(result, " %s", t->Token());
+        result = rxStringFormat("%s %s", result, t->Token());
     }
     if (this->next != NULL)
     {
-        result = sdscatprintf(result, "\n%s", this->Next()->ToString());
+        result = rxStringFormat("%s\n%s", result, this->Next()->ToString());
     }
     return result;
 }
@@ -564,10 +564,10 @@ ParserToken *Sjiboleth::ScanIdentifier(char *head, char **tail)
 
         ++*tail;
     }
-    sds op = sdsnewlen(head, (int)(*tail - head));
-    sdstoupper(op);
+    rxString op = rxStringNewLen(head, (int)(*tail - head));
+    rxStringToUpper(op);
     ParserToken *t = (ParserToken *)raxFind(this->registry, (UCHAR *)op, (int)(*tail - head));
-    sdsfree(op);
+    rxStringFree(op);
     if (t != raxNotFound)
     {
         return ParserToken::Copy(t);
@@ -707,9 +707,9 @@ SilNikParowy *ParsedExpression::GetEngine()
     return this->dialect->GetEngine();
 }
 
-void ParsedExpression::AddError(sds msg)
+void ParsedExpression::AddError(rxString msg)
 {
-    listAddNodeTail(this->errors, msg);
+    listAddNodeTail(this->errors, (void*)msg);
 }
 
 bool ParsedExpression::HasErrors()

@@ -83,7 +83,7 @@ private:
     bool is_volatile;
 
 protected:
-    sds default_operator;
+    rxString default_operator;
     bool crlftab_as_operator;
     bool object_and_array_controls;
 
@@ -114,7 +114,7 @@ protected:
     DECLARE_SJIBOLETH_HANDLER(executeXor);
     DECLARE_SJIBOLETH_HANDLER(executeNotIn);
 public:
-    ParserToken *LookupToken(sds token);
+    ParserToken *LookupToken(rxString token);
 
 public:
     Sjiboleth(const char *default_operator);
@@ -175,7 +175,7 @@ class TextDialect : public Sjiboleth
 public:
     virtual bool RegisterDefaultSyntax();
 
-    bool static FlushIndexables(rax *collector, sds key, int key_type, redisContext *index);
+    bool static FlushIndexables(rax *collector, rxString key, int key_type, redisContext *index);
 
     TextDialect();
     virtual SilNikParowy *GetEngine();
@@ -211,7 +211,7 @@ public:
     void moveSideTrackToFinal();
     void flushSideTrack();
 
-    void AddError(sds msg);
+    void AddError(rxString msg);
     bool HasErrors();
     int writeErrors(RedisModuleCtx *ctx);
 
@@ -222,7 +222,7 @@ public:
 
     SilNikParowy *GetEngine();
 
-    sds ToString();
+    rxString ToString();
 
     ParsedExpression *Next();
     ParsedExpression *Next(ParsedExpression *next);

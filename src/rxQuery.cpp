@@ -16,7 +16,6 @@ extern "C"
 {
 #endif
 #include <sys/stat.h>
-#include "util.h"
 #include <string.h>
 #include "zmalloc.h"
 
@@ -118,32 +117,32 @@ const char *HELP_STRING = "RX Query Commands:\n"
 #define STRINGTYPE 'S'
 #include "adlist.h"
 
-// sds hashToJson(robj *o, sds json)
+// rxString hashToJson(robj *o, rxString json)
 // {
 //     hashTypeIterator *hi = hashTypeInitIterator(o);
-//     sds fieldsep = sdsempty();
+//     rxString fieldsep = rxStringEmpty();
 //     while (hashTypeNext(hi) != C_ERR)
 //     {
-//         sds field = hashTypeCurrentObjectNewSds(hi, OBJ_HASH_KEY);
-//         sds value = hashTypeCurrentObjectNewSds(hi, OBJ_HASH_VALUE);
-//         json = sdscatprintf(json, "%s\"%s\":\"%s\"", fieldsep, field, value);
-//         fieldsep = sdsnew(", ");
+//         rxString field = hashTypeCurrentObjectNewSds(hi, OBJ_HASH_KEY);
+//         rxString value = hashTypeCurrentObjectNewSds(hi, OBJ_HASH_VALUE);
+//         json = rxStringFormat("%s%s%s\"%s\":\"%s\"", json, fieldsep, field, value);
+//         fieldsep = rxStringNew(", ");
 //     }
 //     hashTypeReleaseIterator(hi);
-//     json = sdscat(json, "}");
+//     json = rxStringFormat("%s%s", json, "}");
 //     return json;
 // }
 
-// sds asJson(dict *keyset)
+// rxString asJson(dict *keyset)
 // {
-//     sds json = sdsnew("[");
+//     rxString json = rxStringNew("[");
 //     dictIterator *iter = dictGetSafeIterator(keyset);
 //     dictEntry *match;
-//     sds objsep = sdsempty();
+//     rxString objsep = rxStringEmpty();
 //     while ((match = dictNext(iter)))
 //     {
 //         robj *o = dictGetVal(match);
-//         json = sdscatprintf(json, "%s{ \"key\":\"%s\", \"value\" : {", objsep, (char *)match->key);
+//         json = rxStringFormat("%s%s{ \"key\":\"%s\", \"value\" : {", json, objsep, (char *)match->key);
 //         if (o->type == OBJ_TRIPLET)
 //         {
 //             Graph_Triplet *t = (Graph_Triplet *)o->ptr; // cn->value;
@@ -152,46 +151,46 @@ const char *HELP_STRING = "RX Query Commands:\n"
 //                 // if (t->subject)
 //                 // {
 //                 //     json = hashToJson(t->subject, json);
-//                 //     json = sdscat(json, ", ");
+//                 //     json = rxStringFormat("%s%s", json, ", ");
 //                 // }
-//                 json = sdscatprintf(json, "\"subject\":\"%s\"", t->subject_key);
-//                 json = sdscatprintf(json, ", \"objects\":[");
+//                 json = rxStringFormat("%s\"subject\":\"%s\"", json, t->subject_key);
+//                 json = rxStringFormat("%s, \"objects\":[", json);
 //                 listIter *eli = listGetIterator(t->edges, 0);
 //                 listNode *elnarglen;
-//                 sds sep = sdsempty();
+//                 rxString sep = rxStringEmpty();
 //                 while ((eln = listNext(eli)))
 //                 {
 //                     Graph_Triplet_Edge *e = (Graph_Triplet_Edge *)eln->value;
-//                     json = sdscatprintf(json, "%s{\"object\":\"%s\", \"path\":[", sep, e->object_key);
+//                     json = rxStringFormat("%s%s{\"object\":\"%s\", \"path\":[", json, sep, e->object_key);
 //                     // if (e->object)
 //                     //     json = hashToJson(e->object, json);
 //                     listIter *li = listGetIterator(e->path, 0);
 //                     listNode *ln;
-//                     sds pathsep = sdsempty();
+//                     rxString pathsep = rxStringEmpty();
 //                     while ((ln = listNext(li)))
 //                     {
-//                         sds k = (sds)ln->value;
-//                         json = sdscatprintf(json, "%s\"%s\"", pathsep, k);
-//                         pathsep = sdsnew(", ");
+//                         rxString k = (rxString)ln->value;
+//                         json = rxStringFormat("%s%s\"%s\"", json, pathsep, k);
+//                         pathsep = rxStringNew(", ");
 //                     }
 //                     listReleaseIterator(li);
-//                     json = sdscat(json, "] }");
-//                     sep = sdsnew(", ");
+//                     json = rxStringFormat("%s%s", json, "] }");
+//                     sep = rxStringNew(", ");
 //                 }
-//                 json = sdscat(json, "]");
+//                 json = rxStringFormat("%s%s", json, "]");
 //                 listReleaseIterator(eli);
-//                 json = sdscat(json, "}");
+//                 json = rxStringFormat("%s%s", json, "}");
 //             }
 //         }
 //         else if (o->type == OBJ_HASH)
 //         {
 //             json = hashToJson(o, json);
 //         }
-//         json = sdscat(json, "}");
-//         objsep = sdsnew(", ");
+//         json = rxStringFormat("%s%s", json, "}");
+//         objsep = rxStringNew(", ");
 //     }
 
-//     json = sdscat(json, "]");
+//     json = rxStringFormat("%s%s", json, "]");
 //     return json;
 // }
 
@@ -228,38 +227,38 @@ void executeTest(Sjiboleth *parser, const char *cmd, int fetch_rows, RedisModule
 
 int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
-    sds cmd = (char *)rxGetContainedObject(argv[0]);
+    rxString cmd = (char *)rxGetContainedObject(argv[0]);
     const char *target_setname = NULL;
-    sdstoupper(cmd);
+    rxStringToUpper(cmd);
     int fetch_rows = strcmp(RX_GET, cmd) == 0 ? 1 : 0;
-    sds query = sdsempty();
+    rxString query = rxStringEmpty();
     int dialect_skippy = 0;
     size_t arg_len;
     char sep[2] = {0x00, 0x00};
     for (int j = 1; j < argc; ++j)
     {
         char *q = (char *)RedisModule_StringPtrLen(argv[j], &arg_len);
-        if (stringmatchlen(q, strlen(AS_ARG), AS_ARG, strlen(AS_ARG), 1) && strlen(q) == strlen(AS_ARG))
+        if (rxStringMatchLen(q, strlen(AS_ARG), AS_ARG, strlen(AS_ARG), 1) && strlen(q) == strlen(AS_ARG))
         {
             ++j;
             q = (char *)RedisModule_StringPtrLen(argv[j], &arg_len);
             target_setname = q;
         }
-        else if (stringmatchlen(q, strlen(RESET_ARG), RESET_ARG, strlen(RESET_ARG), 1) && strlen(q) == strlen(RESET_ARG))
+        else if (rxStringMatchLen(q, strlen(RESET_ARG), RESET_ARG, strlen(RESET_ARG), 1) && strlen(q) == strlen(RESET_ARG))
         {
             FaBlok::ClearCache();
         }
         else
         {
-            query = sdscatfmt(query, "%s%s", sep, q);
+            query = rxStringFormat("%s%s%s", query, sep, q);
             sep[0] = ' ';
         }
     }
     rxUNUSED(target_setname);
     Sjiboleth *parser;
     if (
-        stringmatchlen(query, 2, GREMLIN_PREFX, strlen(GREMLIN_PREFX), 1) ||
-        stringmatchlen(query, 2, GREMLIN_PREFIX_ALT, strlen(GREMLIN_PREFIX_ALT), 1))
+        rxStringMatchLen(query, 2, GREMLIN_PREFX, strlen(GREMLIN_PREFX), 1) ||
+        rxStringMatchLen(query, 2, GREMLIN_PREFIX_ALT, strlen(GREMLIN_PREFIX_ALT), 1))
     {
         parser = new GremlinDialect();
         dialect_skippy = strlen(GREMLIN_PREFX);
@@ -277,7 +276,7 @@ int executeQueryAsyncCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int 
 {
     // redisNodeInfo *index_config = rxIndexNode();
     redisNodeInfo *data_config = rxDataNode();
-    sds cmd = (char *)rxGetContainedObject(argv[0]);
+    rxString cmd = (char *)rxGetContainedObject(argv[0]);
     auto *multiplexer = new RxQueryMultiplexer(rxStashCommand2(NULL, cmd, 1, argc, (void **)argv), data_config);
     multiplexer->Start(ctx);
     return REDISMODULE_OK;
@@ -379,11 +378,11 @@ int executeLoadScriptCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int 
 
 int executeCacheCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
-    sds response = FaBlok::GetCacheReport();
+    rxString response = FaBlok::GetCacheReport();
     if (argc > 1)
     {
-        sds cmd = (char *)rxGetContainedObject(argv[0]);
-        sdstoupper(cmd);
+        rxString cmd = (char *)rxGetContainedObject(argv[0]);
+        rxStringToUpper(cmd);
         if (strcmp(CLEAR_ARG, cmd) == 0)
             FaBlok::ClearCache();
     }

@@ -51,7 +51,7 @@ CSjiboleth *newGremlinEngine()
     return (CSjiboleth *)qd;
 }
 
-CParserToken *lookupToken(CSjiboleth *s, sds token){
+CParserToken *lookupToken(CSjiboleth *s, rxString token){
     return ((Sjiboleth *)s)->LookupToken(token);
 }
 
@@ -208,7 +208,7 @@ int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *t
     raxSeek(&resultsIterator, "^", NULL, 0);
     while (raxNext(&resultsIterator))
     {
-        sds key = sdsnewlen(resultsIterator.key, resultsIterator.key_len);
+        rxString key = rxStringNewLen((const char*)resultsIterator.key, resultsIterator.key_len);
 
         void *o = resultsIterator.data;
         if (target_setname)
@@ -228,7 +228,7 @@ int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *t
                 t->Write(ctx);
             }
             else
-                RedisModule_ReplyWithStringBuffer(ctx, (char *)key, sdslen((char *)key));
+                RedisModule_ReplyWithStringBuffer(ctx, (char *)key, strlen((char *)key));
         }
         else
         {
@@ -244,7 +244,7 @@ int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *t
                 char *index_entry = (char *)(char *)rxGetContainedObject(o);
                 char *first_tab = strchr(index_entry, '\t');
                 char key_type = first_tab ? *(first_tab + 1) : HASHTYPE;
-                sds e;
+                rxString e;
                 switch (key_type)
                 {
                 case HASHTYPE:
@@ -254,8 +254,8 @@ int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *t
                     reply = RedisModule_Call(ctx, REDIS_CMD_GET, "c", (char *)key);
                     break;
                 default:
-                    e = sdscatfmt(sdsnewlen(&key_type, 1), ": Unsupported key type found: %s!", key);
-                    RedisModule_ReplyWithStringBuffer(ctx, e, sdslen(e));
+                    e = rxStringFormat("%c: Unsupported key type found: %s!", key_type, key);
+                    RedisModule_ReplyWithStringBuffer(ctx, e, strlen(e));
                     // return RedisModule_ReplyWithError(ctx, "Unsupported key type found!");
                 }
                 RedisModule_ReplyWithCallReply(ctx, reply);

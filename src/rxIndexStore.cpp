@@ -55,9 +55,8 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc);
 /*
  * This module execute rx query commands
  */
-// #include "parser.h"
 #include "../../deps/hiredis/hiredis.h"
-// #include <queryEngine.h>
+#include "sdsWrapper.h"
 
 #include "rxFetch-multiplexer.hpp"
 #include "rxDescribe-multiplexer.hpp"
@@ -96,27 +95,27 @@ void initComparisonsStatic();
 int rx_fetch(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     int dbId = RedisModule_GetSelectedDb(ctx);
-    sds v;
-    sds f;
-    sds op;
+    rxString v;
+    rxString f;
+    rxString op;
     RxFetchMultiplexer *multiplexer;
     switch (argc)
     {
     case VALUE_ONLY:
-        v = (char *)rxGetContainedObject(argv[1]);
-        // f = sdsnew("*");
+        v = (const char *)rxGetContainedObject(argv[1]);
+        // f = rxStringNew("*");
         multiplexer = new RxFetchMultiplexer(argc, dbId, v);
-        // sdsfree(f);
+        // rxStringFree(f);
         break;
     case FIELD_AND_VALUE_ONLY:
-        v = (char *)rxGetContainedObject(argv[1]);
-        f = (char *)rxGetContainedObject(argv[2]);
+        v = (const char *)rxGetContainedObject(argv[1]);
+        f = (const char *)rxGetContainedObject(argv[2]);
         multiplexer = new RxFetchMultiplexer(argc, dbId, v, f);
         break;
     case FIELD_OP_VALUE:{
-        v = (char *)rxGetContainedObject(argv[1]);
-        f = (char *)rxGetContainedObject(argv[2]);
-        op = (char *)rxGetContainedObject(argv[3]);
+        v = (const char *)rxGetContainedObject(argv[1]);
+        f = (const char *)rxGetContainedObject(argv[2]);
+        op = (const char *)rxGetContainedObject(argv[3]);
         rxComparisonProc *compare  = rxFindComparisonProc(op);
         if(compare == NULL)
             return RedisModule_ReplyWithError(ctx, "Invalid operator command! Syntax: rxFetch %value% [%field%] [ = | == | > | < | <= | >= | != ]");
@@ -133,20 +132,20 @@ int rx_fetch(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 int rx_describe(struct RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     int dbId = RedisModule_GetSelectedDb(ctx);
-    sds v;
-    sds f;
+    rxString v;
+    rxString f;
     RxDescribeMultiplexer *multiplexer;
     switch (argc)
     {
     case VALUE_ONLY:
-        v = (char *)rxGetContainedObject(argv[1]);
-        f = sdsnew("*");
+        v = (const char *)rxGetContainedObject(argv[1]);
+        f = rxStringNew("*");
         multiplexer = new RxDescribeMultiplexer(dbId, v, f);
-        sdsfree(f);
+        rxStringFree(f);
         break;
     case FIELD_AND_VALUE_ONLY:
-        v = (char *)rxGetContainedObject(argv[1]);
-        f = (char *)rxGetContainedObject(argv[2]);
+        v = (const char *)rxGetContainedObject(argv[1]);
+        f = (const char *)rxGetContainedObject(argv[2]);
         multiplexer = new RxDescribeMultiplexer(dbId, v, f);
         break;
     default:
@@ -163,25 +162,25 @@ int rx_add(struct RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 
     if(argc <= 5)
         return RedisModule_ReplyWithError(ctx,REDISMODULE_ERRORMSG_WRONGTYPE);
-    sds objectKey = (char *)rxGetContainedObject(argv[1]);
-    sds keyType = (char *)rxGetContainedObject(argv[2]);
-    sds fieldName = (char *)rxGetContainedObject(argv[3]);
-    sds tokenValue = (char *)rxGetContainedObject(argv[4]);
-    sds confidence = (char *)rxGetContainedObject(argv[5]);
+    rxString objectKey = (const char *)rxGetContainedObject(argv[1]);
+    rxString keyType = (const char *)rxGetContainedObject(argv[2]);
+    rxString fieldName = (const char *)rxGetContainedObject(argv[3]);
+    rxString tokenValue = (const char *)rxGetContainedObject(argv[4]);
+    rxString confidence = (const char *)rxGetContainedObject(argv[5]);
     int dbId = RedisModule_GetSelectedDb(ctx);
 
-    sds valueIndexkey = sdscatfmt(sdsempty(), "_zx_:%s:%s", tokenValue, fieldName);
+    rxString valueIndexkey = rxStringFormat("_zx_:%s:%s", tokenValue, fieldName);
     // TODO: Forlater
-    // sds vakey = sdscatfmt(sdsempty(), "%s:%s", tokenValue, fieldName);
-    // sds avkey = sdscatfmt(sdsempty(), "%s:%s", fieldName, tokenValue);
-    sds objectReference = sdscatprintf(sdsempty(), "%s\t%s", objectKey, keyType);
-    sds objectIndexkey = sdscatfmt(sdsempty(), "_ox_:%s", objectKey);
+    // rxString vakey = rxStringFormat("%s:%s", tokenValue, fieldName);
+    // rxString avkey = rxStringFormat("%s:%s", fieldName, tokenValue);
+    rxString objectReference = rxStringFormat("%s\t%s", objectKey, keyType);
+    rxString objectIndexkey = rxStringFormat("_ox_:%s", objectKey);
 
     rxAddSortedSetMember(valueIndexkey, dbId, atof(confidence), objectReference);
     rxAddSetMember(objectIndexkey, dbId, valueIndexkey);
 
-    sdsfree(valueIndexkey);
-    sdsfree(objectReference);
+    rxStringFree(valueIndexkey);
+    rxStringFree(objectReference);
     
     return RedisModule_ReplyWithSimpleString(ctx, "OK");
 }
@@ -191,24 +190,24 @@ int rx_del(struct RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 
     if(argc <= 4)
         return RedisModule_ReplyWithError(ctx,REDISMODULE_ERRORMSG_WRONGTYPE);
-    sds objectKey = (char *)rxGetContainedObject(argv[1]);
-    sds keyType = (char *)rxGetContainedObject(argv[2]);
-    sds fieldName = (char *)rxGetContainedObject(argv[3]);
-    sds tokenValue = (char *)rxGetContainedObject(argv[4]);
+    rxString objectKey = (const char *)rxGetContainedObject(argv[1]);
+    rxString keyType = (const char *)rxGetContainedObject(argv[2]);
+    rxString fieldName = (const char *)rxGetContainedObject(argv[3]);
+    rxString tokenValue = (const char *)rxGetContainedObject(argv[4]);
     int dbId = RedisModule_GetSelectedDb(ctx);
 
-    sds valueIndexkey = sdscatfmt(sdsempty(), "_zx_:%s:%s", tokenValue, fieldName);
+    rxString valueIndexkey = rxStringFormat("_zx_:%s:%s", tokenValue, fieldName);
     // TODO: Forlater
-    // sds vakey = sdscatfmt(sdsempty(), "%s:%s", tokenValue, fieldName);
-    // sds avkey = sdscatfmt(sdsempty(), "%s:%s", fieldName, tokenValue);
-    sds objectReference = sdscatprintf(sdsempty(), "%s\t%s", objectKey, keyType);
-    sds objectIndexkey = sdscatfmt(sdsempty(), "_ox_:%s", objectKey);
+    // rxString vakey = rxStringFormat("%s:%s", tokenValue, fieldName);
+    // rxString avkey = rxStringFormat("%s:%s", fieldName, tokenValue);
+    rxString objectReference = rxStringFormat("%s\t%s", objectKey, keyType);
+    rxString objectIndexkey = rxStringFormat("_ox_:%s", objectKey);
 
     rxDeleteSortedSetMember(valueIndexkey, dbId, objectReference);
     rxDeleteSetMember(objectIndexkey, dbId, valueIndexkey);
 
-    sdsfree(valueIndexkey);
-    sdsfree(objectReference);
+    rxStringFree(valueIndexkey);
+    rxStringFree(objectReference);
     
     return RedisModule_ReplyWithSimpleString(ctx, "OK");
 }
@@ -217,7 +216,7 @@ int rx_begin_key(struct RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     rxUNUSED(argc);
     int dbId = RedisModule_GetSelectedDb(ctx);
-    sds key = (char *)rxGetContainedObject(argv[1]);
+    rxString key = (const char *)rxGetContainedObject(argv[1]);
     mercator_index->Open_Key(key, dbId);
     return RedisModule_ReplyWithSimpleString(ctx, "OK");
 }
@@ -226,7 +225,7 @@ int rx_commit_key(struct RedisModuleCtx *ctx, RedisModuleString **argv, int argc
 {
     rxUNUSED(argc);
     int dbId = RedisModule_GetSelectedDb(ctx);
-    sds key = (char *)rxGetContainedObject(argv[1]);
+    rxString key = (const char *)rxGetContainedObject(argv[1]);
     mercator_index->Commit_Key(key, dbId);
     return RedisModule_ReplyWithSimpleString(ctx, "OK");
 }
@@ -235,7 +234,7 @@ int rx_rollback_key(struct RedisModuleCtx *ctx, RedisModuleString **argv, int ar
 {
     rxUNUSED(argc);
     int dbId = RedisModule_GetSelectedDb(ctx);
-    sds key = (char *)rxGetContainedObject(argv[1]);
+    rxString key = (const char *)rxGetContainedObject(argv[1]);
     mercator_index->Rollback_Key(key, dbId);
     return RedisModule_ReplyWithSimpleString(ctx, "OK");
 }
@@ -244,8 +243,6 @@ int rx_rollback_key(struct RedisModuleCtx *ctx, RedisModuleString **argv, int ar
  * register the commands into the Redis server. */
 int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **, int)
 {
-    // serverLog(LL_NOTICE, "Loading rxIndexStore");
-
     rxInitComparisonsProcs();
 
     if (RedisModule_Init(ctx, "rxIndexStore", 1, REDISMODULE_APIVER_1) == REDISMODULE_ERR)

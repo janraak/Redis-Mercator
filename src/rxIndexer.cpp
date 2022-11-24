@@ -46,7 +46,7 @@ extern "C"
 
 #include "rxSuiteHelpers.h"
 
-    struct redisCommand *lookupCommand(sds name);
+    struct redisCommand *lookupCommand(rxString name);
 
 #ifdef __cplusplus
 }
@@ -60,10 +60,10 @@ extern "C"
 #include <string.h>
 #include "rxWaitIndexing-multiplexer.hpp"
 
-#define stringKey sdsnew("S")
-#define hashKey sdsnew("H")
-#define streamKey sdsnew("X")
-#define noFieldName sdsnew("*")
+#define stringKey rxStringNew("S")
+#define hashKey rxStringNew("H")
+#define streamKey rxStringNew("X")
+#define noFieldName rxStringNew("*")
 
 #define indexer_set_thread_title(name) pthread_setname_np(pthread_self(), name)
 indexerThread data_info = {};
@@ -90,7 +90,7 @@ for (int k = 1; k < argc; k++)
 {
     rxUNUSED(index_config);
     rxUNUSED(executor);
-    sds key = (sds)rxGetContainedObject(argv[k]);
+    rxString key = (rxString)rxGetContainedObject(argv[k]);
     rxStashCommand(index_info.index_update_request_queue, "RXBEGIN", 1, key);
     index_info.rxbegin_tally++;
     rxStashCommand(index_info.index_update_request_queue, "RXCOMMIT", 1, key);
@@ -101,11 +101,11 @@ END_COMMAND_INTERCEPTOR(indexingHandlerDelCommand)
 BEGIN_COMMAND_INTERCEPTOR(indexingHandlerXDelCommand)
     rxUNUSED(index_config);
     rxUNUSED(executor);
-    sds okey = (sds)rxGetContainedObject(argv[1]);
+    rxString okey = (rxString)rxGetContainedObject(argv[1]);
     for (int k = 2; k < argc; k++)
     {
-        sds id = (sds)rxGetContainedObject(argv[k]);
-        sds key = sdscatprintf(sdsempty(), "%s#%s", okey, id);
+        rxString id = (rxString)rxGetContainedObject(argv[k]);
+        rxString key = rxStringFormat( "%s#%s", okey, id);
         rxStashCommand(index_info.index_update_request_queue, "RXBEGIN", 1, key);
         index_info.rxbegin_tally++;
         rxStashCommand(index_info.index_update_request_queue, "RXCOMMIT", 1, key);
@@ -115,7 +115,7 @@ END_COMMAND_INTERCEPTOR(indexingHandlerXDelCommand)
 
 BEGIN_COMMAND_INTERCEPTOR(indexingHandlerXaddCommand)
     rxUNUSED(executor);
-    sds okey = (sds)rxGetContainedObject(argv[1]);
+    rxString okey = (rxString)rxGetContainedObject(argv[1]);
 
     auto *collector = raxNew();
     auto *index_node = RedisClientPool<redisContext>::Acquire(index_config->host_reference);
@@ -128,7 +128,7 @@ BEGIN_COMMAND_INTERCEPTOR(indexingHandlerXaddCommand)
 
 
     int j = 2;
-        sds currentArg = (sds)rxGetContainedObject(argv[j]);
+        rxString currentArg = (rxString)rxGetContainedObject(argv[j]);
         if (strcmp(currentArg, "NOMKSTREAM") == 0)
         {
             j++;
@@ -136,14 +136,14 @@ BEGIN_COMMAND_INTERCEPTOR(indexingHandlerXaddCommand)
         if ((strcmp(currentArg, "MAXLEN") == 0) || (strcmp(currentArg, "MINID") == 0))
         {
             j++;
-            currentArg = (sds)rxGetContainedObject(argv[j]);
+            currentArg = (rxString)rxGetContainedObject(argv[j]);
             if ((strcmp(currentArg, "=") == 0) || (strcmp(currentArg, "~") == 0))
             {
                 j++;
-                currentArg = (sds)rxGetContainedObject(argv[j]);
+                currentArg = (rxString)rxGetContainedObject(argv[j]);
             }
             j++;
-            currentArg = (sds)rxGetContainedObject(argv[j + 1]);
+            currentArg = (rxString)rxGetContainedObject(argv[j + 1]);
             if (strcmp(currentArg, "LIMIT") == 0)
             {
                 j = j + 2;
@@ -152,10 +152,10 @@ BEGIN_COMMAND_INTERCEPTOR(indexingHandlerXaddCommand)
             j++;
     while (j < argc)
     {
-        sds currentField = (sds)rxGetContainedObject(argv[j]);
-        sds currentValue = (sds)rxGetContainedObject(argv[j + 1]);
+        rxString currentField = (rxString)rxGetContainedObject(argv[j]);
+        rxString currentValue = (rxString)rxGetContainedObject(argv[j + 1]);
 
-        executor->Memoize("@@field@@", currentField);
+        executor->Memoize("@@field@@", (void *)currentField);
         auto *parser = currentValue[0] == '{' ? json_parser : text_parser;
         parsed_text = (ParsedExpression *)parseQ(parser, currentValue);
         auto *sub = parsed_text;
@@ -226,19 +226,18 @@ int rxrule_timer_handler(struct aeEventLoop *, long long int , void *)
     return rxrule_helper_interval;
 }
 
-static int indexingHandler(int tally, void *stash, redisNodeInfo *index_config, SilNikParowy_Kontekst *executor)
+static int indexingHandler(int, void *stash, redisNodeInfo *index_config, SilNikParowy_Kontekst *executor)
 {
     int argc = *((int *)stash);
     void **argv = (void **)(stash + sizeof(void *));
 
-    sds command = (sds)rxGetContainedObject(argv[0]);
-    sds key = (sds)rxGetContainedObject(argv[1]);
-    int len = strlen(command);
-    if (stringmatchlen(command, len, "DEL", 3, 1) == 1)
+    rxString command = (rxString)rxGetContainedObject(argv[0]);
+    rxString key = (rxString)rxGetContainedObject(argv[1]);
+    if (rxStringMatch(command, "DEL", 1) == 1)
         return indexingHandlerDelCommand(stash, index_config, executor);
-    else if (stringmatchlen(command, len, "XDEL", 4, 1) == 1)
+    else if (rxStringMatch(command, "XDEL", 1) == 1)
         return indexingHandlerXDelCommand(stash, index_config, executor);
-    else if (stringmatchlen(command, len, "XADD", 4, 1) == 1)
+    else if (rxStringMatch(command, "XADD", 1) == 1)
         return indexingHandlerXaddCommand(stash, index_config, executor);
 
     auto *collector = raxNew();
@@ -252,9 +251,9 @@ static int indexingHandler(int tally, void *stash, redisNodeInfo *index_config, 
 
     if (argc == 3)
     {
-        sds f = sdsnew("*");
-        sds v = (sds)rxGetContainedObject(argv[2]);
-        executor->Memoize("@@field@@", f);
+        rxString f = rxStringNew("*");
+        rxString v = (rxString)rxGetContainedObject(argv[2]);
+        executor->Memoize("@@field@@", (void *)f);
         key_type = rxOBJ_STRING;
         auto *parser = v[0] == '{' ? json_parser : text_parser;
         parsed_text = (ParsedExpression *)parseQ(parser, v);
@@ -267,19 +266,19 @@ static int indexingHandler(int tally, void *stash, redisNodeInfo *index_config, 
         }
         delete parsed_text;
         executor->Forget("@@field@@");
-        sdsfree(f);
+        rxStringFree(f);
     }
     else
     {
         key_type = rxOBJ_HASH;
         for(int j = 2; j < argc;  j += 2)
         {
-            sds f = (sds)rxGetContainedObject(argv[j]);
-            sds v = (sds)rxGetContainedObject(argv[j + 1]);
+            rxString f = (rxString)rxGetContainedObject(argv[j]);
+            rxString v = (rxString)rxGetContainedObject(argv[j + 1]);
 
-            rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(),"Indexing Hash field %s with %s", f, v));
+            rxServerLogRaw(rxLL_WARNING, rxStringFormat("Indexing Hash field %s with %s", f, v));
 
-            executor->Memoize("@@field@@", f);
+            executor->Memoize("@@field@@", (void *)f);
             auto *parser = v[0] == '{' ? json_parser : text_parser;
             parsed_text = (ParsedExpression *)parseQ(parser, v);
             auto *sub = parsed_text;
@@ -316,7 +315,7 @@ void freeCompletedRedisRequests()
         GET_ARGUMENTS_FROM_STASH(index_request);
         if (argc > 1)
         {
-            sds key = (sds)rxGetContainedObject(argv[1]);
+            rxString key = (rxString)rxGetContainedObject(argv[1]);
             rxStashCommand(index_info.index_rxRuleApply_request_queue, "RULE.APPLY", 1, key);
         }
 
@@ -342,23 +341,23 @@ int indexerInfo(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     // /* We need to keep a reference to the value stored at the key, otherwise
     //  * it would be freed when this callback returns. */
     REDISMODULE_NOT_USED(argv);
-    sds response = sdsempty();
-    response = sdscatfmt(response, "Number of SET commands intercepts:         %i\n", index_info.set_tally);
-    response = sdscatfmt(response, "Number of HSET commands intercepts:        %i\n", index_info.hset_tally);
-    response = sdscatfmt(response, "Number of indexing queued requests:        %i\n", index_info.key_indexing_request_queue->QueueLength());
-    response = sdscatfmt(response, "Number of queued redis requests:           %i\n", index_info.index_update_request_queue->QueueLength());
-    response = sdscatfmt(response, "Number of RXBEGIN commands:                %i\n", index_info.rxbegin_tally);
-    response = sdscatfmt(response, "Number of RXADD commands:                  %i\n", index_info.rxadd_tally);
-    response = sdscatfmt(response, "Number of RXCOMMIT commands:               %i\n", index_info.rxcommit_tally);
-    response = sdscatfmt(response, "Number of completed requests:              %i\n", index_info.key_indexing_respone_queue->QueueLength());
-    //response = sdscatfmt(response, "Number of key_indexing_enqueues:           %i\n", index_info.key_indexing_respone_queue->enqueue_fifo_tally);
-    // response = sdscatfmt(response, "Number of key_indexing_dequeues:           %i\n", index_info.key_indexing_respone_queue->dequeue_fifo_tally);
-    response = sdscatfmt(response, "Number of completed Redis requests:        %i\n", index_info.index_update_request_queue->QueueLength());
-    // response = sdscatfmt(response, "Number of redis_enqueues:                  %i\n", index_info.index_update_request_queue->enqueue_fifo_tally);
-    // response = sdscatfmt(response, "Number of redis_dequeues:                  %i\n", index_info.index_update_request_queue->dequeue_fifo_tally);
-    // response = sdscatfmt(response, "Number of REDIS commands:                  %i\n", dictSize(server.commands));
-    // response = sdscatfmt(response, "Number of REDIS commands:                  %i, intercepts: %i\n", dictSize(server.commands), sizeof(interceptorCommandTable) / sizeof(struct redisCommand));
-    response = sdscatfmt(response, "Number of Field index comm                 %i\n", index_info.field_index_tally);
+    rxString response = rxStringEmpty();
+    response = rxStringFormat("%sNumber of SET commands intercepts:         %d\n", index_info.set_tally);
+    response = rxStringFormat("%sNumber of HSET commands intercepts:        %d\n", response, index_info.hset_tally);
+    response = rxStringFormat("%sNumber of indexing queued requests:        %d\n", response, index_info.key_indexing_request_queue->QueueLength());
+    response = rxStringFormat("%sNumber of queued redis requests:           %d\n", response, index_info.index_update_request_queue->QueueLength());
+    response = rxStringFormat("%sNumber of RXBEGIN commands:                %d\n", response, index_info.rxbegin_tally);
+    response = rxStringFormat("%sNumber of RXADD commands:                  %d\n", response, index_info.rxadd_tally);
+    response = rxStringFormat("%sNumber of RXCOMMIT commands:               %d\n", response, index_info.rxcommit_tally);
+    response = rxStringFormat("%sNumber of completed requests:              %d\n", response, index_info.key_indexing_respone_queue->QueueLength());
+    //response = rxStringFormat("%sNumber of key_indexing_enqueues:           %d\n", response, index_info.key_indexing_respone_queue->enqueue_fifo_tally);
+    // response = rxStringFormat("%sNumber of key_indexing_dequeues:           %d\n", response, index_info.key_indexing_respone_queue->dequeue_fifo_tally);
+    response = rxStringFormat("%sNumber of completed Redis requests:        %d\n", response, index_info.index_update_request_queue->QueueLength());
+    // response = rxStringFormat("%sNumber of redis_enqueues:                  %d\n", response, index_info.index_update_request_queue->enqueue_fifo_tally);
+    // response = rxStringFormat("%sNumber of redis_dequeues:                  %d\n", response, index_info.index_update_request_queue->dequeue_fifo_tally);
+    // response = rxStringFormat("%sNumber of REDIS commands:                  %d\n", response, dictSize(server.commands));
+    // response = rxStringFormat("%sNumber of REDIS commands:                  %d, intercepts: %d\n", response, dictSize(server.commands), sizeof(interceptorCommandTable) / sizeof(struct redisCommand));
+    response = rxStringFormat("%sNumber of Field index comm                 %d\n", index_info.field_index_tally);
 
     return RedisModule_ReplyWithSimpleString(ctx, response);
 }
@@ -390,20 +389,20 @@ int indexerControl(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     if (argc == 2)
     {
         size_t arg_len;
-        sds arg = sdsnew((char *)RedisModule_StringPtrLen(argv[1], &arg_len));
-        sdstoupper(arg);
-        if (sdscmp(arg, sdsnew("WAIT")) == 0)
+        rxString arg = rxStringNew((char *)RedisModule_StringPtrLen(argv[1], &arg_len));
+        rxStringToUpper(arg);
+        if (strcmp(arg, rxStringNew("WAIT")) == 0)
         {
             return rx_wait_indexing_complete(ctx);
         }
-        else if (sdscmp(arg, sdsnew("ON")) == 0)
+        else if (strcmp(arg, rxStringNew("ON")) == 0)
         {
             if (indexer_state)
                 return RedisModule_ReplyWithSimpleString(ctx, "Indexer already active.");
             installIndexerInterceptors();
             indexer_state = 1;
         }
-        else if (sdscmp(arg, sdsnew("OFF")) == 0)
+        else if (strcmp(arg, rxStringNew("OFF")) == 0)
         {
             if (!indexer_state)
                 return RedisModule_ReplyWithSimpleString(ctx, "Indexer already inactive.");
@@ -447,7 +446,7 @@ int reindex_cron(struct aeEventLoop *, long long, void *clientData)
     while ((de = dictNext(reindex_iterator)) != NULL)
     {
         reindex_processed_no_of_keys++;
-        sds key = (sds)dictGetKey(de);
+        rxString key = (rxString)dictGetKey(de);
         if (*key == '^')
         {
             reindex_skipped_no_of_keys++;
@@ -463,9 +462,9 @@ int reindex_cron(struct aeEventLoop *, long long, void *clientData)
         {
         case rxOBJ_STRING:
         {
-            sds value = (sds)rxGetContainedObject(dictGetVal(de));
-            sds f = sdsnew("*");
-            engine->Memoize("@@field@@", f);
+            rxString value = (rxString)rxGetContainedObject(dictGetVal(de));
+            rxString f = rxStringNew("*");
+            engine->Memoize("@@field@@", (void *)f);
             parsed_text = (ParsedExpression *)parseQ((value[0] == '{') ? json_parser : text_parser, value);
             auto *sub = parsed_text;
             while (sub)
@@ -475,11 +474,11 @@ int reindex_cron(struct aeEventLoop *, long long, void *clientData)
             }
             delete parsed_text;
             engine->Forget("@@field@@");
-            sdsfree(f);
+            rxStringFree(f);
         }
         break;
         case rxOBJ_LIST:
-            serverLog(LL_NOTICE, "ReIndexing unexpected type");
+            rxServerLog(LL_NOTICE, "ReIndexing unexpected type");
             break;
         case rxOBJ_HASH:
         {
@@ -487,9 +486,9 @@ int reindex_cron(struct aeEventLoop *, long long, void *clientData)
             int j = 0;
             while (rxHashTypeNext(hi) != C_ERR)
             {
-                sds field = rxHashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_KEY);
-                sds field_value = rxHashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_VALUE);
-                engine->Memoize("@@field@@", field);
+                rxString field = rxHashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_KEY);
+                rxString field_value = rxHashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_VALUE);
+                engine->Memoize("@@field@@", (void *)field);
                 parsed_text = (ParsedExpression *)parseQ((field_value[0] == '{') ? json_parser : text_parser, field_value);
                 auto *sub = parsed_text;
                 while (sub)
@@ -505,7 +504,7 @@ int reindex_cron(struct aeEventLoop *, long long, void *clientData)
         }
         break;
         default:
-            serverLog(LL_NOTICE, "ReIndexing unexpected type");
+            rxServerLog(LL_NOTICE, "ReIndexing unexpected type");
             break;
         }
         auto *index_node = RedisClientPool<redisContext>::Acquire(index_config->host_reference);
@@ -534,11 +533,11 @@ int reindex_cron(struct aeEventLoop *, long long, void *clientData)
     reindex_latency = ustime() - reindex_starttime;
     delete engine;
     // Done!
-    serverLog(LL_NOTICE, "ReIndexing completed");
+    rxServerLog(LL_NOTICE, "ReIndexing completed");
     // if (original_indexer_state){
     //     installIndexerInterceptors();
     //     indexer_state = 1;
-    //     serverLog(LL_NOTICE, "Indexing restored");
+    //     rxServerLog(LL_NOTICE, "Indexing restored");
     // }
 
     return -1;
@@ -547,30 +546,30 @@ int reindex_cron(struct aeEventLoop *, long long, void *clientData)
 int reindex(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     rxUNUSED(ctx);
-    sds response = sdsempty();
+    rxString response = rxStringEmpty();
     redisNodeInfo *index_config = rxIndexNode();
 
     if (argc == 2)
     {
         size_t arg_len;
-        sds arg = sdsnew((char *)RedisModule_StringPtrLen(argv[1], &arg_len));
-        sdstoupper(arg);
-        if (sdscmp(arg, sdsnew("STATUS")) == 0)
+        rxString arg = rxStringNew((char *)RedisModule_StringPtrLen(argv[1], &arg_len));
+        rxStringToUpper(arg);
+        if (strcmp(arg, "STATUS") == 0)
         {
-            response = sdscatfmt(response, "Indexer is:                 %s\n", indexer_state ? "Active" : "Not Active");
-            response = sdscatfmt(response, "ReIndexing is:              %s\n", reindex_iterator ? "Active" : "Not Active");
-            response = sdscatfmt(response, "ReIndexing stats:\r");
-            response = sdscatfmt(response, "Total no of keys:           %i\n", reindex_total_no_of_keys);
-            response = sdscatfmt(response, "Total no of keys processed: %i\n", reindex_processed_no_of_keys);
-            response = sdscatfmt(response, "Total no of keys skipped:   %i\n", reindex_skipped_no_of_keys);
-            response = sdscatfmt(response, "\n");
-            response = sdscatfmt(response, "Total reindexing time:      %ims\n", reindex_latency / 1000);
-            response = sdscatfmt(response, "\n");
-            response = sdscatfmt(response, "Total no of timer slots:    %i\n", reindex_no_of_slots);
-            response = sdscatfmt(response, "Total no of timer expires:  %i\n", reindex_yielded_no_of_keys);
-            response = sdscatfmt(response, "Total no of queue throttles:%i\n", reindex_qthrottleded_no_of_keys);
-            response = sdscatfmt(response, "Total no of no memory throttles:%i\n", reindex_throttleded_no_mem);
-            return RedisModule_ReplyWithStringBuffer(ctx, response, sdslen(response));
+            response = rxStringFormat("%sIndexer is:                 %s\n", response, indexer_state ? "Active" : "Not Active");
+            response = rxStringFormat("%sReIndexing is:              %s\n", response, reindex_iterator ? "Active" : "Not Active");
+            response = rxStringFormat("%sReIndexing stats:\r");
+            response = rxStringFormat("%sTotal no of keys:           %d\n", response, reindex_total_no_of_keys);
+            response = rxStringFormat("%sTotal no of keys processed: %d\n", response, reindex_processed_no_of_keys);
+            response = rxStringFormat("%sTotal no of keys skipped:   %d\n", response, reindex_skipped_no_of_keys);
+            response = rxStringFormat("%s\n");
+            response = rxStringFormat("%sTotal reindexing time:      %ims\n", response, reindex_latency / 1000);
+            response = rxStringFormat("%s\n");
+            response = rxStringFormat("%sTotal no of timer slots:    %d\n", response, reindex_no_of_slots);
+            response = rxStringFormat("%sTotal no of timer expires:  %d\n", response, reindex_yielded_no_of_keys);
+            response = rxStringFormat("%sTotal no of queue throttles:%d\n", response, reindex_qthrottleded_no_of_keys);
+            response = rxStringFormat("%sTotal no of no memory throttles:%d\n", response, reindex_throttleded_no_mem);
+            return RedisModule_ReplyWithStringBuffer(ctx, response, strlen(response));
         }
     }
 
@@ -602,7 +601,7 @@ int reindex(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     reindex_helper_cron = rxCreateTimeEvent(1, (aeTimeProc *)reindex_cron, engine, NULL);
     reindex_cron(NULL, 0, engine);
 
-    // serverLog(LL_NOTICE, "ReIndexing started");
+    // rxServerLog(LL_NOTICE, "ReIndexing started");
 
     return RedisModule_ReplyWithSimpleString(ctx, response);
 }
@@ -611,7 +610,7 @@ static void *execIndexerThread(void *ptr)
 {
     SimpleQueue *indexing_queue = (SimpleQueue *)ptr;
     indexer_set_thread_title("rxIndexer index keys");
-    serverLog(LL_NOTICE, "execIndexerThread started pumping");
+    rxServerLog(LL_NOTICE, "execIndexerThread started pumping");
     indexing_queue->Started();
 
     redisNodeInfo *index_config = rxIndexNode();
@@ -656,19 +655,19 @@ static void *execUpdateRedisThread(void *ptr)
     redis_queue->Started();
     redisNodeInfo *index_config = rxIndexNode();
 
-    serverLog(LL_NOTICE, "\ncapture starting: %s\n", index_config->host_reference);
+    rxServerLog(LL_NOTICE, "\ncapture starting: %s\n", index_config->host_reference);
     redisContext *context;
     context = redisConnect(index_config->host, index_config->port);
     if (context == NULL || context->err)
     {
         if (context)
         {
-            serverLog(LL_NOTICE, "Connection error: %s\n", context->errstr);
+            rxServerLog(LL_NOTICE, "Connection error: %s\n", context->errstr);
             redisFree(context);
         }
         else
         {
-            serverLog(LL_NOTICE, "Connection error: can't allocate lzf context\n");
+            rxServerLog(LL_NOTICE, "Connection error: can't allocate lzf context\n");
         }
         return NULL;
     }
@@ -676,13 +675,13 @@ static void *execUpdateRedisThread(void *ptr)
     if (rcc)
     {
 
-        serverLog(LL_NOTICE, "............ execUpdateRedisThread ... 050 .... %s", rcc->str);
+        rxServerLog(LL_NOTICE, "............ execUpdateRedisThread ... 050 .... %s", rcc->str);
         freeReplyObject(rcc);
     }
     else
-        serverLog(LL_NOTICE, "............ execUpdateRedisThread ... 051 .... NO PING Reply");
+        rxServerLog(LL_NOTICE, "............ execUpdateRedisThread ... 051 .... NO PING Reply");
 
-    serverLog(LL_NOTICE, "execUpdateRedisThread started pumping");
+    rxServerLog(LL_NOTICE, "execUpdateRedisThread started pumping");
 
     long long start = ustime();
     while (must_stop == 0)
@@ -701,7 +700,7 @@ static void *execUpdateRedisThread(void *ptr)
             while (index_request != NULL)
             {
                 void **argv = (void **)(index_request + sizeof(void *));
-                sds cmd = (sds)rxGetContainedObject(argv[0]);
+                rxString cmd = (rxString)rxGetContainedObject(argv[0]);
                 if (strncmp("RXTRIGGER", cmd, 9) != 0)
                 {
                     // ExecuteRedisCommand(NULL, index_request, data_config->host_reference);
@@ -714,7 +713,7 @@ static void *execUpdateRedisThread(void *ptr)
                     // if(index_info.key_indexing_fifo->len == 0 && index_info.index_update_fifo->len == 0 && batch_size > 0){
                     break;
                 }
-                index_request = (sds *)redis_queue->Dequeue();
+                index_request = (rxString *)redis_queue->Dequeue();
             }
         }
         else
@@ -738,7 +737,7 @@ static void startIndexerThreads()
     rxrule_helper_interval = 100;
     rxrule_helper_cron = rxCreateTimeEvent(1, (aeTimeProc *)rxrule_timer_handler, NULL, NULL);
     int i = rxrule_timer_handler(NULL, 0, NULL);
-    serverLog(LL_NOTICE, "RX Rule cron started: %lld interval=%d", rxrule_helper_cron, i);
+    rxServerLog(LL_NOTICE, "RX Rule cron started: %lld interval=%d", rxrule_helper_cron, i);
 }
 
 static void stopIndexerThreads()
@@ -755,7 +754,7 @@ static void stopIndexerThreads()
     t->index_rxRuleApply_request_queue->Release();
     t->index_rxRuleApply_respone_queue->Release();
 
-    serverLog(LL_NOTICE, "Indexer stopped");
+    rxServerLog(LL_NOTICE, "Indexer stopped");
 }
 
 /* This function must be present on each Redis module. It is used in order to
@@ -798,8 +797,8 @@ int RedisModule_OnUnload(RedisModuleCtx *ctx)
     rxUNUSED(ctx);
 
     stopIndexerThreads();
-    sdsfree(stringKey);
-    sdsfree(noFieldName);
+    rxStringFree(stringKey);
+    rxStringFree(noFieldName);
 
     uninstallIndexerInterceptors();
     indexer_state = 0;

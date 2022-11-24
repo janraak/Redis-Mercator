@@ -7,7 +7,7 @@ extern "C"
 #endif
 
 #include "rax.h"
-#include "sds.h"
+#include "sdsWrapper.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -26,24 +26,24 @@ extern "C"
 class Graph_Leg
 {
 public:
-    sds key;
+    rxString key;
     float length;
     Graph_Leg *start;
     Graph_Leg *origin;
     void *obj;
 
 public:
-    Graph_Leg(sds key, float weight)
+    Graph_Leg(rxString key, float weight)
     {
-        /////**/ serverLog(LL_NOTICE, "0x%x %s #add_graph_leg# ", (POINTER)this, key);
-        this->key = sdsdup(key);
+        /////**/ rxServerLog(LL_NOTICE, "0x%x %s #add_graph_leg# ", (POINTER)this, key);
+        this->key = rxStringDup(key);
         this->length = weight;
         this->start = NULL;
         this->origin = NULL;
         this->obj = NULL;
     }
 
-    Graph_Leg(sds key, float weight, Graph_Leg *origin)
+    Graph_Leg(rxString key, float weight, Graph_Leg *origin)
         : Graph_Leg(key, origin == NULL ? weight : origin->length + weight)
     {
         this->origin = origin;        
@@ -51,25 +51,25 @@ public:
     
     ~Graph_Leg()
     {
-        sdsfree(this->key);
+        rxStringFree(this->key);
     }
 
-    static Graph_Leg *Add(sds key, double const weight, Graph_Leg *origin, GraphStack<Graph_Leg> *bsf_q, rax *touches)
+    static Graph_Leg *Add(rxString key, double const weight, Graph_Leg *origin, GraphStack<Graph_Leg> *bsf_q, rax *touches)
     {
         if (touches)
         {
-            void *data = raxFind(touches, (UCHAR *)key, sdslen(key));
+            void *data = raxFind(touches, (UCHAR *)key, strlen(key));
             if (data != raxNotFound)
                 return NULL;
         }
         auto *leg = new Graph_Leg(key, weight, origin);
         bsf_q->Enqueue(leg);
         if (touches)
-            raxInsert(touches, (UCHAR *)key, sdslen(key), leg, NULL);
+            raxInsert(touches, (UCHAR *)key, strlen(key), leg, NULL);
         return leg;
     }
 
-    static Graph_Leg *Add(sds key, double weight, GraphStack<Graph_Leg> *bsf_q)
+    static Graph_Leg *Add(rxString key, double weight, GraphStack<Graph_Leg> *bsf_q)
     {
         auto *leg = new Graph_Leg(key, weight);
         bsf_q->Enqueue(leg);
@@ -83,7 +83,7 @@ typedef void CGraph_Triplet_Edge; // Opaque Redis Object
 class Graph_Triplet_Edge
 {
 public:
-    sds object_key;
+    rxString object_key;
     void *object;
     list *path;
     int refCnt;
@@ -92,26 +92,26 @@ public:
     Graph_Triplet_Edge()
     {
         this->object = NULL;
-        this->object_key = sdsempty();
+        this->object_key = rxStringEmpty();
         this->path =  NULL;
         this->refCnt = 1;
     }
 
-    Graph_Triplet_Edge(sds object_key, void *object, list *path)
+    Graph_Triplet_Edge(rxString object_key, void *object, list *path)
     :Graph_Triplet_Edge()
     {
         this->object = object;
-        this->object_key = sdsdup(object_key);
+        this->object_key = rxStringDup(object_key);
         this->path = path;
     }
 
-    Graph_Triplet_Edge(sds object_key, void *object, sds step)
+    Graph_Triplet_Edge(rxString object_key, void *object, rxString step)
     :Graph_Triplet_Edge()
     {
         this->object = object;
-        this->object_key = sdsdup(object_key);
+        this->object_key = rxStringDup(object_key);
         this->path = listCreate();
-        listAddNodeTail(this->path, step);
+        listAddNodeTail(this->path, (void*)step);
     }
 
     int IncrRefCnt(){
@@ -128,14 +128,14 @@ public:
     ~Graph_Triplet_Edge()
     {
         this->object = NULL;
-        sdsfree(this->object_key);
-        this->object_key = sdsempty();
+        rxStringFree(this->object_key);
+        this->object_key = rxStringEmpty();
         while (listLength(this->path))
         {
             listNode *node = listIndex(this->path, 0);
             if (node)
             {
-                sdsfree((sds)node->value);
+                rxStringFree((rxString)node->value);
                 listDelNode(this->path, node);
             }
         }
@@ -161,10 +161,10 @@ public:
         listReleaseIterator(li);
     }
 
-    sds Json(sds json)
+    rxString Json(rxString json)
     {
-        json = sdscatprintf(json, "{\"object\":\"%s\", \"data\":\"%x\"", 
-            this->object_key, (POINTER)this->object);
+        json = rxStringFormat("%s{\"object\":\"%s\", \"data\":\"%x\"", 
+            json, this->object_key, (POINTER)this->object);
 
         if(listLength(this->path) > 0){
             char sep = ' ';
@@ -172,13 +172,13 @@ public:
             listNode *ln;
             while ((ln = listNext(li)) != NULL)
             {
-                json = sdscatprintf(json, "%c\"%s\"", sep, (char *)ln->value);
+                json = rxStringFormat("%s%c\"%s\"", json, sep, (char *)ln->value);
                 sep = ',';
             }
-            json = sdscat(json, "]");
+            json = rxStringFormat("%s%s" ,json, "]");
             listReleaseIterator(li);
         }
-        json = sdscat(json, "}");
+        json = rxStringFormat("%s%s" ,json, "}");
         return json;
     }
 
@@ -187,20 +187,20 @@ public:
             RedisModule_ReplyWithArray(ctx, 4);
 
         RedisModule_ReplyWithStringBuffer(ctx, "object", 6);
-        RedisModule_ReplyWithStringBuffer(ctx, (char *)this->object_key, sdslen((char *)this->object_key));
+        RedisModule_ReplyWithStringBuffer(ctx, (char *)this->object_key, strlen((char *)this->object_key));
         RedisModule_ReplyWithStringBuffer(ctx, "path", 4);
         RedisModule_ReplyWithArray(ctx, listLength(this->path));
         listIter *li = listGetIterator(this->path, 0);
         listNode *ln;
         while ((ln = listNext(li)))
         {
-            sds k = (sds)ln->value;
-            RedisModule_ReplyWithStringBuffer(ctx, (char *)k, sdslen(k));
+            rxString k = (rxString)ln->value;
+            RedisModule_ReplyWithStringBuffer(ctx, (char *)k, strlen(k));
         }
         listReleaseIterator(li);
     }
 
-    static sds ObjectKey(CGraph_Triplet_Edge *t){
+    static rxString ObjectKey(CGraph_Triplet_Edge *t){
         return ((Graph_Triplet_Edge *)t)->object_key;
     }
 };
@@ -208,7 +208,7 @@ public:
 class Graph_Triplet
 {
 public:
-    sds subject_key;
+    rxString subject_key;
     void *subject;
     double length;
     GraphStack<Graph_Triplet_Edge> edges;
@@ -218,26 +218,26 @@ public:
 public:
     Graph_Triplet()
     {
-        this->subject_key = sdsempty();
+        this->subject_key = rxStringEmpty();
         this->subject = NULL;
         this->refCnt = 0;
     }
 
-    Graph_Triplet(sds subject_key, void *subject)
+    Graph_Triplet(rxString subject_key, void *subject)
     {
-        this->subject_key = sdsdup(subject_key);
+        this->subject_key = rxStringDup(subject_key);
         this->subject = subject;
         this->length = 0.0;
         this->refCnt = 0;
     }
 
-    Graph_Triplet(sds subject_key, void *subject, double length)
+    Graph_Triplet(rxString subject_key, void *subject, double length)
     :Graph_Triplet(subject_key, subject)
     {
         this->length = length;
     }
 
-    static CGraph_Triplet *InitializeResult(int db, Graph_Leg *terminal, sds subject_key, sds member, sds edge)
+    static CGraph_Triplet *InitializeResult(int db, Graph_Leg *terminal, rxString subject_key, rxString member, rxString edge)
     {
         void *subject = rxFindHashKey(db, subject_key);
         if (subject == NULL)
@@ -247,7 +247,7 @@ public:
 
         Graph_Leg *p = terminal;
         void *object = NULL;
-        sds object_key = member;
+        rxString object_key = member;
         if (member == NULL)
         {
             while (p)
@@ -257,18 +257,18 @@ public:
                     object = rxFindHashKey(db, p->key);
                     if (object == NULL)
                         return NULL;
-                    object_key = sdsdup(p->key);
+                    object_key = rxStringDup(p->key);
                 }
-                listAddNodeTail(path, sdsdup(p->key));
+                listAddNodeTail(path, (void*)rxStringDup(p->key));
                 p = p->origin;
             }
         }
         else
         {
-            member = sdstrim(member, "^");
+            member = rxStringTrim(member, "^");
             object = rxFindKey(db, member);
             if (edge != NULL)
-                listAddNodeTail(path, sdsdup(edge));
+                listAddNodeTail(path, (void*)rxStringDup(edge));
         }
         if (!subject /*|| !object*/)
             return NULL;
@@ -283,7 +283,7 @@ public:
         return t;
     }
 
-    static CGraph_Triplet *InitializeResultForMatch(int db, Graph_Leg *terminal, sds subject_key, sds member, sds edge)
+    static CGraph_Triplet *InitializeResultForMatch(int db, Graph_Leg *terminal, rxString subject_key, rxString member, rxString edge)
     {
         void *subject = rxFindHashKey(db, subject_key);
         if (subject == NULL)
@@ -293,17 +293,17 @@ public:
 
         Graph_Leg *p = terminal;
         void *object = NULL;
-        sds object_key = (member) ? member : terminal->key;
+        rxString object_key = (member) ? member : terminal->key;
         double path_length = (terminal != NULL) ? terminal->length : 0.0;
         while (p)
         {
-            listAddNodeTail(path, sdsdup(p->key));
+            listAddNodeTail(path, (void*)rxStringDup(p->key));
             p = p->origin;
         }
-        object_key = sdstrim(object_key, "^");
+        object_key = rxStringTrim(object_key, "^");
         object = rxFindKey(db, object_key);
         if (edge)
-            listAddNodeTail(path, sdsdup(edge));
+            listAddNodeTail(path, (void*)rxStringDup(edge));
 
         if (!subject /*|| !object*/)
             return NULL;
@@ -319,7 +319,7 @@ public:
         return t;
     }
 
-    static CGraph_Triplet *AddObjectToTripletResult(void *ge, sds object_key, sds edge)
+    static CGraph_Triplet *AddObjectToTripletResult(void *ge, rxString object_key, rxString edge)
     {
         Graph_Triplet *t = (Graph_Triplet *)rxGetContainedObject(ge);
         void *object = rxFindKey(0, object_key);
@@ -328,21 +328,21 @@ public:
         return ge;
     }
 
-    static CGraph_Triplet *New(int db, Graph_Leg *terminal, sds member, sds edge)
+    static CGraph_Triplet *New(int db, Graph_Leg *terminal, rxString member, rxString edge)
     {
         if ((!terminal || (terminal == terminal->start)) && !member)
             return NULL;
         return Graph_Triplet::InitializeResult(db, terminal, terminal->key, member, edge);
     }
 
-    static CGraph_Triplet *NewForMatch(int db, Graph_Leg *terminal, sds member, sds edge)
+    static CGraph_Triplet *NewForMatch(int db, Graph_Leg *terminal, rxString member, rxString edge)
     {
         if ((!terminal || (terminal == terminal->start)) && !member)
             return NULL;
         return Graph_Triplet::InitializeResultForMatch(db, terminal, terminal->key, member, edge);
     }
 
-    static sds SubjectKey(CGraph_Triplet *t){
+    static rxString SubjectKey(CGraph_Triplet *t){
         Graph_Triplet *source = (Graph_Triplet *)rxGetContainedObject(t);
         return source->subject_key;
     }
@@ -421,8 +421,8 @@ public:
         if(this->subject != NULL){
         this->Show();
         this->subject = NULL;
-        sdsfree(this->subject_key);
-        this->subject_key = sdsempty();
+        rxStringFree(this->subject_key);
+        this->subject_key = rxStringEmpty();
         }
         while (this->edges.HasEntries())
         {
@@ -466,11 +466,11 @@ public:
         printf("== End of Triplet ==\n");
     }
 
-    sds Json(sds key)
+    rxString Json(rxString key)
     {
-        sds json = sdscatprintf( sdsempty(), "{\"key\":\"%s\", \"value\":\"{\"", key);
-        json = sdscatprintf(json, "\"subject\":\"%s\", \"data\":\"%x\", \"length\":\"%f\" ", 
-        subject_key, (POINTER)subject, length);
+        rxString json = rxStringFormat( "{\"key\":\"%s\", \"value\":\"{\"", key);
+        json = rxStringFormat("%s\"subject\":\"%s\", \"data\":\"%x\", \"length\":\"%f\" ", 
+        json, subject_key, (POINTER)subject, length);
 
         // if (this->containers.HasEntries())
         // {
@@ -478,28 +478,28 @@ public:
         //     FaBlok *e;
         //     while ((e = this->containers.Next()) != NULL)
         //     {
-        //         json = sdscatprintf( json, "--> %s\n", e->AsSds());
+        //         json = rxStringFormat( "%s --> %s\n", json, e->AsSds());
         //     }
         //     this->containers.Stop();
         // }else
-        //         json = sdscatprintf( json, "roving\n");
+        //         json = rxStringFormat( "%s%s", json, "roving\n");
         
         if (this->edges.HasEntries())
         {
-            json = sdscat(json, ", \"edges\": [");
+            json = rxStringFormat("%s%s" ,json, ", \"edges\": [");
             this->edges.StartHead();
             Graph_Triplet_Edge *e;
             char sep[2] = {' ', 0x00};
             while ((e = this->edges.Next()) != NULL)
             {
-                json = sdscat(json, sep);
+                json = rxStringFormat("%s%s" ,json, sep);
                 json = e->Json(json);
                 sep[0] = ',';
             }
             this->edges.Stop();
-            json = sdscat(json, "]");
+            json = rxStringFormat("%s%s", json, "]");
         }
-        json = sdscat(json, "}");
+        json = rxStringFormat("%s%s", json, "}");
         return json;
     }
 
@@ -510,7 +510,7 @@ public:
         int no_of_elements = 2 + (has_length ? 2 : 0 )  + (nested ? 2 : 0 ) + (has_edges ? (nested ? 0 : 4 ) : 0);
         RedisModule_ReplyWithArray(ctx, no_of_elements);
         RedisModule_ReplyWithStringBuffer(ctx, "subject", 7);
-        RedisModule_ReplyWithStringBuffer(ctx, (char *)this->subject_key, sdslen((char *)this->subject_key));
+        RedisModule_ReplyWithStringBuffer(ctx, (char *)this->subject_key, strlen((char *)this->subject_key));
         if (has_length)
         {        
             RedisModule_ReplyWithStringBuffer(ctx, "length", 6);

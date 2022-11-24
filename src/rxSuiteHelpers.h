@@ -13,7 +13,7 @@ extern "C"
 #include "ae.h"
 #include "rax.h"
 #include "../../src/dict.h"
-#include "../../src/sds.h"
+#include "sdsWrapper.h"
 
 #ifdef __cplusplus
 }
@@ -66,7 +66,7 @@ extern "C"
     void *rxFindHashKey(int dbNo, const char *key);
     void *rxScanKeys(int dbNo, void **diO, char **key);
     void *rxScanSetMembers(void *obj, void **siO, char **member, int64_t *member_len);
-    sds rxRandomSetMember(void *set);
+    rxString rxRandomSetMember(void *set);
     dictIterator *rxGetDatabaseIterator(int dbNo);
     long long rxDatabaseSize(int dbNo);
     
@@ -83,7 +83,7 @@ extern "C"
 
   struct rxHashTypeIterator;
 
-int rxMatchHasValue(void *oO, const char *field, sds pattern, int plen);
+int rxMatchHasValue(void *oO, const char *field, rxString pattern, int plen);
 
 // Wrappers
 #define rxOBJ_STRING 0    /* String object. */
@@ -97,9 +97,8 @@ int rxMatchHasValue(void *oO, const char *field, sds pattern, int plen);
 
 
     struct client *rxCreateAOFClient(void);
-    struct redisCommand *rxLookupCommand(sds name);
+    struct redisCommand *rxLookupCommand(rxString name);
 
-    sds rxSdsAttachlen(struct sdshdr32 *s_preamble, const void *init, size_t initlen, size_t *total_size);
     void *rxSetStringObject(void *o, void *ptr);
     int rxSizeofRobj();
 
@@ -108,10 +107,10 @@ int rxMatchHasValue(void *oO, const char *field, sds pattern, int plen);
     void *rxCreateStringObject(const char *ptr, size_t len);
     void *rxCreateHashObject(void);
     int rxHashTypeGetValue(void *o, const char *field, unsigned char **vstr, POINTER *vlen, long long *vll);
-    sds rxGetHashField(void *o, const char *field);
-    sds rxGetHashField2(void *oO, const char *field);
+    rxString rxGetHashField(void *o, const char *field);
+    rxString rxGetHashField2(void *oO, const char *field);
     int rxHashTypeSet(void *o, const char *field, const char * value, int flags);
-    sds rxHashAsJson(const char * key, void *o);
+    rxString rxHashAsJson(const char * key, void *o);
     struct rxHashTypeIterator *rxHashTypeInitIterator(void *subject);
     void rxHashTypeReleaseIterator(struct rxHashTypeIterator *hi);
 
@@ -120,7 +119,7 @@ int rxMatchHasValue(void *oO, const char *field, sds pattern, int plen);
 #define rxOBJ_HASH_KEY 1
 #define rxOBJ_HASH_VALUE 2
 
-sds rxHashTypeCurrentObjectNewSds(struct rxHashTypeIterator *hi, int what);
+rxString rxHashTypeCurrentObjectNewSds(struct rxHashTypeIterator *hi, int what);
 
 void rxFreeStringObject(void *o);
 void rxFreeHashObject(void *o);
@@ -134,17 +133,12 @@ long long rxCreateTimeEvent(long long milliseconds,
 void rxDeleteTimeEvent(long long id);
 
 void rxModulePanic(char *msg);
-#define rxLL_DEBUG 0
-#define rxLL_VERBOSE 1
-#define rxLL_NOTICE 2
-#define rxLL_WARNING 3
 
-void rxServerLogRaw(int level, sds msg);
 void rxHarvestSortedSetMembers(void *zobj, rax *bucket);
-double rxAddSortedSetMember(const char *key, int dbNo, double score, sds member);
-int rxAddSetMember(const char *key, int dbNo, sds member);
-double rxDeleteSortedSetMember(const char *key, int dbNo, sds member);
-int rxDeleteSetMember(const char *key, int dbNo, sds member);
+double rxAddSortedSetMember(const char *key, int dbNo, double score, rxString member);
+int rxAddSetMember(const char *key, int dbNo, rxString member);
+double rxDeleteSortedSetMember(const char *key, int dbNo, rxString member);
+int rxDeleteSetMember(const char *key, int dbNo, rxString member);
 
 void *rxRemoveKeyRetainValue(int dbNo, const char *key);
 void *rxRestoreKeyRetainValue(int dbNo, const char *key, void *obj);
@@ -152,10 +146,10 @@ void *rxCommitKeyRetainValue(int dbNo, const char *key, void *old_2te);
 
 unsigned long long mem_avail();
 
-typedef int rxComparisonProc(char *l, int ll, char *r);
-typedef int rxComparisonProc2(char *l, int ll, char *r, char *h);
+typedef int rxComparisonProc(const char *l, int ll, const char *r);
+typedef int rxComparisonProc2(const char *l, int ll, const char *r, const char *h);
 void rxInitComparisonsProcs();
-rxComparisonProc *rxFindComparisonProc(char *op);
+rxComparisonProc *rxFindComparisonProc(const char *op);
 
 #ifdef __cplusplus
 }

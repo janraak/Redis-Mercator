@@ -21,7 +21,6 @@ extern "C"
 #endif
 
 #include "string.h"
-#include "util.h"
 #include "zmalloc.h"
 #include <fcntl.h>
 #include <iostream>
@@ -32,7 +31,7 @@ extern "C"
 #endif
 
 
-sds readFileIntoSds(const string &path)
+rxString readFileIntoSds(const string &path)
 {
     struct stat sb
     {
@@ -43,7 +42,7 @@ sds readFileIntoSds(const string &path)
     if (input_file == nullptr)
     {
         perror("fopen");
-        return sdsempty();
+        return rxStringEmpty();
     }
 
     stat(path.c_str(), &sb);
@@ -51,7 +50,7 @@ sds readFileIntoSds(const string &path)
     fread(const_cast<char *>(res.data()), sb.st_size, 1, input_file);
     fclose(input_file);
 
-    return sdsnew(res.c_str());
+    return rxStringNew(res.c_str());
 }
 
 class GraphParser : public JsonDialect
@@ -218,7 +217,7 @@ static void *execLoadThread(void *ptr)
         // TODO
         GET_ARGUMENTS_FROM_STASH(load_entry);
         auto *parser = new GraphParser();
-        auto *parsed_json = parser->Parse((sds)rxGetContainedObject(argv[1]));
+        auto *parsed_json = parser->Parse((rxString)rxGetContainedObject(argv[1]));
         auto *sub = parsed_json;
         while (sub != NULL)
         {
@@ -275,17 +274,17 @@ public:
         this->request = new SimpleQueue((void *)execLoadThread, 1, this->response);
         size_t len;
         const char *argS = RedisModule_StringPtrLen(argv[1], &len);
-        sds arg = sdsnew(argS);
-        sdstoupper(arg);
-        sds keyword = sdsnew("FILE");
+        rxString arg = rxStringNew(argS);
+        rxStringToUpper(arg);
+        rxString keyword = rxStringNew("FILE");
         // TODO fixed bugs from use of stashes!!!!!!
-        if (argc == 3 && sdscmp(keyword, arg) == 0)
+        if (argc == 3 && strcmp(keyword, arg) == 0)
         {
             const char *pathS = RedisModule_StringPtrLen(argv[2], &len);
-            sds path = sdsnew(pathS);
-            sds graph = readFileIntoSds(path);
+            rxString path = rxStringNew(pathS);
+            rxString graph = readFileIntoSds(path);
             rxStashCommand(this->request, "", 1, graph);
-            sdsfree(arg);
+            rxStringFree(arg);
         }
         else
         {

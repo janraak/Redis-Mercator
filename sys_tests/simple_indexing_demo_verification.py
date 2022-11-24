@@ -56,7 +56,7 @@ def check_server(must_flush):
         print(m)
         if m[b'name'].decode('utf-8') == "rxIndexStore": fetcher_loaded= True
     if not fetcher_loaded:
-        redis_index.execute_command("MODULE LOAD /home/pi/redis/redis-6.0.10/extensions/src/rxIndexStore.so a b c")
+        redis_index.execute_command("MODULE LOAD {}/rxIndexStore.so a b c".format(modulePath))
 
     # exit(0)    
     
@@ -81,7 +81,7 @@ def main(must_flush = False):
     redis_client = t[0]
     redis_index = t[1]
     nfails = 0
-    exit(0)
+    # exit(0)
     try:
         for n in range(0,run_length):
             print("TEST SIMPLE STRING")

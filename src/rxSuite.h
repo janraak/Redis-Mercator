@@ -19,8 +19,9 @@ extern "C" {
 
 
 #include "../../src/redismodule.h"
-#include "../../src/dict.h"
+// #include "../../src/dict.h"
 #include "../../deps/hiredis/hiredis.h"
+#include "sdsWrapper.h"
 
 #define rxUNUSED(x) (void)(x)
 
@@ -29,8 +30,8 @@ extern "C" {
 
 // #ifndef RXSUITE_SIMPLE
 typedef struct{
-    sds host_reference;
-    sds host;
+    const char * host_reference;
+    const char * host;
     int port;
     int database_id;
     int is_local;
@@ -38,13 +39,12 @@ typedef struct{
 } redisNodeInfo;
 typedef struct
 {
-    dict *OperationMap;
-    dict *KeysetCache;
+    // dict *OperationMap;
+    // dict *KeysetCache;
     int parserClaimCount;
-    dictType *tokenDictType;
     redisNodeInfo indexNode;
     redisNodeInfo dataNode;
-    sds defaultQueryOperator;
+    const char * defaultQueryOperator;
 } rxSuiteShared;
 
 void initRxSuite();
@@ -56,12 +56,6 @@ void rxRegisterConfig(RedisModuleCtx *ctx, RedisModuleString **argv, int argc);
 void finalizeRxSuite();
 // #endif
 
-int sdscharcount(char *s, char c);
-
-/* Apply tolower() to every character of the string 's'. */
-void strtolower(const char *s);
-/* Apply toupper() to every character of the string 's'. */
-void strtoupper(const char *s);
 
 #ifdef __cplusplus
 }

@@ -19,10 +19,10 @@ extern "C"
 #endif
 
 #ifdef __GNUC__
-    void serverLog(int level, const char *fmt, ...)
+    void rxServerLog(int level, const char *fmt, ...)
         __attribute__((format(printf, 2, 3)));
 #else
-void serverLog(int level, const char *fmt, ...);
+void rxServerLog(int level, const char *fmt, ...);
 #endif
 #include "../../src/adlist.h"
 // #include "parser.h"
@@ -52,7 +52,7 @@ public:
     // Parser *rule;
     ParsedExpression *rule = NULL;
     bool isvalid;
-    sds setName;
+    rxString setName;
     long long apply_count;
     long long apply_skipped_count;
     long long apply_hit_count;
@@ -69,7 +69,7 @@ public:
             sched_yield();
         }
         BusinessRule *old;
-        raxTryInsert(BusinessRule::Registry, (UCHAR *)br->setName, sdslen(br->setName), br, (void **)&old);
+        raxTryInsert(BusinessRule::Registry, (UCHAR *)br->setName, strlen(br->setName), br, (void **)&old);
         return old;
     }
 
@@ -81,10 +81,10 @@ public:
         {
             sched_yield();
         }
-        BusinessRule *old = (BusinessRule *)raxFind(BusinessRule::Registry, (UCHAR *)br->setName, sdslen(br->setName));
+        BusinessRule *old = (BusinessRule *)raxFind(BusinessRule::Registry, (UCHAR *)br->setName, strlen(br->setName));
         if (old != raxNotFound)
         {
-            raxRemove(BusinessRule::Registry, (UCHAR *)br->setName, sdslen(br->setName), (void **)&old);
+            raxRemove(BusinessRule::Registry, (UCHAR *)br->setName, strlen(br->setName), (void **)&old);
         }
         return old;
     }
@@ -97,18 +97,18 @@ public:
 
     static void ForgetAll()
     {
-        rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(),"# ForgetAll # 000 #"));
+        rxServerLogRaw(rxLL_WARNING, rxStringFormat("# ForgetAll # 000 #"));
         if (BusinessRule::Registry == NULL)
             return;
-        rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(),"# ForgetAll # 010 #"));
+        rxServerLogRaw(rxLL_WARNING, rxStringFormat("# ForgetAll # 010 #"));
         raxIterator ri;
         raxStart(&ri, BusinessRule::Registry);
         raxSeek(&ri, "^", NULL, 0);
         while (raxNext(&ri))
         {
-            sds ruleName = sdsnewlen(ri.key, ri.key_len);
-            rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(),"# ForgetAll # 100 # rule: %s", ruleName));
-            sdsfree(ruleName);
+            rxString ruleName = rxStringNewLen((const char*)ri.key, ri.key_len);
+            rxServerLogRaw(rxLL_WARNING, rxStringFormat("# ForgetAll # 100 # rule: %s", ruleName));
+            rxStringFree(ruleName);
             BusinessRule *br = (BusinessRule *)ri.data;
             while(BusinessRule::RegistryLock){
                 sched_yield();
@@ -118,7 +118,7 @@ public:
         }
         raxStop(&ri);
         BusinessRule::Registry = NULL;
-        rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(),"# ForgetAll # 800 # BusinessRule::Registry isnull: %x", (POINTER)BusinessRule::Registry));
+        rxServerLogRaw(rxLL_WARNING, rxStringFormat("# ForgetAll # 800 # BusinessRule::Registry isnull: %x", (POINTER)BusinessRule::Registry));
     }
 
     static int WriteList(RedisModuleCtx *ctx)
@@ -134,15 +134,15 @@ public:
             raxSeek(&ri, "^", NULL, 0);
             while (raxNext(&ri))
             {
-                sds ruleName = sdsnewlen(ri.key, ri.key_len);
+                rxString ruleName = rxStringNewLen((const char*)ri.key, ri.key_len);
                 RedisModule_ReplyWithArray(ctx, 12);
                 BusinessRule *br = (BusinessRule *)ri.data;
                 RedisModule_ReplyWithStringBuffer(ctx, (char *)"name", 4);
                 RedisModule_ReplyWithStringBuffer(ctx, (char *)ruleName, strlen((char *)ruleName));
-                sds rpn = br->ParsedToString();
+                rxString rpn = br->ParsedToString();
                 RedisModule_ReplyWithStringBuffer(ctx, (char *)"rule", 4);
                 RedisModule_ReplyWithStringBuffer(ctx, (char *)rpn, strlen((char *)rpn));
-                sdsfree(rpn);
+                rxStringFree(rpn);
                 RedisModule_ReplyWithStringBuffer(ctx, (char *)"no of applies", 13);
                 RedisModule_ReplyWithLongLong(ctx, br->apply_count);
                 RedisModule_ReplyWithStringBuffer(ctx, (char *)"no of skips", 11);
@@ -160,26 +160,26 @@ public:
         return REDISMODULE_OK;
     }
 
-    static sds ApplyAll(sds key)
+    static rxString ApplyAll(rxString key)
     {
 
         if (BusinessRule::Registry == NULL)
-            return sdsempty();
+            return rxStringEmpty();
         BusinessRule::RegistryLock = true;
-        sds response = sdsempty();
+        rxString response = rxStringEmpty();
         raxIterator ri;
 
         raxStart(&ri, BusinessRule::Registry);
         raxSeek(&ri, "^", NULL, 0);
         while (raxNext(&ri))
         {
-            sds ruleName = sdsnewlen(ri.key, ri.key_len);
+            rxString ruleName = rxStringNewLen((const char*)ri.key, ri.key_len);
             BusinessRule *br = (BusinessRule *)ri.data;
 
-            rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(), "Applying rules: %s to: %s\n", ruleName, key));
+            rxServerLogRaw(rxLL_WARNING, rxStringFormat( "Applying rules: %s to: %s\n", ruleName, key));
             bool result = br->Apply(key);
-            rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(), "Applied rules: %s to: %s -> %d\n", ruleName, key, result));
-            response = sdscatfmt(response, "%s -> %i\r", ruleName, result);
+            rxServerLogRaw(rxLL_WARNING, rxStringFormat( "Applied rules: %s to: %s -> %d\n", ruleName, key, result));
+            response = rxStringFormat("%s%s -> %d\r", response, ruleName, result);
         }
         raxStop(&ri);
         BusinessRule::RegistryLock = false;
@@ -190,7 +190,7 @@ public:
     {
         this->rule = NULL;
         this->isvalid = false;
-        this->setName = sdsempty();
+        this->setName = rxStringEmpty();
         this->apply_count = 0;
         this->apply_skipped_count = 0;
         this->apply_hit_count = 0;
@@ -200,10 +200,10 @@ public:
     BusinessRule(const char *setName, const char *query)
         : BusinessRule()
     {
-        this->setName = sdsnew(setName);
-        rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(), "Rule (1): %s as: %s\n", this->setName, query));
+        this->setName = rxStringNew(setName);
+        rxServerLogRaw(rxLL_WARNING, rxStringFormat( "Rule (1): %s as: %s\n", this->setName, query));
         this->rule = this->RuleParser->Parse(query);
-        rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(), "Rule (2): %s as: %s\n", this->setName, this->rule->ToString()));
+        rxServerLogRaw(rxLL_WARNING, rxStringFormat( "Rule (2): %s as: %s\n", this->setName, this->rule->ToString()));
     };
 
     ~BusinessRule()
@@ -214,8 +214,8 @@ public:
             while(BusinessRule::RegistryLock){
                 sched_yield();
             }
-            raxRemove(BusinessRule::Registry, (UCHAR *)this->setName, sdslen(this->setName), (void **)&old);
-            sdsfree(this->setName);
+            raxRemove(BusinessRule::Registry, (UCHAR *)this->setName, strlen(this->setName), (void **)&old);
+            rxStringFree(this->setName);
             this->setName = NULL;
             delete this->rule;
             this->rule = NULL;
@@ -223,14 +223,14 @@ public:
         }
     };
 
-    static BusinessRule *Find(sds name)
+    static BusinessRule *Find(rxString name)
     {
         if(BusinessRule::Registry == NULL)
             return NULL;
         while(BusinessRule::RegistryLock){
             sched_yield();
         }
-        auto *br = (BusinessRule *)raxFind(BusinessRule::Registry, (UCHAR *)name, sdslen(name));
+        auto *br = (BusinessRule *)raxFind(BusinessRule::Registry, (UCHAR *)name, strlen(name));
         if (br != raxNotFound)
             return br;
         return NULL;
@@ -240,16 +240,16 @@ public:
     {
         redisNodeInfo *index_config = rxIndexNode();
         redisNodeInfo *data_config = rxDataNode();
-        sds k = sdsnew(key);
-        int stringmatch = sdscharcount(k, ':');
+        rxString k = rxStringNew(key);
+        int stringmatch = rxStringCharCount(k, ':');
         void *obj = rxFindKey(0, k);
-        sdsfree(k);
+        rxStringFree(k);
         if (stringmatch >= 2)
         {
             this->apply_skipped_count++;
             return false;
         }
-        // sds rpn = this->rule->ToString();
+        // rxString rpn = this->rule->ToString();
         this->apply_count++;
         FaBlok::ClearCache();
         if(data_config->executor == NULL)
@@ -276,26 +276,26 @@ public:
             this->apply_hit_count++;
             if (index_config->is_local != 0)
             {
-                sds t = sdsnew(objT);
-                sds f = sdsnew("rule");
-                sds one = sdsnew("1");
+                rxString t = rxStringNew(objT);
+                rxString f = rxStringNew("rule");
+                rxString one = rxStringNew("1");
                 void *stashed_cmd = rxStashCommand(NULL, "RXADD", 5, key, t, f, this->setName, one);
                 ExecuteRedisCommand(NULL, stashed_cmd, index_config->host_reference);
                 FreeStash(stashed_cmd);
-                sdsfree(t);
-                sdsfree(f);
-                sdsfree(one);
+                rxStringFree(t);
+                rxStringFree(f);
+                rxStringFree(one);
             }
             else
             {
                 auto *redis_node = RedisClientPool<redisContext>::Acquire(index_config->host_reference);
                 if (redis_node != NULL)
                 {
-                    sds cmd = sdscatfmt(sdsempty(), "RXADD %s %s RULE %s 1", key, objT, this->setName);
+                    rxString cmd = rxStringFormat("RXADD %s %s RULE %s 1", key, objT, this->setName);
                     redisReply *rcc = (redisReply *)redisCommand(redis_node, cmd);
-                    rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(), " %s: %s --> %s\n", cmd, index_config->host_reference, rcc->str));
+                    rxServerLogRaw(rxLL_WARNING, rxStringFormat( " %s: %s --> %s\n", cmd, index_config->host_reference, rcc->str));
                     freeReplyObject(rcc);
-                    sdsfree(cmd);
+                    rxStringFree(cmd);
                     RedisClientPool<redisContext>::Release(redis_node);
                 }
             }
@@ -304,33 +304,33 @@ public:
         this->apply_miss_count++;
         if (index_config->is_local != 0)
         {
-            sds t = sdsnew(objT);
-            sds f = sdsnew("rule");
-            sds one = sdsnew("1");
+            rxString t = rxStringNew(objT);
+            rxString f = rxStringNew("rule");
+            rxString one = rxStringNew("1");
             void *stashed_cmd = rxStashCommand(NULL, "RXDEL", 4, key, t, f, this->setName);
             ExecuteRedisCommand(NULL, stashed_cmd, index_config->host_reference);
             FreeStash(stashed_cmd);
-            sdsfree(t);
-            sdsfree(f);
-            sdsfree(one);
+            rxStringFree(t);
+            rxStringFree(f);
+            rxStringFree(one);
         }
         else
         {
             auto *redis_node = RedisClientPool<redisContext>::Acquire(index_config->host_reference);
             if (redis_node != NULL)
             {
-                sds cmd = sdscatfmt(sdsempty(), "RXDEL %s %s RULE %s", key, objT, this->setName);
+                rxString cmd = rxStringFormat("RXDEL %s %s RULE %s", key, objT, this->setName);
                 redisReply *rcc = (redisReply *)redisCommand(redis_node, cmd);
-                rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(), " %s: %s --> %s\n", cmd, index_config->host_reference, rcc->str));
+                rxServerLogRaw(rxLL_WARNING, rxStringFormat( " %s: %s --> %s\n", cmd, index_config->host_reference, rcc->str));
                 freeReplyObject(rcc);
-                sdsfree(cmd);
+                rxStringFree(cmd);
                 RedisClientPool<redisContext>::Release(redis_node);
             }
         }
         return false;
     }
 
-    sds ParsedToString()
+    rxString ParsedToString()
     {
         return this->rule->ToString();
     }

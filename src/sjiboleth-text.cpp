@@ -12,21 +12,10 @@ typedef struct
 	int tally;
 } Indexable;
 
-char *toLowerCase(char *pString)
-{
-	char *start = (char *)pString;
-	while (*pString)
-	{
-		*pString = tolower(*pString);
-		++pString;
-	}
-	return start;
-}
-
 char *KEYTYPE_TAGS[] = {"S", "L", "C", "Z", "H", "M", "X"};
 
 
-bool TextDialect::FlushIndexables(rax *collector, sds key, int key_type, redisContext *index)
+bool TextDialect::FlushIndexables(rax *collector, rxString key, int key_type, redisContext *index)
 {
 	raxIterator indexablesIterator;
 	raxStart(&indexablesIterator, collector);
@@ -38,21 +27,21 @@ bool TextDialect::FlushIndexables(rax *collector, sds key, int key_type, redisCo
 
 	while (raxNext(&indexablesIterator))
 	{
-		sds avp = sdsnewlen(indexablesIterator.key, indexablesIterator.key_len);
+		rxString avp = rxStringNewLen((const char *)indexablesIterator.key, indexablesIterator.key_len);
 		int segments = 0;
-		sds *parts = sdssplitlen(avp, indexablesIterator.key_len, "/", 1, &segments);
+		rxString *parts = rxStringSplitLen(avp, indexablesIterator.key_len, "/", 1, &segments);
 		auto *indexable = (Indexable *)indexablesIterator.data;
 		rcc = (redisReply *)redisCommand(index, "RXADD %s %s %s %s %f 0", key, KEYTYPE_TAGS[key_type], parts[0], parts[1], indexable->sum_w / (indexable->tally * indexable->tally));
 		if (rcc)
 		{
 			if (index->err)
 			{
-				rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(), "Error: %s on %s\n", index->errstr, avp));
+				rxServerLogRaw(rxLL_WARNING, rxStringFormat("Error: %s on %s\n", index->errstr, avp));
 			}
 			freeReplyObject(rcc);
 		}
-		sdsfreesplitres(parts, segments);
-		sdsfree(avp);
+		rxStringFreeSplitRes(parts, segments);
+		rxStringFree(avp);
 	}
 	raxStop(&indexablesIterator);
 
@@ -63,15 +52,15 @@ bool TextDialect::FlushIndexables(rax *collector, sds key, int key_type, redisCo
 	return true;
 }
 
-bool static CollectIndexables(rax *collector, sds field_name, const char * field_value, double w)
+bool static CollectIndexables(rax *collector, rxString field_name, const char * field_value, double w)
 {
 	if(collector == NULL)
 		return false;
-	sds key = sdsdup(field_name);
-	key = sdscat(key, "/");
-	key = sdscat(key, field_value);
-	toLowerCase(key);
-	auto *indexable = (Indexable *)raxFind(collector, (UCHAR *)key, sdslen(key));
+	rxString key = rxStringDup(field_name);
+	key = rxStringFormat("%s%s",key, "/");
+	key = rxStringFormat("%s%s",key, field_value);
+	rxStringToUpper(key);
+	auto *indexable = (Indexable *)raxFind(collector, (UCHAR *)key, strlen(key));
 	if (indexable == raxNotFound)
 	{
 		indexable = new Indexable();
@@ -81,8 +70,8 @@ bool static CollectIndexables(rax *collector, sds field_name, const char * field
 	indexable->sum_w += w;
 	indexable->tally++;
 	Indexable *prev_indexable = NULL;
-	raxInsert(collector, (UCHAR *)key, sdslen(key), indexable, (void **)&prev_indexable);
-	sdsfree(key);
+	raxInsert(collector, (UCHAR *)key, strlen(key), indexable, (void **)&prev_indexable);
+	rxStringFree(key);
 	return true;
 }
 
@@ -127,19 +116,19 @@ int IndexText(CParserToken *tO, CSilNikParowy_Kontekst *stackO)
 	if (stack->HasEntries())
 	{
 		auto *collector = (rax *)stack->Recall("@@collector@@");
-		sds field_name;
+		rxString field_name;
 		if (strncmp(":", (const char *)t->TokenAsSds(), 1) == 0)
 		{
 			FaBlok *p = stack->Pop_Last();
-			field_name = sdsnew(p->setname);
+			field_name = rxStringNew(p->setname);
 		}
 		else if (stack->IsMemoized("@@field@@"))
 		{
-			field_name = sdsdup((sds)stack->Recall("@@field@@"));
+			field_name = rxStringDup((rxString)stack->Recall("@@field@@"));
 		}
 		else
 		{
-			field_name = sdsnew("*");
+			field_name = rxStringNew("*");
 		}
 		int l = stack->Size();
 		double w = 1.0 / l;
@@ -173,7 +162,7 @@ int IndexText(CParserToken *tO, CSilNikParowy_Kontekst *stackO)
 					CollectIndexables(collector, field_name, p->setname, w);
 			}
 		}
-		sdsfree(field_name);
+		rxStringFree(field_name);
 	}
 	return C_OK;
 }
@@ -201,13 +190,13 @@ SJIBOLETH_HANDLER(executeTextParameters)
 		PushResult(first, stack);
 		return C_OK;
 	}
-	sds setname = sdscatprintf(sdsempty(), "P_%s_%lld", t->TokenAsSds(), ustime());
+	rxString setname = rxStringFormat("P_%s_%lld", t->TokenAsSds(), ustime());
 	FaBlok *pl = FaBlok::Get(setname, KeysetDescriptor_TYPE_PARAMETER_LIST);
 	pl->AsTemp();
 	pl->parameter_list = new GraphStack<FaBlok>();
 	pl->parameter_list->Enqueue(first);
 	pl->parameter_list->Enqueue(second);
-	sdsfree(setname);
+	rxStringFree(setname);
 	PushResult(pl, stack);
 }
 END_SJIBOLETH_HANDLER(executeTextParameters)
@@ -224,10 +213,10 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(TextCommaScopeCheck)
 	rxUNUSED(expression);
 	if (!HasParkedToken(expression, ":"))
 	{
-		sds referal = sdsnew("!!!");
-		referal = sdscat(referal, ((ParserToken *)t)->TokenAsSds());
+		rxString referal = rxStringNew("!!!");
+		referal = rxStringFormat("%s%s",referal, ((ParserToken *)t)->TokenAsSds());
 		t = lookupToken(pO, referal);
-		sdsfree(referal);
+		rxStringFree(referal);
 	}
 }
 END_SJIBOLETH_PARSER_CONTEXT_CHECKER(TextCommaScopeCheck)
@@ -246,20 +235,20 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(TextColonScopeCheck)
 		case 0xe2: // Unicode
 			if ((*(s + 1) == 0x80 && *(s + 2) == 0x9c) || (*(s + 1) == 0x80 && *(s + 2) == 0x98) || (*(s + 1) == 0x20 && *(s + 2) == 0x39))
 			{
-				sds referal = sdsnew("!!!");
-				referal = sdscat(referal, ((ParserToken *)t)->TokenAsSds());
+				rxString referal = rxStringNew("!!!");
+				referal = rxStringFormat("%s%s",referal, ((ParserToken *)t)->TokenAsSds());
 				t = lookupToken(pO, referal);
-				sdsfree(referal);
+				rxStringFree(referal);
 			}
 			break;
 		case '"':
 		// case '\'':
 		case 0x60:
 		{
-			sds referal = sdsnew("!!!");
-			referal = sdscat(referal, ((ParserToken *)t)->TokenAsSds());
+			rxString referal = rxStringNew("!!!");
+			referal = rxStringFormat("%s%s",referal, ((ParserToken *)t)->TokenAsSds());
 			t = lookupToken(pO, referal);
-			sdsfree(referal);
+			rxStringFree(referal);
 			break;
 		}
 		break;
@@ -274,10 +263,10 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(TextBulletScopeCheck)
 	rxUNUSED(head);
 	rxUNUSED(expression);
 	rxUNUSED(pO);
-	sds referal = sdsnew("!!!");
-	referal = sdscat(referal, ((ParserToken *)t)->TokenAsSds());
+	rxString referal = rxStringNew("!!!");
+	referal = rxStringFormat("%s%s",referal, ((ParserToken *)t)->TokenAsSds());
 	t = lookupToken(pO, referal);
-	sdsfree(referal);
+	rxStringFree(referal);
 }
 END_SJIBOLETH_PARSER_CONTEXT_CHECKER(TextBulletScopeCheck)
 
@@ -288,10 +277,10 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(TextDashScopeCheck)
 	rxUNUSED(pO);
 	if (isdigit(*(head - 1)))
 	{
-		sds referal = sdsnew("!!!");
-		referal = sdscat(referal, ((ParserToken *)t)->TokenAsSds());
+		rxString referal = rxStringNew("!!!");
+		referal = rxStringFormat("%s%s",referal, ((ParserToken *)t)->TokenAsSds());
 		t = lookupToken(pO, referal);
-		sdsfree(referal);
+		rxStringFree(referal);
 	}
 }
 END_SJIBOLETH_PARSER_CONTEXT_CHECKER(TextDashScopeCheck)
@@ -338,6 +327,6 @@ bool TextDialect::RegisterDefaultSyntax()
 TextDialect::TextDialect()
 	: Sjiboleth()
 {
-	this->default_operator = sdsempty();
+	this->default_operator = rxStringEmpty();
 	this->RegisterDefaultSyntax();
 }

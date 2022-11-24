@@ -27,7 +27,7 @@ typedef void CFaBlok;
 extern "C"
 {
 #endif
-#include "../../deps/hiredis/sds.h"
+#include "sdsWrapper.h"
 #include "../../src/adlist.h"
 #include "../../src/dict.h"
 #include "../../src/rax.h"
@@ -67,7 +67,7 @@ extern "C"
     CSjiboleth *newJsonEngine();
     CSjiboleth *newTextEngine();
     CSjiboleth *releaseParser(CSjiboleth *s);
-    CParserToken *lookupToken(CSjiboleth *s, sds token);
+    CParserToken *lookupToken(CSjiboleth *s, rxString token);
 
     CParsedExpression *parseQ(CSjiboleth *s, const char *query);
     CParserToken *CopyParserToken(CParserToken *t);

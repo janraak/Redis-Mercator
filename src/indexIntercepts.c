@@ -1,3 +1,5 @@
+#include "version.h"
+
 #include "indexIntercepts.h"
 #include "rxSuite.h"
 
@@ -56,61 +58,67 @@ void xaddCommandIntercept(client *c);
 void xdelCommandIntercept(client *c);
 void touchCommandIntercept(client *c);
 
+#if REDIS_VERSION_NUM < 0x00060200
+    #define INIT_CMD_STATS 0, 0
+#else 
+    #define INIT_CMD_STATS 0, 0, 0, 0
+#endif
+
 struct redisCommand interceptorCommandTable[] = {
 /* Note that we can't flag set as fast, since it may perform an
  * implicit DEL of a large key. */
 #define SET_INTERCEPT 0
-    {"set", setCommandIntercept, -3, "write use-memory @string", 0, NULL, 1, 1, 1, 0, 0, 0},
+    {"set", setCommandIntercept, -3, "write use-memory @string", 0, NULL, 1, 1, 1, 0, INIT_CMD_STATS} ,
 #define SETNX_INTERCEPT 1
-    {"setnx", setnxCommandIntercept, 3, "write use-memory fast @string", 0, NULL, 1, 1, 1, 0, 0, 0},
+    {"setnx", setnxCommandIntercept, 3, "write use-memory fast @string", 0, NULL, 1, 1, 1, 0, INIT_CMD_STATS},
 #define SETEX_INTERCEPT 2
-    {"setex", setexCommandIntercept, 4, "write use-memory @string", 0, NULL, 1, 1, 1, 0, 0, 0},
+    {"setex", setexCommandIntercept, 4, "write use-memory @string", 0, NULL, 1, 1, 1, 0, INIT_CMD_STATS},
 #define PSETEX_INTERCEPT 3
-    {"psetex", psetexCommandIntercept, 4, "write use-memory @string", 0, NULL, 1, 1, 1, 0, 0, 0},
+    {"psetex", psetexCommandIntercept, 4, "write use-memory @string", 0, NULL, 1, 1, 1, 0, INIT_CMD_STATS},
 #define APPEND_INTERCEPT 4
-    {"append", appendCommandIntercept, 3, "write use-memory fast @string", 0, NULL, 1, 1, 1, 0, 0, 0},
+    {"append", appendCommandIntercept, 3, "write use-memory fast @string", 0, NULL, 1, 1, 1, 0, INIT_CMD_STATS},
 #define DEL_INTERCEPT 5
-    {"del", delCommandIntercept, -2, "write @keyspace", 0, NULL, 1, -1, 1, 0, 0, 0},
+    {"del", delCommandIntercept, -2, "write @keyspace", 0, NULL, 1, -1, 1, 0, INIT_CMD_STATS},
 #define HSET_INTERCEPT 6
-    {"hset", hsetCommandIntercept, -4, "write use-memory fast @hash", 0, NULL, 1, 1, 1, 0, 0, 0},
+    {"hset", hsetCommandIntercept, -4, "write use-memory fast @hash", 0, NULL, 1, 1, 1, 0, INIT_CMD_STATS},
 #define HSETNX_INTERCEPT 7
-    {"hsetnx", hsetnxCommandIntercept, 4, "write use-memory fast @hash", 0, NULL, 1, 1, 1, 0, 0, 0},
+    {"hsetnx", hsetnxCommandIntercept, 4, "write use-memory fast @hash", 0, NULL, 1, 1, 1, 0, INIT_CMD_STATS},
 #define HMSET_INTERCEPT 8
-    {"hmset", hsetCommandIntercept, -4, "write use-memory fast @hash", 0, NULL, 1, 1, 1, 0, 0, 0},
+    {"hmset", hsetCommandIntercept, -4, "write use-memory fast @hash", 0, NULL, 1, 1, 1, 0, INIT_CMD_STATS},
 #define HDEL_INTERCEPT 9
-    {"hdel", hdelCommandIntercept, -3, "write fast @hash", 0, NULL, 1, 1, 1, 0, 0, 0},
+    {"hdel", hdelCommandIntercept, -3, "write fast @hash", 0, NULL, 1, 1, 1, 0, INIT_CMD_STATS},
 #define GETSET_INTERCEPT 10
-    {"getset", getsetCommandIntercept, 3, "write use-memory fast @string", 0, NULL, 1, 1, 1, 0, 0, 0},
+    {"getset", getsetCommandIntercept, 3, "write use-memory fast @string", 0, NULL, 1, 1, 1, 0, INIT_CMD_STATS},
 #define MSET_INTERCEPT 11
-    {"mset", msetCommandIntercept, -3, "write use-memory @string", 0, NULL, 1, -1, 2, 0, 0, 0},
+    {"mset", msetCommandIntercept, -3, "write use-memory @string", 0, NULL, 1, -1, 2, 0, INIT_CMD_STATS},
 #define MSETNX_INTERCEPT 12
-    {"msetnx", msetnxCommandIntercept, -3, "write use-memory @string", 0, NULL, 1, -1, 2, 0, 0, 0},
+    {"msetnx", msetnxCommandIntercept, -3, "write use-memory @string", 0, NULL, 1, -1, 2, 0, INIT_CMD_STATS},
 #define MOVE_INTERCEPT 13
-    {"move", moveCommandIntercept, 3, "write fast @keyspace", 0, NULL, 1, 1, 1, 0, 0, 0},
+    {"move", moveCommandIntercept, 3, "write fast @keyspace", 0, NULL, 1, 1, 1, 0, INIT_CMD_STATS},
 /* Like for SET, we can't mark rename as a fast command because
  * overwriting the target key may result in an implicit slow DEL. */
 #define RENAME_INTERCEPT 14
-    {"rename", renameCommandIntercept, 3, "write @keyspace", 0, NULL, 1, 2, 1, 0, 0, 0},
+    {"rename", renameCommandIntercept, 3, "write @keyspace", 0, NULL, 1, 2, 1, 0, INIT_CMD_STATS},
 #define RENAMENX_INTERCEPT 15
-    {"renamenx", renamenxCommandIntercept, 3, "write fast @keyspace", 0, NULL, 1, 2, 1, 0, 0, 0},
+    {"renamenx", renamenxCommandIntercept, 3, "write fast @keyspace", 0, NULL, 1, 2, 1, 0, INIT_CMD_STATS},
 #define FLUSHALL_INTERCEPT 16
-    {"NOflushdb", genericCommandIntercept, -1, "write @keyspace @dangerous", 0, NULL, 0, 0, 0, 0, 0, 0},
+    {"NOflushdb", genericCommandIntercept, -1, "write @keyspace @dangerous", 0, NULL, 0, 0, 0, 0, INIT_CMD_STATS},
 #define FLUSHDB_INTERCEPT 17
-    {"NOflushall", genericCommandIntercept, -1, "write @keyspace @dangerous", 0, NULL, 0, 0, 0, 0, 0, 0},
+    {"NOflushall", genericCommandIntercept, -1, "write @keyspace @dangerous", 0, NULL, 0, 0, 0, 0, INIT_CMD_STATS},
 #define BGSAVE_INTERCEPT 18
-    {"NObgsave", genericCommandIntercept, -1, "write @keyspace @dangerous", 0, NULL, 0, 0, 0, 0, 0, 0},
+    {"NObgsave", genericCommandIntercept, -1, "write @keyspace @dangerous", 0, NULL, 0, 0, 0, 0, INIT_CMD_STATS},
 #define INFO_INTERCEPT 19
-    {"info", infoCommandIntercept, -1, "readonly", 0, NULL, 0, 0, 0, 0, 0, 0},
+    {"info", infoCommandIntercept, -1, "readonly", 0, NULL, 0, 0, 0, 0, INIT_CMD_STATS},
 #define SELECT_INTERCEPT 20
-    {"select", selectCommandIntercept, -1, "readonly", 0, NULL, 0, 0, 0, 0, 0, 0},
+    {"select", selectCommandIntercept, -1, "readonly", 0, NULL, 0, 0, 0, 0, INIT_CMD_STATS},
 #define SWAPDB_INTERCEPT 21
-    {"NOswapdb", genericCommandIntercept, -1, "readonly", 0, NULL, 0, 0, 0, 0, 0, 0},
+    {"NOswapdb", genericCommandIntercept, -1, "readonly", 0, NULL, 0, 0, 0, 0, INIT_CMD_STATS},
 #define XADD_INTERCEPT 22
-    {"xadd", xaddCommandIntercept, -1, "write", 0, NULL, 0, 0, 0, 0, 0, 0},
+    {"xadd", xaddCommandIntercept, -1, "write", 0, NULL, 0, 0, 0, 0, INIT_CMD_STATS},
 #define XDEL_INTERCEPT 23
-    {"xdel", xdelCommandIntercept, -2, "write", 0, NULL, 1, -1, 1, 0, 0, 0},
+    {"xdel", xdelCommandIntercept, -2, "write", 0, NULL, 1, -1, 1, 0, INIT_CMD_STATS},
 #define TOUCH_INTERCEPT 24
-    {"NOtouch", touchCommandIntercept, -2, "write", 0, NULL, 1, -1, 1, 0, 0, 0}};
+    {"NOtouch", touchCommandIntercept, -2, "write", 0, NULL, 1, -1, 1, 0, INIT_CMD_STATS}};
 
 void freeIndexingRequest(void *kfv)
 {
@@ -160,28 +168,28 @@ void hsetCommandIntercept(client *c)
 
 void setnxCommandIntercept(client *c)
 {
-    serverLog(LL_NOTICE, "SETNX_INTERCEPT");
+    rxServerLog(LL_NOTICE, "SETNX_INTERCEPT");
     redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[SETNX_INTERCEPT].id];
     standard_command_proc(c);
 }
 
 void setexCommandIntercept(client *c)
 {
-    serverLog(LL_NOTICE, "SETEX_INTERCEPT");
+    rxServerLog(LL_NOTICE, "SETEX_INTERCEPT");
     redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[SETEX_INTERCEPT].id];
     standard_command_proc(c);
 }
 
 void psetexCommandIntercept(client *c)
 {
-    serverLog(LL_NOTICE, "PSETEX_INTERCEPT");
+    rxServerLog(LL_NOTICE, "PSETEX_INTERCEPT");
     redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[PSETEX_INTERCEPT].id];
     standard_command_proc(c);
 }
 
 void appendCommandIntercept(client *c)
 {
-    serverLog(LL_NOTICE, "APPEND_INTERCEPT");
+    rxServerLog(LL_NOTICE, "APPEND_INTERCEPT");
     redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[APPEND_INTERCEPT].id];
     standard_command_proc(c);
 }
@@ -195,56 +203,56 @@ void delCommandIntercept(client *c)
 
 void hsetnxCommandIntercept(client *c)
 {
-    serverLog(LL_NOTICE, "HSETNX_INTERCEPT");
+    rxServerLog(LL_NOTICE, "HSETNX_INTERCEPT");
     redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[HSETNX_INTERCEPT].id];
     standard_command_proc(c);
 }
 
 void hdelCommandIntercept(client *c)
 {
-    serverLog(LL_NOTICE, "HDEL_INTERCEPT");
+    rxServerLog(LL_NOTICE, "HDEL_INTERCEPT");
     redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[HDEL_INTERCEPT].id];
     standard_command_proc(c);
 }
 
 void getsetCommandIntercept(client *c)
 {
-    serverLog(LL_NOTICE, "GETSET_INTERCEPT");
+    rxServerLog(LL_NOTICE, "GETSET_INTERCEPT");
     redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[GETSET_INTERCEPT].id];
     standard_command_proc(c);
 }
 
 void msetCommandIntercept(client *c)
 {
-    serverLog(LL_NOTICE, "MSET_INTERCEPT");
+    rxServerLog(LL_NOTICE, "MSET_INTERCEPT");
     redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[MSET_INTERCEPT].id];
     standard_command_proc(c);
 }
 
 void msetnxCommandIntercept(client *c)
 {
-    serverLog(LL_NOTICE, "MSETNX_INTERCEPT");
+    rxServerLog(LL_NOTICE, "MSETNX_INTERCEPT");
     redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[MSETNX_INTERCEPT].id];
     standard_command_proc(c);
 }
 
 void moveCommandIntercept(client *c)
 {
-    serverLog(LL_NOTICE, "MOVE_INTERCEPT");
+    rxServerLog(LL_NOTICE, "MOVE_INTERCEPT");
     redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[MOVE_INTERCEPT].id];
     standard_command_proc(c);
 }
 
 void renameCommandIntercept(client *c)
 {
-    serverLog(LL_NOTICE, "RENAME_INTERCEPT");
+    rxServerLog(LL_NOTICE, "RENAME_INTERCEPT");
     redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[RENAME_INTERCEPT].id];
     standard_command_proc(c);
 }
 
 void renamenxCommandIntercept(client *c)
 {
-    serverLog(LL_NOTICE, "RENAMENX_INTERCEPT");
+    rxServerLog(LL_NOTICE, "RENAMENX_INTERCEPT");
     redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[RENAMENX_INTERCEPT].id];
     standard_command_proc(c);
 }
@@ -279,7 +287,7 @@ void touchCommandIntercept(client *c)
 
 void genericCommandIntercept(client *c)
 {
-    serverLog(LL_NOTICE, "%s_INTERCEPT", (char *)c->argv[0]->ptr);
+    rxServerLog(LL_NOTICE, "%s_INTERCEPT", (char *)c->argv[0]->ptr);
 
     struct redisCommand *cmd = lookupCommandByCString((char *)c->argv[0]->ptr);
     redisCommandProc *standard_command_proc = standard_command_procs[cmd->id];
@@ -296,7 +304,7 @@ void genericCommandIntercept(client *c)
 
 void infoCommandIntercept(client *c)
 {
-    serverLog(LL_NOTICE, "INFO_INTERCEPT");
+    rxServerLog(LL_NOTICE, "INFO_INTERCEPT");
     redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[INFO_INTERCEPT].id];
     standard_command_proc(c);
 }

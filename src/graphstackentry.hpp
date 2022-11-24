@@ -66,14 +66,14 @@ struct client *graphStackEntry_fakeClient = NULL;
  * format:
  *          int argc;
  *          robj *argvP[argc]
- *          sds *argvS[argc]
+ *          rxString *argvS[argc]
  *          char *argvT[argc]
  *
  * struct{
  *     int   argc;
  *     robj * argv[*],
  *     robj  argvP[*],
- *     sds   argvS[*],
+ *     rxString   argvS[*],
  *     char * argvT[*],
  *
  *     argv[0]->argvP[0]->argvS[0]->argvT[0]
@@ -96,10 +96,10 @@ void *rxStashCommand(SimpleQueue *ctx, const char *command, int argc, ...)
     va_list cpyArgs;
     va_copy(cpyArgs, args);
     size_t total_string_size = 1 + strlen(command);
-    int preamble_len = sizeof(struct sdshdr32);
+    int preamble_len = rxStringGetSdsHdrSize();
     for (int j = 0; j < argc; j++)
     {
-        sds result = va_arg(cpyArgs, sds);
+        rxString result = va_arg(cpyArgs, rxString);
         int len = strlen(result);
         total_string_size += preamble_len + len + 1;
     }
@@ -124,8 +124,8 @@ void *rxStashCommand(SimpleQueue *ctx, const char *command, int argc, ...)
     size_t l = strlen(command);
     size_t total_size;
     // strcpy(string_space, command);
-    sds s = rxSdsAttachlen(sds_space, command, l, &total_size);
-    argv[0] = rxSetStringObject(robj_space, s);
+    rxString s = rxSdsAttachlen(sds_space, command, l, &total_size);
+    argv[0] = rxSetStringObject(robj_space, (void *)s);
     sds_space = (struct sdshdr32 *)((char *)sds_space + total_size);
     robj_space = robj_space + rxSizeofRobj();
 
@@ -134,11 +134,11 @@ void *rxStashCommand(SimpleQueue *ctx, const char *command, int argc, ...)
     for (; j < argc; j++)
     {
 
-        sds result = va_arg(cpyArgs, sds);
-        l = sdslen(result);
+        rxString result = va_arg(cpyArgs, rxString);
+        l = strlen(result);
 
         s = rxSdsAttachlen(sds_space, result, l, &total_size);
-        argv[j + 1] = rxSetStringObject(robj_space, s);
+        argv[j + 1] = rxSetStringObject(robj_space, (void *)s);
 
         robj_space = robj_space + rxSizeofRobj();
         sds_space = (struct sdshdr32 *)((char *)sds_space + total_size);
@@ -157,11 +157,11 @@ void *rxStashCommand2(SimpleQueue *ctx, const char *command, int argt, int argc,
     void *stash = NULL;
 
     size_t total_string_size = command == NULL ? 0 : 1 + strlen(command);
-    int preamble_len = sizeof(struct sdshdr32);
+    int preamble_len = rxStringGetSdsHdrSize();
     for (int j = 0; j < argc; j++)
     {
-        sds result = (( argt == 1 ) ? (sds)((sds *)args[j]) : (sds)rxGetContainedObject(args[j]));
-        total_string_size += preamble_len + sdslen(result) + 1;
+        rxString result = (( argt == 1 ) ? (rxString)((rxString *)args[j]) : (rxString)rxGetContainedObject(args[j]));
+        total_string_size += preamble_len + strlen(result) + 1;
     }
     size_t total_pointer_size = (argc + 3) * sizeof(void *);
     size_t total_robj_size = (argc + 1) * rxSizeofRobj();
@@ -178,36 +178,36 @@ void *rxStashCommand2(SimpleQueue *ctx, const char *command, int argt, int argc,
 
     void **argv = (void **)(stash + sizeof(void *));
     void *robj_space = ((void *)stash + total_pointer_size);
-    struct sdshdr32 *sds_space = (struct sdshdr32 *)((void *)robj_space + total_robj_size);
+    void *sds_space = rxStringGetSdsHdr(robj_space, total_robj_size);
     // char *string_space = (char *)((void *)sds_space + total_sds_size);
 
     int j = 0;
     int k = 0;
     size_t total_size = 0;
     size_t l;
-    sds s;
+    rxString s;
     if (command != NULL)
     {
         l = strlen(command);
         // strcpy(string_space, command);
         s = rxSdsAttachlen(sds_space, command, l, &total_size);
-        argv[0] = rxSetStringObject(robj_space, s);
+        argv[0] = rxSetStringObject(robj_space, (void *)s);
     }
     else
         k = 1;
-    sds_space = (struct sdshdr32 *)((char *)sds_space + total_size);
+    sds_space = rxStringGetSdsHdr(sds_space, total_size);
     robj_space = robj_space + rxSizeofRobj();
     for (; j < argc; j++)
     {
 
-        sds result = ( argt == 1 ) ? (sds)args[j] : (sds)rxGetContainedObject(args[j]);
-        l = sdslen(result);
+        rxString result = ( argt == 1 ) ? (rxString)args[j] : (rxString)rxGetContainedObject(args[j]);
+        l = strlen(result);
 
         s = rxSdsAttachlen(sds_space, result, l, &total_size);
-        argv[j - k + 1] = rxSetStringObject(robj_space, s);
+        argv[j - k + 1] = rxSetStringObject(robj_space, (void *)s);
 
         robj_space = robj_space + rxSizeofRobj();
-        sds_space = (struct sdshdr32 *)((char *)sds_space + total_size);
+        sds_space = rxStringGetSdsHdr(sds_space, total_size);
     }
     argv[j - k + 1] = NULL;
 
@@ -222,8 +222,8 @@ void ExecuteRedisCommand(SimpleQueue *ctx, void *stash, const char *host_referen
     void **argv = (void **)(stash + sizeof(void *));
     auto *c = (struct client *)RedisClientPool<struct client>::Acquire(host_reference);
     rxAllocateClientArgs(c, argv, argc);
-    sds commandName = (sds)rxGetContainedObject(argv[0]);
-    void *command_definition = rxLookupCommand((sds)commandName);
+    rxString commandName = (rxString)rxGetContainedObject(argv[0]);
+    void *command_definition = rxLookupCommand((rxString)commandName);
     rxClientExecute(c, command_definition);
     RedisClientPool<struct client>::Release(c);
     if(ctx)
@@ -332,17 +332,17 @@ public:
 
     int Remove(char const *key)
     {
-        return this->Remove(key, sdslen(key));
+        return this->Remove(key, strlen(key));
     }
 };
 
 class GraphStackEntry
 {
 public:
-    /* const char * */ sds token_key;
-    /* const char * */ sds inverse_token_key;
-    /* const char * */ sds token_value;
-    /* const char * */ sds token_type;
+    /* const char * */ rxString token_key;
+    /* const char * */ rxString inverse_token_key;
+    /* const char * */ rxString token_value;
+    /* const char * */ rxString token_type;
     // predicate weight
     double weight;
     GraphIdentity<char> *entity;
@@ -353,7 +353,7 @@ public:
     {
         this->token_key = NULL;
         this->inverse_token_key = NULL;
-        this->token_value = sdsdup(sdsnew(token_value));
+        this->token_value = rxStringDup(rxStringNew(token_value));
         this->token_type = NULL;
         this->ctx = NULL;
         this->entity = NULL;
@@ -390,27 +390,27 @@ public:
     void ComposeEdgeIRI(GraphStackEntry *target)
     {
         // Pre-Resolve predicate IRI
-        /* const char * */ sds verb = target->token_type;
+        /* const char * */ rxString verb = target->token_type;
         if (!verb)
             verb = this->GetFromParent(ENTITY_TYPE);
-        /* const char * */ sds inverse_verb = target->inverse_token_key;
+        /* const char * */ rxString inverse_verb = target->inverse_token_key;
         if (!inverse_verb)
             inverse_verb = this->GetFromParent(ENTITY_INVERSE_TYPE);
-        /* const char * */ sds object_value = this->GetFromParent(OBJECT);
-        /* const char * */ sds subject_value = this->GetFromParent(SUBJECT);
-        sds composite_key = sdsempty();
+        /* const char * */ rxString object_value = this->GetFromParent(OBJECT);
+        /* const char * */ rxString subject_value = this->GetFromParent(SUBJECT);
+        rxString composite_key = rxStringEmpty();
         if (verb && object_value && subject_value)
         {
-            composite_key = sdscatprintf(composite_key, "%s:%s:%s", verb, subject_value, object_value);
-            target->entity->Insert(IRI, 3, sdsdup(composite_key));
-            target->token_key = sdsdup(composite_key);
+            composite_key = rxStringFormat("%s%s:%s:%s", composite_key, verb, subject_value, object_value);
+            target->entity->Insert(IRI, 3, (char *)rxStringDup(composite_key));
+            target->token_key = rxStringDup(composite_key);
             // target->Dump("TARGET AFTER ComposeEdgeIRI");
         }
         if (inverse_verb && object_value && subject_value)
         {
-            composite_key = sdscatprintf(composite_key, "%s:%s:%s", inverse_verb, object_value, subject_value);
+            composite_key = rxStringFormat("%s%s:%s:%s", composite_key, inverse_verb, object_value, subject_value);
             target->entity->Insert(INVERSE_IRI, 3, strdup(composite_key));
-            target->inverse_token_key = sdsdup(composite_key);
+            target->inverse_token_key = rxStringDup(composite_key);
             // target->Dump("TARGET AFTER ComposeEdgeIRI");
         }
     }
@@ -468,32 +468,32 @@ public:
         return strcmp(this->token_key, PREDICATE) == 0;
     }
 
-    void Link(sds edge_key, sds vertice, const char *direction, double weight)
+    void Link(rxString edge_key, rxString vertice, const char *direction, double weight)
     {
-        sds type;
+        rxString type;
         char *colon = strstr((char *)edge_key, COLON);
         if (colon)
         {
-            type = sdsnewlen(edge_key, colon - edge_key);
+            type = rxStringNewLen(edge_key, colon - edge_key);
         }
         else
         {
             colon = strstr((char *)vertice, COLON);
-            type = sdsnewlen(vertice, colon - vertice);
+            type = rxStringNewLen(vertice, colon - vertice);
         }
         if (type[0] == TANDEM_PREFIX[0])
-            type = sdsnewlen(type + 1, sdslen(type) - 1);
-        sds link = sdsempty();
-        link = sdscatprintf(link, "%s|%s|%s\%0.0f",
-                            type,
+            type = rxStringNewLen(type + 1, strlen(type) - 1);
+        rxString link = rxStringEmpty();
+        link = rxStringFormat("%s%s|%s|%s\%0.0f",
+                            link, type,
                             vertice,
                             direction,
                             weight);
         rxStashCommand(this->ctx, WREDIS_CMD_SADD, 2, edge_key, link);
-        sdsfree(link);
+        rxStringFree(link);
     }
 
-    /* const char * */ sds Get(const char *key)
+    /* const char * */ rxString Get(const char *key)
     {
         return this->entity->Find(key);
     }
@@ -538,9 +538,9 @@ public:
                 // printf("#115# Persist # %s\n", this->token_key);
             }
             this->inverse_token_key = GetFromParent("inverse");
-            /* const char * */ sds weight = GetFromParent(WEIGHT);
-            /* const char * */ sds subject = GetFromParent(SUBJECT);
-            /* const char * */ sds object = GetFromParent(OBJECT);
+            /* const char * */ rxString weight = GetFromParent(WEIGHT);
+            /* const char * */ rxString subject = GetFromParent(SUBJECT);
+            /* const char * */ rxString object = GetFromParent(OBJECT);
             if (!this->token_key || !subject || !object)
             {
                 this->Dump("Missing entities on PERSIST");
@@ -549,17 +549,17 @@ public:
             else
             {
                 double w = weight ? atof(weight) : 1.0;
-                sds subject_key = sdsnew(TANDEM_PREFIX);
-                subject_key = sdscat(subject_key, subject);
-                sds object_key = sdsnew(TANDEM_PREFIX);
-                object_key = sdscat(object_key, object);
-                sds predicate_key = sdsnew(TANDEM_PREFIX);
-                predicate_key = sdscat(predicate_key, this->token_key);
-                sds inverse_predicate_key = sdsnew(TANDEM_PREFIX);
+                rxString subject_key = rxStringNew(TANDEM_PREFIX);
+                subject_key = rxStringFormat("%s%s", subject_key, subject);
+                rxString object_key = rxStringNew(TANDEM_PREFIX);
+                object_key = rxStringFormat("%s%s", object_key, object);
+                rxString predicate_key = rxStringNew(TANDEM_PREFIX);
+                predicate_key = rxStringFormat("%s%s", predicate_key, this->token_key);
+                rxString inverse_predicate_key = rxStringNew(TANDEM_PREFIX);
                 if (this->inverse_token_key)
-                    inverse_predicate_key = sdscat(inverse_predicate_key, this->inverse_token_key);
+                    inverse_predicate_key = rxStringFormat("%s%s", inverse_predicate_key, this->inverse_token_key);
                 else
-                    inverse_predicate_key = sdscat(inverse_predicate_key, this->token_key);
+                    inverse_predicate_key = rxStringFormat("%s%s", inverse_predicate_key, this->token_key);
                 this->Link(inverse_predicate_key, subject_key, EDGE_TYPE_EDGE_TO_SUBJECT, w);
                 this->Link(subject_key, predicate_key, EDGE_TYPE_SUBJECT_TO_EDGE, w);
                 this->Link(predicate_key, object_key, EDGE_TYPE_EDGE_TO_OBJECT, w);
@@ -573,40 +573,40 @@ public:
         char *key;
         size_t keylen;
         char *value;
-        sds iri = sdsnew(this->token_key);
+        rxString iri = rxStringNew(this->token_key);
         while ((key = this->entity->Next(&keylen, &value)) != NULL)
         {
-            // if (strncmp(WEIGHT, (/* const char * */ sds )key, keylen) == 0)
+            // if (strncmp(WEIGHT, (/* const char * */ rxString )key, keylen) == 0)
             //     continue;
-            if (strncmp(IRI, (/* const char * */ sds)key, keylen) == 0)
+            if (strncmp(IRI, (/* const char * */ rxString)key, keylen) == 0)
                 continue;
-            if (strncmp("inverse", (/* const char * */ sds)key, keylen) == 0)
+            if (strncmp("inverse", (/* const char * */ rxString)key, keylen) == 0)
             {
                 int segments = 0;
-                sds v = sdsnew((char *)value);
-                sds *parts = sdssplitlen(v, sdslen(v), ":", 1, &segments);
-                sds e = sdsnew("edge");
-                sds t = sdsnew("type");
+                rxString v = rxStringNew((char *)value);
+                rxString *parts = rxStringSplitLen(v, strlen(v), ":", 1, &segments);
+                rxString e = rxStringNew("edge");
+                rxString t = rxStringNew("type");
                 rxStashCommand(this->ctx, WREDIS_CMD_HSET, 3, inverse_token_key, e, token_key);
                 rxStashCommand(this->ctx, WREDIS_CMD_HSET, 3, inverse_token_key, t, parts[0]);
                 rxStashCommand(this->ctx, WREDIS_CMD_HSET, 3, inverse_token_key, e, inverse_token_key);
-                sdsfreesplitres(parts, segments);
-                sdsfree(e);
-                sdsfree(t);
+                rxStringFreeSplitRes(parts, segments);
+                rxStringFree(e);
+                rxStringFree(t);
                 continue;
             }
-            if (strncmp("inv", (/* const char * */ sds)key, keylen) == 0)
+            if (strncmp("inv", (/* const char * */ rxString)key, keylen) == 0)
                 continue;
-            if (strncmp(SUBJECT, (/* const char * */ sds)key, keylen) == 0)
+            if (strncmp(SUBJECT, (/* const char * */ rxString)key, keylen) == 0)
                 continue;
-            if (strncmp(OBJECT, (/* const char * */ sds)key, keylen) == 0)
+            if (strncmp(OBJECT, (/* const char * */ rxString)key, keylen) == 0)
                 continue;
-            sds k = sdsnewlen(key, keylen);
+            rxString k = rxStringNewLen(key, keylen);
             // printf("#500# Persist # %p %s\n", iri, iri);
             rxStashCommand(this->ctx, WREDIS_CMD_HSET, 3, iri, k, value);
-            sdsfree(k);
+            rxStringFree(k);
         }
-        sdsfree(iri);
+        rxStringFree(iri);
         this->entity->StopIterator();
         ;
         // The hashtable is no longer needed
@@ -639,7 +639,7 @@ public:
                 char *value;
                 while ((key = e->entity->Next(&keylen, &value)) != NULL)
                 {
-                    sds k = sdsnewlen(key, keylen);
+                    rxString k = rxStringNewLen(key, keylen);
                     printf("...%s=         %s\n", k, (char *)value);
                 }
                 e->entity->StopIterator();
@@ -664,14 +664,14 @@ public:
         return false;
     }
 
-    /* const char * */ sds GetFromParent(const char *key)
+    /* const char * */ rxString GetFromParent(const char *key)
     {
         GraphStackEntry *e = this;
         while (e)
         {
             if (e->entity != NULL)
             {
-                /* const char * */ sds value = e->Get(key);
+                /* const char * */ rxString value = e->Get(key);
                 if (value != NULL)
                     return value;
             }

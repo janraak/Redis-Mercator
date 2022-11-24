@@ -21,7 +21,6 @@ extern "C"
 #endif
 
 // #include "string.h"
-#include "util.h"
 
 #ifdef __cplusplus
 }
@@ -48,7 +47,7 @@ int Execute_Command_Cron(struct aeEventLoop *, long long, void * /*clientData*/)
 
     // while (execute_command_cron_tally == 0 || queue->QueueLength() > 0 || queue->response_queue->QueueLength() > 0)
     // {
-    //     sds *request = queue->Dequeue();
+    //     rxString *request = queue->Dequeue();
     //     if (request == NULL)
     //     {
     //         return execute_command_delay_ms;
@@ -89,34 +88,34 @@ static void *execQueryThread(void *ptr)
     if (load_entry != NULL)
     {
         GET_ARGUMENTS_FROM_STASH(load_entry);
-        // sds target_setname = sdsempty();
-        sds query = sdsempty();
+        // rxString target_setname = rxStringEmpty();
+        rxString query = rxStringEmpty();
 
         char sep[2] = {0x00, 0x00};
         for (int j = 1; j < argc; ++j)
         {
-            sds q = (sds)rxGetContainedObject(argv[j]);
-            if (stringmatchlen(q, strlen(AS_ARG), AS_ARG, strlen(AS_ARG), 1) && strlen(q) == strlen(AS_ARG))
+            rxString q = (rxString)rxGetContainedObject(argv[j]);
+            if (rxStringMatchLen(q, strlen(AS_ARG), AS_ARG, strlen(AS_ARG), 1) && strlen(q) == strlen(AS_ARG))
             {
                 ++j;
-                // q = (sds)rxGetContainedObject(argv[j]);
+                // q = (rxString)rxGetContainedObject(argv[j]);
                 // target_setname = q;
             }
-            else if (stringmatchlen(q, strlen(RESET_ARG), RESET_ARG, strlen(RESET_ARG), 1) && strlen(q) == strlen(RESET_ARG))
+            else if (rxStringMatchLen(q, strlen(RESET_ARG), RESET_ARG, strlen(RESET_ARG), 1) && strlen(q) == strlen(RESET_ARG))
             {
                 FaBlok::ClearCache();
             }
             else
             {
-                query = sdscatfmt(query, "%s%s", sep, q);
+                query = rxStringFormat("%s%s%s", query, sep, q);
                 sep[0] = ' ';
             }
         }
     
         Sjiboleth *parser;
         if (
-            stringmatchlen(query, 2, GREMLIN_PREFX, strlen(GREMLIN_PREFX), 1) ||
-            stringmatchlen(query, 2, GREMLIN_PREFIX_ALT, strlen(GREMLIN_PREFIX_ALT), 1))
+            rxStringMatchLen(query, 2, GREMLIN_PREFX, strlen(GREMLIN_PREFX), 1) ||
+            rxStringMatchLen(query, 2, GREMLIN_PREFIX_ALT, strlen(GREMLIN_PREFIX_ALT), 1))
             parser = new GremlinDialect();
         else
             parser = new QueryDialect();

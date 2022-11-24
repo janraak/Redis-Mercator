@@ -15,7 +15,6 @@ extern "C"
 #endif
 
 #include "string.h"
-#include "util.h"
 #include "zmalloc.h"
 
 #ifdef __cplusplus
@@ -26,20 +25,20 @@ class RxDescribeMultiplexer : public Multiplexer
 {
 public:
     dictIterator *di;
-    sds attribute_value;
+    rxString attribute_value;
     int attribute_value_len;
-    sds attribute;
+    rxString attribute;
     int attribute_len;
     rax *bucket;
 
-    RxDescribeMultiplexer(int dbNo, sds attribute_value, sds attribute)
+    RxDescribeMultiplexer(int dbNo, rxString attribute_value, rxString attribute)
         : Multiplexer()
     {
         this->di = rxGetDatabaseIterator(dbNo);
-        this->attribute_value = sdsdup(attribute_value);
-        this->attribute_value_len = sdslen(attribute_value);
-        this->attribute = sdsdup(attribute);
-        this->attribute_len = sdslen(attribute);
+        this->attribute_value = rxStringDup(attribute_value);
+        this->attribute_value_len = strlen(attribute_value);
+        this->attribute = rxStringDup(attribute);
+        this->attribute_len = strlen(attribute);
         this->bucket = raxNew();
     }
 
@@ -47,8 +46,8 @@ public:
     {
         dictReleaseIterator(this->di);
         raxFree(this->bucket);
-        sdsfree(this->attribute);
-        sdsfree(this->attribute_value);
+        rxStringFree(this->attribute);
+        rxStringFree(this->attribute_value);
     }
 
     int Execute()
@@ -57,22 +56,22 @@ public:
         if ((de = dictNext(this->di)) == NULL)
             return -1;
 
-        sds key = (char *)dictGetKey(de);
+        rxString key = (char *)dictGetKey(de);
         void *value = dictGetVal(de);
         if (rxGetObjectType(value) == rxOBJ_ZSET)
         {
             int segments = 0;
-            sds *parts = sdssplitlen(key, sdslen(key), ":", 1, &segments);
-            if (stringmatchlen(this->attribute_value, this->attribute_value_len, parts[1], sdslen(parts[1]), 1) && stringmatchlen(this->attribute, this->attribute_len, parts[2], sdslen(parts[2]), 1))
+            rxString *parts = rxStringSplitLen(key, strlen(key), ":", 1, &segments);
+            if (rxStringMatchLen(this->attribute_value, this->attribute_value_len, parts[1], strlen(parts[1]), 1) && rxStringMatchLen(this->attribute, this->attribute_len, parts[2], strlen(parts[2]), 1))
             {
                 this->hits++;
-                sds avkey = sdscatfmt(sdsempty(), "%s:%s", parts[1], parts[2]);
-                raxInsert(this->bucket, (UCHAR *)avkey, sdslen(avkey), NULL, NULL);
-                sdsfree(avkey);
+                rxString avkey = rxStringFormat("%s:%s", parts[1], parts[2]);
+                raxInsert(this->bucket, (UCHAR *)avkey, strlen(avkey), NULL, NULL);
+                rxStringFree(avkey);
             }
             else
                 this->misses++;
-            sdsfreesplitres(parts, segments);
+            rxStringFreeSplitRes(parts, segments);
         }
         else
             this->ignored++;

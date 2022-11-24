@@ -13,7 +13,6 @@ extern "C"
 {
 #endif
 
-#include "util.h"
 #include "zmalloc.h"
 
 #ifdef __cplusplus
@@ -29,9 +28,9 @@ class RxFetchMultiplexer : public Multiplexer
 {
 public:
     dictIterator *di;
-    sds attribute_value;
+    rxString attribute_value;
     int attribute_value_len;
-    sds attribute;
+    rxString attribute;
     int attribute_len;
     rxComparisonProc *matchOperation;
     long long touched;
@@ -49,7 +48,7 @@ public:
     rxComparisonProc *dup_matchOperation;
     rax *dup_bucket;
 
-    RxFetchMultiplexer(int argc, int dbNo, sds attribute_value)
+    RxFetchMultiplexer(int argc, int dbNo, rxString attribute_value)
         : Multiplexer()
     {
         this->touched = 0;
@@ -61,9 +60,9 @@ public:
         this->dbNo = dbNo;
         this->argc = argc;
         this->di = rxGetDatabaseIterator(dbNo);
-        this->attribute_value = sdsdup(attribute_value);
-        this->attribute_value_len = sdslen(attribute_value);
-        this->attribute = sdsempty();
+        this->attribute_value = rxStringDup(attribute_value);
+        this->attribute_value_len = strlen(attribute_value);
+        this->attribute = rxStringEmpty();
         this->attribute_len = 0;
         this->matchOperation = NULL;
         this->bucket = raxNew();
@@ -73,14 +72,14 @@ public:
         this->dup_bucket = this->bucket;
     }
 
-    RxFetchMultiplexer(int argc, int dbNo, sds attribute_value, sds attribute)
+    RxFetchMultiplexer(int argc, int dbNo, rxString attribute_value, rxString attribute)
         : RxFetchMultiplexer(argc, dbNo, attribute_value)
     {
-        this->attribute = sdsdup(attribute);
-        this->attribute_len = sdslen(attribute);
+        this->attribute = rxStringDup(attribute);
+        this->attribute_len = strlen(attribute);
     }
 
-    RxFetchMultiplexer(int argc, int dbNo, sds attribute_value, sds attribute, rxComparisonProc *matchOperation)
+    RxFetchMultiplexer(int argc, int dbNo, rxString attribute_value, rxString attribute, rxComparisonProc *matchOperation)
         : RxFetchMultiplexer(argc, dbNo, attribute_value, attribute)
     {
         this->matchOperation = matchOperation;
@@ -107,8 +106,8 @@ public:
         this->checkIntegrity();
         dictReleaseIterator(this->di);
         raxFreeWithCallback(this->bucket, FreeResultDoubleObject);
-        sdsfree(this->attribute);
-        sdsfree(this->attribute_value);
+        rxStringFree(this->attribute);
+        rxStringFree(this->attribute_value);
     }
 
     int Execute()
@@ -119,20 +118,20 @@ public:
             return -1;
         this->checkIntegrity();
 
-        sds key = (char *)dictGetKey(de);
-        // if (stringmatchlen(this->attribute_value, this->attribute_value_len, key, sdslen(key), 0))
+        rxString key = (char *)dictGetKey(de);
+        // if (rxStringMatchLen(this->attribute_value, this->attribute_value_len, key, strlen(key), 0))
         // {
         void *value = dictGetVal(de);
         this->touched++;
         if (rxGetObjectType(value) == rxOBJ_ZSET)
         {
             int segments = 0;
-            sds *parts = sdssplitlen(key, sdslen(key), ":", 1, &segments);
+            rxString *parts = rxStringSplitLen(key, strlen(key), ":", 1, &segments);
             switch (this->argc)
             {
             case VALUE_ONLY:
                 this->strings++;
-                if (stringmatchlen(this->attribute_value, this->attribute_value_len, parts[1], sdslen(parts[1]), 1))
+                if (rxStringMatchLen(this->attribute_value, this->attribute_value_len, parts[1], strlen(parts[1]), 1))
                 {
                     this->hits++;
                     rxHarvestSortedSetMembers(value, this->bucket);
@@ -144,7 +143,7 @@ public:
                 this->hashes++;
                 if (this->attribute_len == 0)
                 {
-                    if (stringmatchlen(this->attribute_value, this->attribute_value_len, parts[1], sdslen(parts[1]), 1))
+                    if (rxStringMatchLen(this->attribute_value, this->attribute_value_len, parts[1], strlen(parts[1]), 1))
                     {
                         this->hits++;
                         rxHarvestSortedSetMembers(value, this->bucket);
@@ -154,7 +153,7 @@ public:
                 }
                 else
                 {
-                    if (stringmatchlen(this->attribute_value, this->attribute_value_len, parts[1], sdslen(parts[1]), 1) && stringmatchlen(this->attribute, this->attribute_len, parts[2], sdslen(parts[2]), 1))
+                    if (rxStringMatchLen(this->attribute_value, this->attribute_value_len, parts[1], strlen(parts[1]), 1) && rxStringMatchLen(this->attribute, this->attribute_len, parts[2], strlen(parts[2]), 1))
                     {
                         this->hits++;
                         rxHarvestSortedSetMembers(value, this->bucket);
@@ -166,7 +165,7 @@ public:
             case FIELD_OP_VALUE:
                 if (this->matchOperation != NULL)
                 {
-                    if (this->matchOperation(parts[1], sdslen(parts[1]), this->attribute_value) != 0)
+                    if (this->matchOperation(parts[1], strlen(parts[1]), this->attribute_value) != 0)
                     {
                         this->hits++;
                         rxHarvestSortedSetMembers(value, this->bucket);
@@ -178,7 +177,7 @@ public:
                     rxModulePanic((char *)"f op v requires a valid operator");
                 break;
             }
-            sdsfreesplitres(parts, segments);
+            rxStringFreeSplitRes(parts, segments);
         }
         else
             this->ignored++;

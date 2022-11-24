@@ -60,7 +60,7 @@ void SilNikParowy::Preload(ParsedExpression *e, SilNikParowy_Kontekst *)
         else
         {
             rxServerLogRaw(rxLL_WARNING,
-                           sdsnew("Odd token"));
+                           rxStringNew("Odd token"));
         }
     }
 }
@@ -105,11 +105,11 @@ rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack)
     }
 end_of_loop:
     printf("\n");
-    sds error;
+    rxString error;
     rax *rx = NULL;
     if (listLength(e->errors) > 0)
     {
-        error = sdsempty();
+        error = rxStringEmpty();
         listNode *ln;
         listIter *li = listGetIterator(e->errors, AL_START_HEAD);
         while ((ln = listNext(li)) != NULL)
@@ -118,11 +118,11 @@ end_of_loop:
             {
                 printf("ERROR: %s\n", e->ToString());
                 printf("ERROR: %s\n", (char *)ln->value);
-                error = sdscat(error, (char *)ln->value);
-                error = sdscat(error, "\n");
+                error = rxStringFormat("%s%s", error, (char *)ln->value);
+                error = rxStringFormat("%s%s", error, "\n");
             }
         }
-        if (sdslen(error) > 0)
+        if (strlen(error) > 0)
         {
             return NULL;
         }
@@ -135,9 +135,9 @@ end_of_loop:
         {
         case 0:
             t = e->lastInstruction();
-            if (t != NULL && t->CompareToken(sdsnew("=")) != 0)
+            if (t != NULL && t->CompareToken(rxStringNew("=")) != 0)
             {
-                e->AddError(sdsnew("Invalid expression, no result yielded!"));
+                e->AddError(rxStringNew("Invalid expression, no result yielded!"));
             }
             break;
         case 1:
@@ -161,14 +161,14 @@ end_of_loop:
             FaBlok *memo = (FaBlok *)stack->Recall("V");
             if (memo != NULL && memo != checkV)
             {
-                error = sdsnew("Invalid expression, ");
-                error = sdscatfmt(error, "%i  results yielded!\n", stack->Size());
+                error = rxStringNew("Invalid expression, ");
+                error = rxStringFormat("%s %d  results yielded!\n", error, stack->Size());
                 e->AddError(error);
                 return NULL;
             }
             if ((r->IsValueType(KeysetDescriptor_TYPE_KEYSET) || r->IsValueType(KeysetDescriptor_TYPE_SINGULAR)) && !r->HasKeySet())
             {
-                r->FetchKeySet(stack->serviceConfig, sdsempty(), r->setname, sdsempty());
+                r->FetchKeySet(stack->serviceConfig, rxStringEmpty(), r->setname, rxStringEmpty());
                 // stack->Push(r);
             }
             if (r->IsValueType(KeysetDescriptor_TYPE_MONITORED_SET))
@@ -185,8 +185,8 @@ end_of_loop:
         }
         break;
             // default:
-            //     error = sdsnew("Invalid expression, ");
-            //     error = sdscatfmt(error, "%i  results yielded!\n", stack->Size());
+            //     error = rxStringNew("Invalid expression, ");
+            //     error = rxStringFormat("%s %d  results yielded!\n", error, stack->Size());
             //     e->AddError(error);
             //     this->ClearStack();
             //     break;

@@ -77,7 +77,7 @@ elif role == 'master':
     # redis_client.execute_command("ACL SETUSER {} -@admin".format(cid))
     # redis_client.execute_command("ACL SETUSER {} +@read".format(cid))
 else:
-    redis_client.execute_command("MODULE LOAD extensions/src/rxIndexStore.so {} {}".format(host, port))
+    redis_client.execute_command("MODULE LOAD extensions/src/rxIndexStore.so  INDEX {} {} 0 DATA {} {} 0 DEFAULT_OPERATOR &".format(ihost, iport, host, port))
     # redis_client.execute_command("ACL SETUSER {} ON >{} +select|0".format(cid, cid))
     # redis_client.execute_command("ACL SETUSER {} -@admin".format(cid))
     # redis_client.execute_command("ACL SETUSER {} +@read".format(cid))

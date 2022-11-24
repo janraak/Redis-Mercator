@@ -16,7 +16,6 @@ extern "C"
 #endif
 
 #include "string.h"
-#include "util.h"
 #include "zmalloc.h"
 
 #ifdef __cplusplus

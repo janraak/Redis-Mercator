@@ -58,7 +58,7 @@ ParserToken *ParserToken::New(const char *aOp,
                          short aNo_of_stack_entries_produced)
 {
     auto *token = ParserToken::New(aToken_type, aOp, strlen(aOp));
-    strtoupper(token->op);
+    rxStringToUpper(token->op);
     token->token_priority = aToken_priority;
     token->no_of_stack_entries_consumed = aNo_of_stack_entries_consumed;
     token->no_of_stack_entries_produced = aNo_of_stack_entries_produced;
@@ -288,8 +288,8 @@ bool Sjiboleth::DeregisterSyntax(const char *op)
 }
 
 
-ParserToken *Sjiboleth::LookupToken(sds token){
-	ParserToken *referal_token = (ParserToken *)raxFind(this->registry, (UCHAR *)token, sdslen(token));
+ParserToken *Sjiboleth::LookupToken(rxString token){
+	ParserToken *referal_token = (ParserToken *)raxFind(this->registry, (UCHAR *)token, strlen(token));
 	if (referal_token != raxNotFound){
         return referal_token;
     }
@@ -298,7 +298,7 @@ ParserToken *Sjiboleth::LookupToken(sds token){
 
 Sjiboleth::Sjiboleth()
 {
-    this->default_operator = sdsnew("|");
+    this->default_operator = rxStringNew("|");
     this->registry = raxNew();
     this->RegisterDefaultSyntax();
     this->object_and_array_controls = false;
@@ -308,7 +308,7 @@ Sjiboleth::Sjiboleth()
 Sjiboleth::Sjiboleth(const char *default_operator)
     : Sjiboleth()
 {
-    this->default_operator = sdsnew(default_operator);
+    this->default_operator = rxStringNew(default_operator);
     this->registry = raxNew();
     this->RegisterDefaultSyntax();
 }

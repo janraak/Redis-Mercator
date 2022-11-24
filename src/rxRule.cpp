@@ -24,7 +24,6 @@ extern "C"
 #endif
 #include "rax.h"
 #include "rxSuiteHelpers.h"
-#include "util.h"
 #include <sys/stat.h>
 
     int rxRuleSet(RedisModuleCtx *ctx, RedisModuleString **argv, int argc);
@@ -93,32 +92,32 @@ int rxRuleSet(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     size_t len;
     const char *ruleName = RedisModule_StringPtrLen(argv[1], &len);
-    sds sep = sdsnew("");
-    sds query = sdsnew("");
+    rxString sep = rxStringNew("");
+    rxString query = rxStringNew("");
     for (int j = 2; j < argc; ++j)
     {
         char *q = (char *)RedisModule_StringPtrLen(argv[j], &len);
-        query = sdscatfmt(query, "%s%s", sep, q);
-        sep = sdsnew(" ");
+        query = rxStringFormat("%s%s%s", query, sep, q);
+        sep = rxStringNew(" ");
     }
     BusinessRule *br = new BusinessRule(ruleName, query);
-    sdsfree(sep);
-    sdsfree(query);
-    sds response = sdscatfmt(sdsempty(), "Rule for: %s Expression: Expression appears to be ", ruleName);
+    rxStringFree(sep);
+    rxStringFree(query);
+    rxString response = rxStringFormat("Rule for: %s Expression: Expression appears to be ", ruleName);
     switch (br->isvalid)
     {
     case true:
-        response = sdscat(response, "correct!");
+        response = rxStringFormat("%s%s", response, "correct!");
         BusinessRule::Retain(br);
         break;
     default:
-        response = sdscat(response, "incorrect!");
+        response = rxStringFormat("%s%s", response, "incorrect!");
         BusinessRule::Retain(br);
         // br = NULL;
         break;
     }
     RedisModule_ReplyWithSimpleString(ctx, response);
-    sdsfree(response);
+    rxStringFree(response);
     return REDISMODULE_OK;
 }
 
@@ -142,7 +141,7 @@ int rxRuleDel(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         BusinessRule::ForgetAll();
     else
     {
-        auto *br = BusinessRule::Find((sds)ruleName);
+        auto *br = BusinessRule::Find((rxString)ruleName);
         if (br != NULL)
         {
             BusinessRule::Forget(br);
@@ -165,13 +164,13 @@ int rxApply(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     rxUNUSED(ctx);
     rxUNUSED(argc);
-    sds key = (char *)rxGetContainedObject(argv[1]);
+    rxString key = (char *)rxGetContainedObject(argv[1]);
     rxServerLogRaw(rxLL_WARNING,
-                   sdscatprintf(sdsempty(), "Applying all rules to: %s\n", key));
-    sds response = BusinessRule::ApplyAll(key);
+                   rxStringFormat("Applying all rules to: %s\n", key));
+    rxString response = BusinessRule::ApplyAll(key);
     RedisModule_ReplyWithSimpleString(ctx, response);
-    rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(), "Applied all rules to: %s\n", key));
-    sdsfree(response);
+    rxServerLogRaw(rxLL_WARNING, rxStringFormat("Applied all rules to: %s\n", key));
+    rxStringFree(response);
     return REDISMODULE_OK;
 }
 
@@ -190,7 +189,7 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     redisNodeInfo *index_config = rxIndexNode();
     redisNodeInfo *data_config = rxDataNode();
 
-    rxServerLogRaw(rxLL_WARNING, sdscatprintf(sdsempty(), "\nrxRule loaded, is local:%d index: %s data: %s \n\n",
+    rxServerLogRaw(rxLL_WARNING, rxStringFormat("\nrxRule loaded, is local:%d index: %s data: %s \n\n",
                                               index_config->is_local,
                                               index_config->host_reference,
                                               data_config->host_reference));

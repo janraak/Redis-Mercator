@@ -91,15 +91,15 @@ redisContext *RedisClientPool<redisContext>::NewInstance()
     {
         if (c)
         {
-            sds e = sdscatprintf(sdsempty(), "Connection error: %s\n", c->errstr);
+            rxString e = rxStringFormat("Connection error: %s\n", c->errstr);
             redisFree(c);
-            sdsfree(e);
+            rxStringFree(e);
             return NULL;
         }
         else
         {
-            sds e = sdscatprintf(sdsempty(), "Connection error: can't allocate lzf context\n");
-            sdsfree(e);
+            rxString e = rxStringFormat("Connection error: can't allocate lzf context\n");
+            rxStringFree(e);
             return NULL;
         }
         return NULL;

@@ -128,11 +128,11 @@ FaBlok *FaBlok::Rename(const char *setname)
 
 void FaBlok::LoadKey(int dbNo, const char *k)
 {
-    sds key = sdsnew(k);
+    rxString key = rxStringNew(k);
     void *zobj = rxFindKey(dbNo, key);
     if (zobj == NULL)
     {
-        sdsfree(key);
+        rxStringFree(key);
         return;
     }
     if (rxGetObjectType(zobj) == rxOBJ_HASH)
@@ -140,7 +140,7 @@ void FaBlok::LoadKey(int dbNo, const char *k)
         this->InsertKey((UCHAR *)k, strlen(key), zobj);
         this->size = raxSize(&this->keyset);
     }
-    sdsfree(key);
+    rxStringFree(key);
 }
 
 int FaBlok::AsTemp()
@@ -163,7 +163,7 @@ FaBlok *FaBlok::Init()
     this->pid = getpid();
     this->thread_id = pthread_self();
 
-    this->setname = sdsempty();
+    this->setname = rxStringEmpty();
     this->marked_for_deletion = 653974783;
     this->ValueType(KeysetDescriptor_TYPE_UNKNOWN);
     this->is_temp = 653974783;
@@ -243,7 +243,7 @@ FaBlok::~FaBlok()
     }
     this->value_type = 0xff;
 }
-FaBlok::FaBlok(sds sn, UCHAR value_type)
+FaBlok::FaBlok(rxString sn, UCHAR value_type)
     : FaBlok()
 {
     this->setname = sn;
@@ -293,29 +293,29 @@ void FaBlok::pushIndexEntries(redisReply *reply)
         {
             redisReply *row = reply->element[j];
             redisReply *item = row->element[0];
-            sds index_entry = sdsnew(item->str);
+            rxString index_entry = rxStringNew(item->str);
 
             int segments = 0;
-            sds *parts = sdssplitlen(index_entry, strlen(index_entry), "\t", 1, &segments);
+            rxString *parts = rxStringSplitLen(index_entry, strlen(index_entry), "\t", 1, &segments);
             if (segments > 0)
             {
                 void *o = rxCreateStringObject(index_entry, strlen(index_entry));
                 this->InsertKey((UCHAR *)parts[0], strlen(parts[0]), o);
             }
-            sdsfreesplitres(parts, segments);
+            rxStringFreeSplitRes(parts, segments);
         }
         this->size = raxSize(&this->keyset);
     }
     freeReplyObject(reply);
 }
 
-sds FaBlok::AsSds()
+rxString FaBlok::AsSds()
 {
     if (memcmp(this->rumble_strip1, RUMBLE_STRIP1, sizeof(this->rumble_strip1)) != 0 || memcmp(this->rumble_strip2, RUMBLE_STRIP2, sizeof(this->rumble_strip2)) != 0)
     {
         printf("Rumble in the Jungle");
     }
-    return sdsnew(this->setname);
+    return rxStringNew(this->setname);
 }
 
 int FaBlok::FetchKeySet(redisNodeInfo *serviceConfig, const char *rh)
@@ -328,7 +328,7 @@ int FaBlok::FetchKeySet(redisNodeInfo *serviceConfig, const char *rh)
     {
         redisReply *rcc;
         int segments = 0;
-        sds *parts = sdssplitlen(rh, strlen(rh), " ", 1, &segments);
+        rxString *parts = rxStringSplitLen(rh, strlen(rh), " ", 1, &segments);
         switch (segments)
         {
         case 2:
@@ -341,7 +341,7 @@ int FaBlok::FetchKeySet(redisNodeInfo *serviceConfig, const char *rh)
             rcc = (redisReply *)redisCommand(index_context, "rxfetch %s", rh);
             break;
         }
-        sdsfreesplitres(parts, segments);
+        rxStringFreeSplitRes(parts, segments);
         this->latency = ustime() - start;
         this->pushIndexEntries(rcc);
     }
@@ -354,7 +354,7 @@ int FaBlok::FetchKeySet(redisNodeInfo *serviceConfig, const char *rh)
     return C_OK;
 }
 
-int FaBlok::FetchKeySet(redisNodeInfo *serviceConfig, const char *lh, const char *rh, sds cmp)
+int FaBlok::FetchKeySet(redisNodeInfo *serviceConfig, const char *lh, const char *rh, rxString cmp)
 {
     auto *index_context = RedisClientPool<redisContext>::Acquire(serviceConfig->host_reference);
     if (index_context == NULL)
@@ -426,7 +426,7 @@ FaBlok *FaBlok::Left()
     return this->left;
 }
 
-FaBlok *FaBlok::Copy(sds set_name, int value_type, RaxCopyCallProc *fnCallback, void **privData)
+FaBlok *FaBlok::Copy(rxString set_name, int value_type, RaxCopyCallProc *fnCallback, void **privData)
 {
     FaBlok *out = FaBlok::Get(set_name ? set_name : this->setname, value_type);
     out->Open();
@@ -514,7 +514,7 @@ void FaBlok::PushResult(GraphStack<FaBlok> *stack)
     }
     this->latency = ustime() - this->start;
     stack->Push(this);
-    // serverLog(LL_NOTICE, "#putKeysetDescriptor2# 0x%x nm=%s reuse=%d", (POINTER) kd, kd->setname, kd->reuse_count);
+    // rxServerLog(LL_NOTICE, "#putKeysetDescriptor2# 0x%x nm=%s reuse=%d", (POINTER) kd, kd->setname, kd->reuse_count);
 }
 
 FaBlok *FaBlok::Open()
@@ -681,14 +681,14 @@ void FaBlok::InsertKey(const char *key, void *obj)
 
 void FaBlok::InsertKey(unsigned char *s, size_t len, void *obj)
 {
-    sds key = sdsnewlen(s, len);
+    rxString key = rxStringNewLen((const char *)s, len);
     if (rxGetObjectType(obj) == rxOBJ_TRIPLET)
     {
         auto *g = (Graph_Triplet *)rxGetContainedObject(obj);
         g->IncrRefCnt();
     }
     this->InsertKey(key, obj);
-    sdsfree(key);
+    rxStringFree(key);
 }
 
 void *FaBlok::RemoveKey(const char *key)
@@ -700,9 +700,9 @@ void *FaBlok::RemoveKey(const char *key)
 
 void *FaBlok::RemoveKey(unsigned char *s, size_t len)
 {
-    sds key = sdsnewlen(s, len);
+    rxString key = rxStringNewLen((const char*)s, len);
     void *old = this->RemoveKey(key);
-    sdsfree(key);
+    rxStringFree(key);
     return old;
 }
 
@@ -726,10 +726,10 @@ int FaBlok::ValueType(int value_type)
     return old;
 }
 
-sds FaBlok::GetCacheReport()
+rxString FaBlok::GetCacheReport()
 {
     // TODO
-    return sdsempty();
+    return rxStringEmpty();
 }
 
 #include "sjiboleth-silnikparowy-ctx.cpp"

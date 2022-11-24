@@ -11,46 +11,46 @@ extern "C"
 
 #define rxUNUSED(x) (void)(x)
 
-uint64_t tokenSdsHash(const void *key)
-{
-    return dictGenHashFunction((unsigned char *)key, sdslen((char *)key));
-}
+// uint64_t tokenSdsHash(const void *key)
+// {
+//     return dictGenHashFunction((unsigned char *)key, sdslen((char *)key));
+// }
 
-int tokenSdsKeyCompare(void *privdata, const void *key1,
-                       const void *key2)
-{
-    int l1, l2;
-    DICT_NOTUSED(privdata);
+// int tokenSdsKeyCompare(void *privdata, const void *key1,
+//                        const void *key2)
+// {
+//     int l1, l2;
+//     DICT_NOTUSED(privdata);
 
-    l1 = sdslen((sds)key1);
-    l2 = sdslen((sds)key2);
-    if (l1 != l2)
-        return 0;
-    return memcmp(key1, key2, l1) == 0;
-}
+//     l1 = sdslen((sds)key1);
+//     l2 = sdslen((sds)key2);
+//     if (l1 != l2)
+//         return 0;
+//     return memcmp(key1, key2, l1) == 0;
+// }
 
-void tokenSdsDestructor(void *privdata, void *val)
-{
-    DICT_NOTUSED(privdata);
+// void tokenSdsDestructor(void *privdata, void *val)
+// {
+//     DICT_NOTUSED(privdata);
 
-    sdsfree(val);
-}
+//     sdsfree(val);
+// }
 
-void *tokenSdsDup(void *privdata, const void *key)
-{
-    DICT_NOTUSED(privdata);
-    return sdsdup((char *const)key);
-}
+// void *tokenSdsDup(void *privdata, const void *key)
+// {
+//     DICT_NOTUSED(privdata);
+//     return sdsdup((char *const)key);
+// }
 
-/* Db->dict, keys are sds strings, vals are Redis objects. */
-dictType tokenDictTypeDefinition = {
-    tokenSdsHash,       /* hash function */
-    tokenSdsDup,        /* key dup */
-    NULL,               /* val dup */
-    tokenSdsKeyCompare, /* key compare */
-    tokenSdsDestructor, /* key destructor */
-    NULL                /* val destructor */
-};
+// /* Db->dict, keys are sds strings, vals are Redis objects. */
+// dictType tokenDictTypeDefinition = {
+//     tokenSdsHash,       /* hash function */
+//     tokenSdsDup,        /* key dup */
+//     NULL,               /* val dup */
+//     tokenSdsKeyCompare, /* key compare */
+//     tokenSdsDestructor, /* key destructor */
+//     NULL                /* val destructor */
+// };
 
 void initRxSuite()
 {
@@ -59,10 +59,10 @@ void initRxSuite()
     if (!d->privdata)
     {
         rxSuiteShared *shared = zmalloc(sizeof(rxSuiteShared));
-        shared->OperationMap = NULL;
-        shared->KeysetCache = NULL;
+        // shared->OperationMap = NULL;
+        // shared->KeysetCache = NULL;
         shared->parserClaimCount = 0;
-        shared->tokenDictType = &tokenDictTypeDefinition;
+        // shared->tokenDictType = &tokenDictTypeDefinition;
         d->privdata = shared;
 
         shared->indexNode.host_reference = sdsnew("127.0.0.1:6379");
@@ -99,19 +99,6 @@ void finalizeRxSuite()
     {
         zfree(d->privdata);
     }
-}
-
-int sdscharcount(char *s, char c)
-{
-    int tally = 0;
-    char *t = s;
-    while (*t)
-    {
-        if (*t == toupper(c))
-            ++tally;
-        ++t;
-    }
-    return tally;
 }
 
 redisNodeInfo *rxIndexNode()
@@ -161,24 +148,8 @@ void rxRegisterConfig(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
             config->defaultQueryOperator = sdsnew(s);
         }
     }
-    config->indexNode.is_local = sdscmp(config->indexNode.host, config->dataNode.host) == 0 
-            && config->indexNode.port == config->dataNode.port;
+    config->indexNode.is_local = strcmp(config->indexNode.host, config->dataNode.host) == 0 && config->indexNode.port == config->dataNode.port;
     config->indexNode.host_reference = sdscatprintf(sdsempty(), "%s:%d", config->indexNode.host, config->indexNode.port);
     config->dataNode.is_local = config->indexNode.is_local;
     config->dataNode.host_reference = sdscatprintf(sdsempty(), "%s:%d", config->dataNode.host, config->dataNode.port);
-}
-
-
-/* Apply tolower() to every character of the string 's'. */
-void strtolower(const char *cs) {
-    char *s = (char *)cs;
-    int len = strlen(s), j;
-    for (j = 0; j < len; j++) s[j] = tolower(s[j]);
-}
-
-/* Apply toupper() to every character of the string 's'. */
-void strtoupper(const char *cs) {
-    char *s = (char *)cs;
-    int len = strlen(s), j;
-    for (j = 0; j < len; j++) s[j] = toupper(s[j]);
 }

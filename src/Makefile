@@ -16,9 +16,30 @@ else
 	SHOBJ_LDFLAGS ?= -bundle -undefined dynamic_lookup
 endif
 
+
+# To get ARM stack traces if Redis crashes we need a special C flag.
+ifneq (,$(filter aarch64 armv,$(uname_M)))
+        CFLAGS+=-funwind-tables
+else
+ifneq (,$(findstring armv,$(uname_M)))
+        CFLAGS+=-funwind-tables
+endif
+endif
+
+
+# Use -Wno-c11-extensions on clang, either where explicitly used or on
+# platforms we can assume it's being used.
+ifneq (,$(findstring clang,$(CC)))
+  CFLAGS+=-Wno-c11-extensions
+else
+ifneq (,$(findstring FreeBSD,$(uname_S)))
+  CFLAGS+=-Wno-c11-extensions
+endif
+endif
+
 # if debug build is disabled, enable lto
 
-CXXFLAGS ?=  -std=c++17  
+CXXFLAGS ?=  -std=c++17  -fpermissive
 CXXFLAGS += -flto  
 ifneq ($(DEBUG_BUILD),1)
 	# CXXFLAGS += -flto  -Wl,-flto -cpp
@@ -64,7 +85,7 @@ WARNNING=-Wno-variadic-macros \
 
 
 # Include paths to dependencies
-SHOBJ_CFLAGS+= -I../../deps/hiredis -I../../deps/linenoise -I../../deps/lua/src -I/usr/include
+SHOBJ_CFLAGS+= -I ../../src -I../../deps/hiredis -I../../deps/linenoise -I../../deps/lua/src -I/usr/include
 # Include REDIS Src
 SHOBJ_CFLAGS+= -I ../../src
 SHOBJ_CFLAGS+= -Wno-pointer-arith 
@@ -73,7 +94,7 @@ SHOBJ_CFLAGS+= -Wno-pointer-arith
 
 DEBUG += -g -ggdb
 
-all:  sentenceProcessor.xo indexIntercepts.xo rxSuite.xo  rxSuiteHelpers.xo parser.xo token.xo queryEngine.xo rxIndexer.so rxQuery.so rxIndexStore.so rxMercator.so rxRule.xo  rxRule.so sjiboleth.so rxGraphdb.so 
+all: sdsWrapper.xo indexIntercepts.xo rxSuite.xo  rxSuiteHelpers.xo rxIndexer.so rxQuery.so rxIndexStore.so rxMercator.so rxRule.xo  rxRule.so sjiboleth.so rxGraphdb.so 
 
 .c.xo: 
 	$(CC) -I.. -I. $(CFLAGS) $(SHOBJ_CFLAGS)  -isystem -DUSE_JEMALLOC  -I../deps/hiredis -I../deps/linenoise -I../../deps/lua/src -I/usr/include -fPIC -c $< -o $@
@@ -84,52 +105,46 @@ FILT = $(filter-out $(OBSOLETEFLAGS), $(CFLAGS))
 .cpp.xo:
 	c++ -I.. -I. $(CXXFLAGS) -shared  $(WARNNING) $(FILT) $(SHOBJ_CFLAGS)   -isystem -DUSE_JEMALLOC  -Werror=main -std=c++17 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -isystem -DUSE_JEMALLOC  -I../../deps/hiredis -I../../deps/linenoise -I../../deps/lua/src -I/usr/include -fPIC  $< -o $@
 
-rxGraphdb.so: ../../src/redismodule.h graphdb.cpp graphstack.hpp   rxSuite.xo  rxSuiteHelpers.xo  queryEngine.xo parser.xo token.xo sjiboleth.so  client-pool.hpp  client-pool.cpp 
-	g++  $(CXXFLAGS) -shared  $(WARNNING) $(FILT) $(SHOBJ_CFLAGS) -g -ggdb -o rxGraphdb.so -fPIC  graphdb.cpp  rxSuite.xo  rxSuiteHelpers.xo  queryEngine.xo  parser.xo token.xo sjiboleth.so  client-pool.cpp 
+rxGraphdb.so: ../../src/redismodule.h rxGraphdb.cpp graphstack.hpp   rxSuite.xo  rxSuiteHelpers.xo   sjiboleth.so  client-pool.hpp  client-pool.cpp sdsWrapper.xo  
+	g++ -o rxGraphdb.so  $(CXXFLAGS) -shared  $(WARNNING) $(FILT) $(SHOBJ_CFLAGS) -g -ggdb -fPIC  rxGraphdb.cpp  rxSuite.xo  rxSuiteHelpers.xo  sjiboleth.so  client-pool.cpp  sdsWrapper.xo 
 
-# graphdb.xo: ../../src/redismodule.h graphdb.cpp graphdb.h queryEngine.c queryEngine.h  parser.c parser.h token.c token.h queryEngine.c queryEngine.h  sentenceProcessor.c sentenceProcessor.h  graphstack.hpp
-
-sjiboleth.so: ../../src/redismodule.h sjiboleth.cpp sjiboleth.hpp   rxSuite.xo  rxSuiteHelpers.xo  sjiboleth.cpp sjiboleth-silnikparowy.cpp  sjiboleth-silnikparowy-ctx.cpp sjiboleth-generic.cpp sjiboleth-gremlin.cpp sjiboleth-json.cpp sjiboleth-query.cpp sjiboleth-text.cpp  sjiboleth-fablok.cpp rxSuite.xo  rxSuiteHelpers.xo sjiboleth.cpp         sjiboleth-generic.cpp  sjiboleth-parser.cpp  sjiboleth-text.cpp  sjiboleth-gremlin.cpp  sjiboleth-query.cpp   sjibolethWrapper.cpp sjiboleth-fablok.cpp  sjiboleth.xo  sjiboleth-json.cpp sjiboleth.hpp graphstack.hpp makefile client-pool.hpp client-pool.cpp
-	g++  $(CXXFLAGS) -shared  $(WARNNING) $(FILT) $(SHOBJ_CFLAGS)  -g -ggdb  -isystem -DUSE_JEMALLOC -Werror=main -std=c++17 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -isystem -DUSE_JEMALLOC  -I../deps/hiredis -I../deps/linenoise -I../../deps/lua/src -I/usr/include -fPIC  -o sjiboleth.so -fPIC  sjiboleth.cpp  sjiboleth-fablok.cpp sjiboleth-generic.cpp  sjiboleth-gremlin.cpp  sjiboleth-json.cpp  sjiboleth-parser.cpp  sjiboleth-query.cpp sjiboleth-text.cpp  sjibolethWrapper.cpp   rxSuiteHelpers.xo client-pool.cpp 
+sjiboleth.so: ../../src/redismodule.h sjiboleth.cpp sjiboleth.hpp   rxSuite.xo  rxSuiteHelpers.xo  sjiboleth.cpp sjiboleth-silnikparowy.cpp  sjiboleth-silnikparowy-ctx.cpp sjiboleth-generic.cpp sjiboleth-gremlin.cpp sjiboleth-json.cpp sjiboleth-query.cpp sjiboleth-text.cpp  sjiboleth-fablok.cpp rxSuite.xo  rxSuiteHelpers.xo sjiboleth.cpp         sjiboleth-generic.cpp  sjiboleth-parser.cpp  sjiboleth-text.cpp  sjiboleth-gremlin.cpp  sjiboleth-query.cpp   sjibolethWrapper.cpp sjiboleth-fablok.cpp  sjiboleth.xo  sjiboleth-json.cpp sjiboleth.hpp graphstack.hpp makefile client-pool.hpp client-pool.cpp sdsWrapper.xo
+	g++ -o sjiboleth.so  $(CXXFLAGS) -shared  $(WARNNING) $(FILT) $(SHOBJ_CFLAGS)  -g -ggdb  -isystem -DUSE_JEMALLOC -Werror=main -std=c++17 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -isystem -DUSE_JEMALLOC  -I../deps/hiredis -I../deps/linenoise -I../../deps/lua/src -I/usr/include -fPIC  sjiboleth.cpp  sjiboleth-fablok.cpp sjiboleth-generic.cpp  sjiboleth-gremlin.cpp  sjiboleth-json.cpp  sjiboleth-parser.cpp  sjiboleth-query.cpp sjiboleth-text.cpp  sjibolethWrapper.cpp   rxSuiteHelpers.xo client-pool.cpp  sdsWrapper.xo
 	cp sjiboleth.so ../..
 
 
 makefile:
 	echo "build complete"
 
-rxRule.so: ../../src/redismodule.h rxRule.cpp rule.hpp    rxSuite.xo  rxSuiteHelpers.xo   sjiboleth.so   client-pool.hpp simpleQueue.hpp   simpleQueue.cpp  
-	g++ -shared -g -ggdb -o rxRule.so  $(SHOBJ_CFLAGS)  -fPIC rxRule.cpp rxSuiteHelpers.xo rxSuite.xo  sjiboleth.so  client-pool.cpp  simpleQueue.cpp  
+rxRule.so: ../../src/redismodule.h rxRule.cpp rule.hpp    rxSuite.xo  rxSuiteHelpers.xo   sjiboleth.so   client-pool.hpp simpleQueue.hpp   simpleQueue.cpp   sdsWrapper.xo
+	g++ -o rxRule.so  -shared -g -ggdb $(SHOBJ_CFLAGS)  -fPIC rxRule.cpp rxSuiteHelpers.xo rxSuite.xo  sjiboleth.so  client-pool.cpp  simpleQueue.cpp   sdsWrapper.xo
 
-rxIndexer.so: ../../src/redismodule.h rxIndexer.cpp rxIndexer.hpp rule.hpp  rxSuite.xo  rxSuiteHelpers.xo  sjiboleth.so indexIntercepts.xo simpleQueue.hpp client-pool.hpp client-pool.cpp
-	g++ -shared -g -ggdb -o rxIndexer.so  $(SHOBJ_CFLAGS) -fPIC rxIndexer.cpp rxSuiteHelpers.xo rxSuite.xo sjiboleth.so  indexIntercepts.xo client-pool.cpp
+rxIndexer.so: ../../src/redismodule.h rxIndexer.cpp rxIndexer.hpp rule.hpp  rxSuite.xo  rxSuiteHelpers.xo  sjiboleth.so indexIntercepts.xo simpleQueue.hpp client-pool.hpp client-pool.cpp sdsWrapper.xo
+	g++ -o rxIndexer.so  -shared -g -ggdb $(SHOBJ_CFLAGS) -fPIC rxIndexer.cpp rxSuiteHelpers.xo rxSuite.xo sjiboleth.so  indexIntercepts.xo client-pool.cpp sdsWrapper.xo
 
-rxQuery.so: ../../src/redismodule.h rxQuery.cpp rxQuery.hpp rule.hpp  rxSuite.xo  rxSuiteHelpers.xo  sjiboleth.so 
-	g++ -shared -g -ggdb -o rxQuery.so  $(SHOBJ_CFLAGS)  -fPIC rxQuery.cpp rxSuiteHelpers.xo rxSuite.xo sjiboleth.so  
+rxQuery.so: ../../src/redismodule.h rxQuery.cpp rxQuery.hpp rule.hpp  rxSuite.xo  rxSuiteHelpers.xo  sjiboleth.so  sdsWrapper.xo
+	g++ -o rxQuery.so -shared -g -ggdb  $(SHOBJ_CFLAGS)  -fPIC rxQuery.cpp rxSuiteHelpers.xo rxSuite.xo sjiboleth.so   sdsWrapper.xo
 
-rxIndexStore.so: ../../src/redismodule.h rxIndexStore.cpp rxIndexStore.hpp command-multiplexer.hpp  rxFetch-multiplexer.hpp  rxIndex.hpp rxSuiteHelpers.xo  
-	g++ -shared -g -ggdb -o rxIndexStore.so  $(SHOBJ_CFLAGS)  -fPIC rxIndexStore.cpp rxSuiteHelpers.xo   rxSuite.xo  
+rxIndexStore.so: ../../src/redismodule.h rxIndexStore.cpp rxIndexStore.hpp command-multiplexer.hpp  rxFetch-multiplexer.hpp  rxIndex.hpp rxSuiteHelpers.xo   sdsWrapper.xo
+	g++ -o rxIndexStore.so -shared -g -ggdb  $(SHOBJ_CFLAGS)  -fPIC rxIndexStore.cpp rxSuiteHelpers.xo   rxSuite.xo   sdsWrapper.xo
 
-rxMercator.so: ../../src/redismodule.h rxMercator.cpp rxMercator.hpp  rxSuiteHelpers.xo   client-pool.hpp client-pool.cpp
-	g++ -shared -g -ggdb -o rxMercator.so  $(SHOBJ_CFLAGS) -Wvarargs -fPIC rxMercator.cpp rxSuiteHelpers.xo   rxSuite.xo   client-pool.cpp 
+rxMercator.so: ../../src/redismodule.h rxMercator.cpp rxMercator.hpp  rxSuiteHelpers.xo   client-pool.hpp client-pool.cpp sdsWrapper.xo
+	g++ -o rxMercator.so  -shared -g -ggdb $(SHOBJ_CFLAGS) -Wvarargs -fPIC rxMercator.cpp rxSuiteHelpers.xo   rxSuite.xo   client-pool.cpp  sdsWrapper.xo
 
-queryEngine.xo:       ../../src/redismodule.h  queryEngine.c       queryEngine.h       parser.c  token.c parser.h token.h 
+rxSuite.xo:       ../../src/server.h ../../src/dict.h rxSuite.h rxSuitenations.c sdsWrapper.xo
 
-rxSuite.xo:       ../../src/server.h ../../src/dict.h rxSuite.h rxSuite.c
+rxSuiteHelpers.xo:       ../../src/server.h rxSuiteHelpers.h rxSuiteHelpers.c sdsWrapper.xo
 
-rxSuiteHelpers.xo:       ../../src/server.h rxSuiteHelpers.h rxSuiteHelpers.c
-
-indexIntercepts.xo: indexIntercepts.c indexIntercepts.h  simpleQueue.hpp
+indexIntercepts.xo: indexIntercepts.c indexIntercepts.h  simpleQueue.hpp sdsWrapper.xo
 
 %.o: %.cpp $(CPPSOURCES)
 	# $(CXX)                             -std=c++17 -faligned-new -Wno-write-strings   $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -s -isystem -DUSE_JEMALLOC -I..  -I../deps/hiredis -I../deps/linenoise -I../../deps/lua/src -I/usr/include -fPIC -c
-	$(CXX) -I. -I.. $(CXXFLAGS)   $(WARNNING) $(CFLAGS) $(SHOBJ_CFLAGS) -std=c++17 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -s -isystem -DUSE_JEMALLOC -I.. -I../deps/hiredis -I../deps/linenoise -I../../deps/lua/src -I/usr/include -fPIC  -c $< -o $@
+	$(CXX) -o $@ -I. -I.. $(CXXFLAGS)   $(WARNNING) $(CFLAGS) $(SHOBJ_CFLAGS) -std=c++17 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -s -isystem -DUSE_JEMALLOC -I.. -I../deps/hiredis -I../deps/linenoise -I../../deps/lua/src -I/usr/include -fPIC  -c $< 
 
 %.xo: %.cpp $(CPPSOURCES)
 	# $(CXX)                             -std=c++17 -faligned-new -Wno-write-strings   $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -s -isystem -DUSE_JEMALLOC -I..  -I../deps/hiredis -I../deps/linenoise -I../../deps/lua/src -I/usr/include -fPIC -c
-	$(CXX) -I. -I.. $(CXXFLAGS)   $(WARNNING) $(CFLAGS) $(SHOBJ_CFLAGS) -std=c++17 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -s -isystem -DUSE_JEMALLOC -I.. -I../deps/hiredis -I../deps/linenoise -I../../deps/lua/src -I/usr/include -fPIC  -std=c++17 -c $< -o $@
+	$(CXX) -o $@ -I. -I.. $(CXXFLAGS)   $(WARNNING) $(CFLAGS) $(SHOBJ_CFLAGS) -std=c++17 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -s -isystem -DUSE_JEMALLOC -I.. -I../deps/hiredis -I../deps/linenoise -I../../deps/lua/src -I/usr/include -fPIC  -std=c++17 -c $< 
 
-# queryEngine.so:
-# 	 $(LD) -o $@ $< rxSuite.xo  rxSuiteHelpers.xo parser.xo  token.xo sentenceProcessor.xo queryEngine.xo indexIntercepts.xo simpleQueue.xo $(SHOBJ_LDFLAGS) $(LIBS) -lc
 
 clean:
 	rm -rf *.xo *.so

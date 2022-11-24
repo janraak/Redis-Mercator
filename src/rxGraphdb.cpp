@@ -1,6 +1,6 @@
 
 #define REDISMODULE_EXPERIMENTAL_API
-#include "graphdb.h"
+#include "rxGraphdb.h"
 #include <string>
 
 #include <fcntl.h>
@@ -17,9 +17,6 @@ using std::string;
 
 extern "C"
 {
-#include "parser.h"
-#include "queryEngine.h"
-
     int g_set(RedisModuleCtx *ctx, RedisModuleString **argv, int argc);
     int g_get(RedisModuleCtx *ctx, RedisModuleString **argv, int argc);
 
@@ -27,12 +24,6 @@ extern "C"
 
     int RedisModule_OnUnload(RedisModuleCtx *ctx);
 }
-
-static Parser *graph_parser = NULL;
-static Parser *sentence_parser = NULL;
-
-extern dictType tokenDictType;
-
 
 string readFileIntoString3(const string &path)
 {
@@ -65,107 +56,6 @@ int g_set_async(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     return REDISMODULE_OK;
 };
 
-// int g_set(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
-// {
-//     size_t len;
-//     const char *argS = RedisModule_StringPtrLen(argv[1], &len);
-//     sds arg = sdsnew(argS);
-//     sdstoupper(arg);
-//     sds keyword = sdsnew("FILE");
-//     if (argc == 3 && sdscmp(keyword, arg) == 0)
-//     {
-//         const char *pathS = RedisModule_StringPtrLen(argv[2], &len);
-//         sds path = sdsnew(pathS);
-
-//         string graph = readFileIntoString3(path);
-
-//         parseGraph(graph_parser, graph.c_str());
-//         Token *t3 = NULL;
-//         listIter *li = listGetIterator(graph_parser->rpn, AL_START_HEAD);
-//         listNode *ln;
-//         GraphStackEntry *se;
-//         auto *graph_stack = new GraphStack<GraphStackEntry>();
-//         // int item = 0;
-//         // int tally = 0;
-//         while ((ln = listNext(li)) != NULL)
-//         {
-//             // if(tally++ >= 10000)
-//             //     break;
-//             t3 = (Token *)ln->value;
-//             // printf("token: %d %d %s\n", item++, t3->token_type, t3->token);
-//             switch (t3->token_type)
-//             {
-//             case 2: // A string token
-//             {
-//                 // printf("-->ITEM %d --> ", item);
-//                 se = new GraphStackEntry(t3->token, graph_stack->Peek());
-//                 graph_stack->Push(se);
-//                 break;
-//             }
-//             case 3: // An operator
-//             {
-//                 if (strcmp(t3->token, COMMA) == 0)
-//                     break;
-//                 if (strcmp(t3->token, COLON) == 0)
-//                 {
-//                     // printf("-->ITEM %d --> ", item);
-//                     GraphStackEntry *v = graph_stack->Pop();
-//                     GraphStackEntry *k = graph_stack->Pop();
-//                     if (k->token_value)
-//                     {
-//                         GraphStackEntry *d = graph_stack->Pop();
-//                         d->Set(k, v);
-//                         free(v);
-//                         free(k);
-//                         graph_stack->Push(d);
-//                     }
-//                     else
-//                     {
-//                         k->Set(v);
-//                         graph_stack->Push(k);
-//                     }
-//                 }
-//                 break;
-//             }
-//             case 4: // Open Bracket
-//             {
-//                 if (strcmp(t3->token, BEGIN_ARRAY) == 0)
-//                     continue;
-//                 se = new GraphStackEntry(ctx, graph_stack->Peek());
-//                 graph_stack->Push(se);
-//                 break;
-//             }
-//             case 5: // Close Bracket
-//             {
-//                 if (strcmp(t3->token, END_ARRAY) == 0)
-//                     continue;
-//                 se = graph_stack->Pop();
-//                 // check edge/vertex vs graph!!!
-//                 if (se->Contains(SUBJECT) && se->Contains(OBJECT) && se->Contains(PREDICATE))
-//                 {
-//                     se->Dump("Edge");
-//                     se->Persist(ctx);
-//                 }
-//                 else
-//                 {
-//                     se->Dump("Vertice");
-//                     se->Persist(ctx);
-//                 }
-//                 break;
-//             }
-//             }
-//         }
-//         listReleaseIterator(li);
-//         resetParser(graph_parser);
-//         free(graph_stack);
-
-//         return RedisModule_ReplyWithSimpleString(ctx, OK);
-//     }
-//     if (argc == -10)
-//         return RedisModule_WrongArity(ctx);
-//     const char *response = "Not yet omplemented";
-//     return RedisModule_ReplyWithSimpleString(ctx, response);
-// }
 
 /*
   Return the graph for the given keys.
@@ -686,48 +576,16 @@ int get_deep(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     return RedisModule_ReplyWithSimpleString(ctx, strdup(result.c_str()));
 }
 
-int get_uml(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
-{
-    UNUSED(ctx);
-    UNUSED(argv);
-    UNUSED(argc);
-    return RedisModule_ReplyWithSimpleString(ctx, get_uml());
-}
-
-void test(){
-    sds json = sdsnew("[    {\"subject\": {\"type\":\"bible\", \"Translation\": \"nwtsty\", \"Rendition\": \"New World Translation of the Holy Scriptures (Study Edition)\",\"Language\": \"en\",\"iri\": \"bible/en/nwtsty\"},\"object\": {\"type\":\"book\", \"Name\": \"Genesis\", \"iri\": \"bible/en/nwtsty/Genesis\"},\"predicate\": {\"type\":\"book\"}}]");
-        parseGraph(graph_parser, json);
-        Token *t3 = NULL;
-        listIter *li = listGetIterator(graph_parser->rpn, AL_START_HEAD);
-        listNode *ln;
-        printf("C      ");
-        while ((ln = listNext(li)) != NULL)
-        {
-            t3 = (Token *)ln->value;
-            printf("%s ", t3->token);
-        }
-        printf("\n");
-        Sjiboleth *parser = new GraphParser();
-        auto *parsed_json = parser->Parse(json);
-        printf("C++ G %s\n", parsed_json->ToString());
-        parser = new JsonDialect();
-        parsed_json = parser->Parse(json);
-        printf("C++ J %s\n", parsed_json->ToString());
-}
 /* This function must be present on each R
 edis module. It is used in order to
  * register the commands into the Redis server. */
 int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     initRxSuite();
-    if (!graph_parser)
-        graph_parser = newParser("graph");
-    if (!sentence_parser)
-        sentence_parser = newParser("text");
 
     if (RedisModule_Init(ctx, "graphdb", 1, REDISMODULE_APIVER_1) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
-    claimParsers();
+
     rxRegisterConfig(ctx, argv, argc);
 
     if (RedisModule_CreateCommand(ctx, "g.set",
@@ -739,20 +597,13 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     if (RedisModule_CreateCommand(ctx, "g.get_deep",
                                   get_deep, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
-    if (RedisModule_CreateCommand(ctx, "g.uml",
-                                  get_uml, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)
-        return REDISMODULE_ERR;
+
     return REDISMODULE_OK;
 }
 
 int RedisModule_OnUnload(RedisModuleCtx *ctx)
 {
     UNUSED(ctx);
-    if (!graph_parser)
-        freeParser(graph_parser);
-    if (!sentence_parser)
-        freeParser(sentence_parser);
-    releaseParsers();
     finalizeRxSuite();
     return REDISMODULE_OK;
 }

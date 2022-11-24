@@ -47,7 +47,7 @@ list *SilNikParowy_Kontekst::Errors()
     return this->expression->errors;
 }
 
-void SilNikParowy_Kontekst::AddError(sds msg)
+void SilNikParowy_Kontekst::AddError(rxString msg)
 {
     return this->expression->AddError(msg);
 }
@@ -132,17 +132,17 @@ FaBlok *SilNikParowy_Kontekst::GetOperationPair(char const  *operation, int load
     FaBlok *l = this->Pop();
     if (((load_left_and_or_right & QE_LOAD_LEFT_ONLY) && l->size == 0))
     {
-        sds lk = sdsnew(l->setname);
+        rxString lk = rxStringNew(l->setname);
         l->FetchKeySet(this->serviceConfig, lk);
-        sdsfree(lk);
+        rxStringFree(lk);
     }
 
     FaBlok *r = this->Pop();
     if (((load_left_and_or_right & QE_LOAD_RIGHT_ONLY)) && r->size == 0)
     {
-        sds rk = sdsnew(r->setname);
+        rxString rk = rxStringNew(r->setname);
         r->FetchKeySet(this->serviceConfig, rk);
-        sdsfree(rk);
+        rxStringFree(rk);
     }
 
     int do_swap = ((load_left_and_or_right && QE_SWAP_LARGEST_FIRST) && (raxSize(&l->keyset) < raxSize(&r->keyset))) || ((load_left_and_or_right && QE_SWAP_SMALLEST_FIRST) && (raxSize(&l->keyset) > raxSize(&r->keyset)));
@@ -153,7 +153,7 @@ FaBlok *SilNikParowy_Kontekst::GetOperationPair(char const  *operation, int load
         r = swap;
     }
 
-    sds keyset_name = sdscatfmt(sdsempty(), "%s %s %s", l->setname, operation, r->setname);
+    rxString keyset_name = rxStringFormat("%s %s %s", l->setname, operation, r->setname);
     FaBlok *kd = FaBlok::Get(keyset_name, KeysetDescriptor_TYPE_KEYSET);
     kd->left = l;
     kd->right = r;
