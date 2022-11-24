@@ -131,7 +131,7 @@ rxIndexStore.so: ../../src/redismodule.h rxIndexStore.cpp rxIndexStore.hpp comma
 rxMercator.so: ../../src/redismodule.h rxMercator.cpp rxMercator.hpp  rxSuiteHelpers.xo   client-pool.hpp client-pool.cpp sdsWrapper.xo
 	g++ -o rxMercator.so  -shared -g -ggdb $(SHOBJ_CFLAGS) -Wvarargs -fPIC rxMercator.cpp rxSuiteHelpers.xo   rxSuite.xo   client-pool.cpp  sdsWrapper.xo
 
-rxSuite.xo:       ../../src/server.h ../../src/dict.h rxSuite.h rxSuitenations.c sdsWrapper.xo
+rxSuite.xo:       ../../src/server.h ../../src/dict.h rxSuite.h rxSuite.c sdsWrapper.xo
 
 rxSuiteHelpers.xo:       ../../src/server.h rxSuiteHelpers.h rxSuiteHelpers.c sdsWrapper.xo
 
