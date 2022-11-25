@@ -1,3 +1,6 @@
+#ifndef ___SJIBOLETH_H_
+#define ___SJIBOLETH_H_
+
 
 #ifndef eTokenType_TYPE
 enum eTokenType
@@ -32,6 +35,9 @@ extern "C"
 #include "../../src/dict.h"
 #include "../../src/rax.h"
 #include "rxSuite.h"
+
+#define REDISMODULE_EXPERIMENTAL_API
+#include "../../src/redismodule.h"
 
 #define pri5 5
 #define pri10 10
@@ -117,5 +123,7 @@ extern "C"
 #define END_SJIBOLETH_PARSER_CONTEXT_CHECKER(fn)                                                \
         return t;                                                                               \
     }
+
+#endif
 
 #endif

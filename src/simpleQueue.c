@@ -1,5 +1,5 @@
 #include "simpleQueue.h"
-#include "zmalloc.h"
+#include "sdsWrapper.h"
 #include <string.h>
 #define UNUSED(x) (void)(x)
 
@@ -75,5 +75,5 @@ void releaseSimpleQueue(SimpleQueue *q)
     pthread_join(q->fifo_thread, NULL);
   }
   listRelease(q->fifo);
-  zfree(q);
+  rxMemFree(q);
 }

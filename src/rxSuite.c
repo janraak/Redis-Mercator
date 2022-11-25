@@ -5,6 +5,9 @@ extern "C"
 {
 #endif
 #include "server.h"
+#define REDISMODULE_EXPERIMENTAL_API
+#include "../../src/redismodule.h"
+
 #ifdef __cplusplus
 }
 #endif
@@ -52,18 +55,18 @@ extern "C"
 //     NULL                /* val destructor */
 // };
 
+void *rxMercatorShared = NULL;
+
 void initRxSuite()
 {
-    redisDb *db = &server.db[0];
-    dict *d = db->dict;
-    if (!d->privdata)
+    if (!rxMercatorShared)
     {
         rxSuiteShared *shared = zmalloc(sizeof(rxSuiteShared));
         // shared->OperationMap = NULL;
         // shared->KeysetCache = NULL;
         shared->parserClaimCount = 0;
         // shared->tokenDictType = &tokenDictTypeDefinition;
-        d->privdata = shared;
+        rxMercatorShared = shared;
 
         shared->indexNode.host_reference = sdsnew("127.0.0.1:6379");
         shared->indexNode.host = sdsnew("127.0.0.1");
@@ -84,20 +87,16 @@ void initRxSuite()
 
 rxSuiteShared *getRxSuite()
 {
-    redisDb *db = &server.db[0];
-    dict *d = db->dict;
-    if (d->privdata == NULL)
+    if (rxMercatorShared == NULL)
         initRxSuite();
-    return d->privdata;
+    return rxMercatorShared;
 }
 
 void finalizeRxSuite()
 {
-    redisDb *db = &server.db[0];
-    dict *d = db->dict;
-    if (!d->privdata)
+    if (!rxMercatorShared)
     {
-        zfree(d->privdata);
+        rxMemFree(rxMercatorShared);
     }
 }
 
@@ -113,38 +112,39 @@ redisNodeInfo *rxDataNode()
     return &config->dataNode;
 }
 
-static void extractArgs(RedisModuleCtx *ctx, RedisModuleString **argv, int j, redisNodeInfo *node)
+static void extractArgs(RedisModuleString **oargv, int j, redisNodeInfo *node)
 {
-    rxUNUSED(ctx);
-    const char *s = RedisModule_StringPtrLen(argv[j], NULL);
+    RedisModuleString **argv = (RedisModuleString **)oargv;
+    const char *s = (const char *)argv[j]->ptr;
     node->host = sdsnew(s);
-    s = RedisModule_StringPtrLen(argv[j + 1], NULL);
+    s = (const char *)argv[j + 1]->ptr;
     node->port = atoi(s);
-    s = RedisModule_StringPtrLen(argv[j + 2], NULL);
+    s = (const char *)argv[j + 2]->ptr;
     node->database_id = atoi(s);
 }
 
-void rxRegisterConfig(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
+void rxRegisterConfig(void **oargv, int argc)
 {
-    rxSuiteShared *config = getRxSuite();
+    RedisModuleString **argv = (RedisModuleString **)oargv;
+    rxSuiteShared *config = rxMercatorShared;
     for (int j = 0; j < argc; ++j)
     {
-        const char *arg = RedisModule_StringPtrLen(argv[j], NULL);
+        const char *arg = (const char *)argv[j]->ptr;
         int argl = strlen(arg);
         if (stringmatchlen(arg, argl, "INDEX", 5, 1) == 1)
         {
-            extractArgs(ctx, argv, j + 1, &config->indexNode);
+            extractArgs(argv, j + 1, &config->indexNode);
             j += 3;
         }
         else if (stringmatchlen(arg, argl, "DATA", 4, 1) == 1)
         {
-            extractArgs(ctx, argv, j + 1, &config->dataNode);
+            extractArgs(argv, j + 1, &config->dataNode);
             j += 3;
         }
         else if (stringmatchlen(arg, argl, "DEFAULT_OPERATOR", 16, 1) == 1)
         {
             ++j;
-            const char *s = RedisModule_StringPtrLen(argv[j], NULL);
+            const char *s = (const char *)argv[j]->ptr;
             config->defaultQueryOperator = sdsnew(s);
         }
     }

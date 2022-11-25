@@ -16,7 +16,7 @@ extern "C"
 #endif
 
 #include "string.h"
-#include "zmalloc.h"
+#include "sdsWrapper.h"
 
 #ifdef __cplusplus
 }

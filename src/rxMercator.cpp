@@ -49,7 +49,7 @@ using namespace std;
 extern "C"
 {
 #endif
-#include "zmalloc.h"
+#include "sdsWrapper.h"
 #include <string.h>
 
     /* Utils */
@@ -158,7 +158,7 @@ rxString getSha1(const char *codes, ...)
     }
     SHA1Final(hash, &ctx);
 
-    char *sha1 = (char *)zmalloc(41);
+    char *sha1 = (char *)rxMemAlloc(41);
     char *filler = sha1;
     for (i = 0; i < 20; i++, filler += 2)
     {
@@ -688,7 +688,7 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **, int )
     if (RedisModule_Init(ctx, "rxMercator", 1, REDISMODULE_APIVER_1) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
-    // rxRegisterConfig(ctx, argv, argc);
+    // rxRegisterConfig((void **)argv, argc);
 
     if (RedisModule_CreateCommand(ctx, "mercator.create.cluster", rx_create_cluster, "", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;

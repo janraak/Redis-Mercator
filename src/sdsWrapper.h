@@ -48,4 +48,7 @@ void rxServerLogRaw(int level, const char *msg);
 void rxServerAssert(const char *estr, const char *file, int line);
 void rxServerLog(int level, const char *fmt, ...);
 
+void *rxMemAlloc(size_t size);
+void rxMemFree(void *ptr);
+
 #endif

@@ -111,7 +111,7 @@ void *rxStashCommand(SimpleQueue *ctx, const char *command, int argc, ...)
                             + total_robj_size 
                             + total_sds_size 
                             + total_string_size + 1;
-    stash = zmalloc(total_stash_size);
+    stash = rxMemAlloc(total_stash_size);
     memset(stash, 0xff, total_stash_size);
 
     *((int *)stash) = argc + 1;
@@ -171,7 +171,7 @@ void *rxStashCommand2(SimpleQueue *ctx, const char *command, int argt, int argc,
                             + total_robj_size 
                             + total_sds_size 
                             + total_string_size + 1;
-    stash = zmalloc(total_stash_size);
+    stash = rxMemAlloc(total_stash_size);
     memset(stash, 0xff, total_stash_size);
 
     *((int *)stash) = argc + (command == NULL ? 0 : 1);
@@ -232,7 +232,7 @@ void ExecuteRedisCommand(SimpleQueue *ctx, void *stash, const char *host_referen
 
 void FreeStash(void *stash)
 {
-    zfree(stash);
+    rxMemFree(stash);
 }
 
 #ifndef STASHERS_ONLY

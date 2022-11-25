@@ -13,7 +13,7 @@ extern "C"
 {
 #endif
 
-#include "zmalloc.h"
+#include "sdsWrapper.h"
 
 #ifdef __cplusplus
 }
@@ -21,7 +21,7 @@ extern "C"
 
 static void FreeResultDoubleObject(void *o)
 {
-    zfree(o);
+    rxMemFree(o);
 }
 
 class RxFetchMultiplexer : public Multiplexer

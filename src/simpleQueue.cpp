@@ -1,5 +1,5 @@
 #include "simpleQueue.hpp"
-#include "zmalloc.h"
+#include "sdsWrapper.h"
 #include <string.h>
 #define UNUSED(x) (void)(x)
 

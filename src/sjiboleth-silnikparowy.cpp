@@ -8,7 +8,7 @@ extern "C"
 #include <cstdlib>
 
 #include "string.h"
-#include "zmalloc.h"
+#include "sdsWrapper.h"
 #include "../../deps/hiredis/hiredis.h"
 
 #include "rax.h"

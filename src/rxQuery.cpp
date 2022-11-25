@@ -17,7 +17,7 @@ extern "C"
 #endif
 #include <sys/stat.h>
 #include <string.h>
-#include "zmalloc.h"
+#include "sdsWrapper.h"
 
 #include "rxSuiteHelpers.h"
 
@@ -355,7 +355,7 @@ int executeLoadScriptCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int 
     }
 
     stat(path, &sb);
-    script_text = (char *)zmalloc(sb.st_size);
+    script_text = (char *)rxMemAlloc(sb.st_size);
     fread(script_text, sb.st_size, 1, input_file);
     fclose(input_file);
 
@@ -371,7 +371,7 @@ int executeLoadScriptCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int 
     else
         RedisModule_ReplyWithSimpleString(ctx, "Script not loaded");
 
-    zfree(script_text);
+    rxMemFree(script_text);
 
     return REDIS_OK;
 }
@@ -401,7 +401,7 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     if (RedisModule_Init(ctx, RX_QUERY, 1, REDISMODULE_APIVER_1) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     initRxSuite();
-    rxRegisterConfig(ctx, argv, argc);
+    rxRegisterConfig((void **)argv, argc);
 
     if (RedisModule_CreateCommand(ctx, RX_QUERY,
                                   executeQueryCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)

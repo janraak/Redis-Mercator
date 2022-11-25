@@ -23,6 +23,7 @@ base_fn = "{}.{}".format(host, port)
 
 redis_server = ["src/redis-server", "--daemonize", "yes", "--bind", "0.0.0.0", "--port", port, "--maxmemory", "1MB", 
     "--dbfilename", "{}.rdb".format(base_fn), 
+    "--dir", "data", 
     "--appendfilename", "{}.aof".format(base_fn), 
     "--logfile", "data/{}.log".format(base_fn), 
     "--databases", "4", "--maxclients", "256"]

@@ -7,7 +7,9 @@ extern "C"
 #include "rxSuite.h"
 #include "sjiboleth.h"
 #include <string.h>
-#include "../../src/zmalloc.h"
+#include "sdsWrapper.h"
+#define REDISMODULE_EXPERIMENTAL_API
+#include "../../src/redismodule.h"
 
 #ifdef __cplusplus
 }
@@ -274,7 +276,7 @@ void FreeResultObject(void *o){
         auto *t = (Graph_Triplet *)rxGetContainedObject(o);
         if(t->DecrRefCnt() <= 1){
             delete t;
-            zfree(o);
+            rxMemFree(o);
         }
     }
 }

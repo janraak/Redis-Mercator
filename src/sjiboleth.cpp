@@ -11,7 +11,7 @@
 extern "C"
 {
 #endif
-    #include "zmalloc.h"
+    #include "sdsWrapper.h"
 #ifdef __cplusplus
 }
 #endif
@@ -43,7 +43,7 @@ ParserToken *ParserToken::New(eTokenType token_type,
                          const char *op,
                          int op_len)
 {
-    auto *token = (ParserToken *)zmalloc(sizeof(ParserToken) + op_len + 1);
+    auto *token = (ParserToken *)rxMemAlloc(sizeof(ParserToken) + op_len + 1);
     char *s = (char *)token + sizeof(ParserToken);
     strncpy(s, op, op_len);
     s[op_len] = 0x00;
@@ -98,7 +98,7 @@ ParserToken *ParserToken::New(const char *op,
 
 void ParserToken::Purge(ParserToken *token){
     if((void *)(token->op) == (void *)token + sizeof(ParserToken))
-        zfree(token);    
+        rxMemFree(token);    
 }
 void ParserToken::ParserContextProc(parserContextProc *pcf)
 {
@@ -210,7 +210,7 @@ int ParserToken::Execute(CParserToken *tO, CStack *stackO)
 
 static void FreeSyntax(void *o)
 {
-    zfree(o);
+    rxMemFree(o);
 }
 
 void ParserToken::Priority(short token_priority)
@@ -328,7 +328,7 @@ Sjiboleth::~Sjiboleth()
             raxRemove(FaBlok::Get_Thread_Registry(), ri.key, ri.key_len, (void **)&old);
             auto *t = (ParserToken *)ri.data;
             if(t->Token() == ri.data + sizeof(ParserToken))
-                zfree(ri.data);
+                rxMemFree(ri.data);
         }
         raxStop(&ri);
     }

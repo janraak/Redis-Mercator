@@ -761,7 +761,7 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     if (RedisModule_Init(ctx, "rxIndexer", 1, REDISMODULE_APIVER_1) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
-    rxRegisterConfig(ctx, argv, argc);
+    rxRegisterConfig((void **)argv, argc);
 
     if (RedisModule_CreateCommand(ctx, "rxIndexer.info",
                                   indexerInfo, "readonly", 0, 0, 0) == REDISMODULE_ERR)

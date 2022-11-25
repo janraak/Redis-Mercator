@@ -9,8 +9,8 @@ extern "C"
 {
 #endif
 
-#define REDISMODULE_EXPERIMENTAL_API
-#include "redismodule.h"
+// #define REDISMODULE_EXPERIMENTAL_API
+// #include "redismodule.h"
 
 
 

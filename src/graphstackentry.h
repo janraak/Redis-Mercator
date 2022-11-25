@@ -13,9 +13,9 @@ extern "C"
 {
 #endif
 #include "adlist.h"
-#include "zmalloc.h"
+#include "sdsWrapper.h"
 #include <stddef.h>
-#include "hiredis.h"
+#include "../../deps/hiredis/hiredis.h"
 
     void *rxStashCommand(SimpleQueue *ctx, const char *command, int argc, ...);
     void *rxStashCommand2(SimpleQueue *ctx, const char *command, int argt, int argc, void **args);

@@ -21,7 +21,7 @@ extern "C"
 #endif
 
 #include "string.h"
-#include "zmalloc.h"
+#include "sdsWrapper.h"
 #include <fcntl.h>
 #include <iostream>
 #include <sys/stat.h>

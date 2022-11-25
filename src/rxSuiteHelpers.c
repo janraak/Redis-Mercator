@@ -400,7 +400,7 @@ void rxFreeHashObject(void *o)
 
 void rxFreeObject(void *o)
 {
-    zfree(o);
+    rxMemFree(o);
 }
 
 void *rxGetContainedObject(void *o)

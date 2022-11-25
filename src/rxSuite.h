@@ -7,7 +7,6 @@
     #define C_ERR -1
 #endif
 
-#define REDISMODULE_EXPERIMENTAL_API
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -18,7 +17,8 @@ extern "C" {
 
 
 
-#include "../../src/redismodule.h"
+// #define REDISMODULE_EXPERIMENTAL_API
+// #include "../../src/redismodule.h"
 // #include "../../src/dict.h"
 #include "../../deps/hiredis/hiredis.h"
 #include "sdsWrapper.h"
@@ -51,7 +51,7 @@ void initRxSuite();
 rxSuiteShared *getRxSuite();
 redisNodeInfo *rxIndexNode();
 redisNodeInfo *rxDataNode();
-void rxRegisterConfig(RedisModuleCtx *ctx, RedisModuleString **argv, int argc);
+void rxRegisterConfig(void **argv, int argc);
 
 void finalizeRxSuite();
 // #endif

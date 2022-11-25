@@ -11,6 +11,9 @@ extern "C"
 #include <stddef.h>
 #include <stdint.h>
 
+#define REDISMODULE_EXPERIMENTAL_API
+#include "../../src/redismodule.h"
+
 #ifdef __cplusplus
 }
 #endif

@@ -7,7 +7,7 @@ extern "C"
 #endif
 
 #include "rax.h"
-#include "zmalloc.h"
+#include "sdsWrapper.h"
 
 #ifdef __cplusplus
 }

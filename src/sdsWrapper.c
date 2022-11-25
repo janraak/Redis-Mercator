@@ -4,13 +4,14 @@
 #include "../../src/sds.h"
 #include "ctype.h"
 #include "stddef.h"
-#include "stdlib.h"
-#include <sys/types.h>
-#include <unistd.h>
 #include "stdint.h"
-#include <stdio.h>
+#include "stdlib.h"
 #include "util.h"
 #include <stdarg.h>
+#include <stdio.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <zmalloc.h>
 
 #include "sdsWrapper.h"
 
@@ -139,7 +140,8 @@ int rxStringMatch(const char *p, const char *s, int nocase)
 }
 
 extern void serverLogRaw(int level, const char *msg);
-void rxServerLogRaw(int level, const char *msg){
+void rxServerLogRaw(int level, const char *msg)
+{
     serverLogRaw(level, msg);
 }
 
@@ -151,23 +153,33 @@ void rxServerAssert(const char *estr, const char *file, int line)
 
 void serverLog(int level, const char *fmt, ...)
 {
-	va_list ap;
-	char msg[2048];
+    va_list ap;
+    char msg[2048];
 
-	va_start(ap, fmt);
-	vsnprintf(msg, sizeof(msg), fmt, ap);
-	va_end(ap);
+    va_start(ap, fmt);
+    vsnprintf(msg, sizeof(msg), fmt, ap);
+    va_end(ap);
 
-	serverLogRaw(level, msg);
+    serverLogRaw(level, msg);
 }
 void rxServerLog(int level, const char *fmt, ...)
 {
-	va_list ap;
-	char msg[2048];
+    va_list ap;
+    char msg[2048];
 
-	va_start(ap, fmt);
-	vsnprintf(msg, sizeof(msg), fmt, ap);
-	va_end(ap);
+    va_start(ap, fmt);
+    vsnprintf(msg, sizeof(msg), fmt, ap);
+    va_end(ap);
 
-	serverLogRaw(level, msg);
+    serverLogRaw(level, msg);
+}
+
+void *rxMemAlloc(size_t size)
+{
+    return zmalloc(size);
+}
+
+void rxMemFree(void *ptr)
+{
+    zfree(ptr);
 }

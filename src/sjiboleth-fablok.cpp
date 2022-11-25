@@ -8,7 +8,7 @@ extern "C"
 
 #include "../../deps/hiredis/hiredis.h"
 #include "string.h"
-#include "zmalloc.h"
+#include "sdsWrapper.h"
 #include <pthread.h>
 #include <unistd.h>
 
@@ -253,7 +253,7 @@ FaBlok::FaBlok(rxString sn, UCHAR value_type)
 FaBlok *FaBlok::New(const char *sn, UCHAR value_type)
 {
     int l = strlen(sn);
-    void *fabSpace = zmalloc(sizeof(FaBlok) + l + 1);
+    void *fabSpace = rxMemAlloc(sizeof(FaBlok) + l + 1);
     char *s = (char *)fabSpace + sizeof(FaBlok);
     strncpy(s, sn, l);
     s[l] = 0x00;
@@ -383,7 +383,7 @@ int FaBlok::FetchKeySet(redisNodeInfo *serviceConfig, const char *lh, const char
 
 
 void FreeFaBlok(void *o){
-            zfree(o);
+            rxMemFree(o);
 }
 
 void FaBlok::DeleteAllTempDescriptors()

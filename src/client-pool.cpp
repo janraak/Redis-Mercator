@@ -9,7 +9,7 @@ extern "C"
 #include <pthread.h>
 #include <string.h>
 #include "stdlib.h"
-#include "zmalloc.h"
+#include "sdsWrapper.h"
 #ifdef __cplusplus
 }
 #endif
@@ -59,7 +59,7 @@ RedisClientPool<T> *RedisClientPool<T>::New(const char *address, int initial_num
 
     int l = strlen(address);
     const char *colon = strstr(address, ":");
-    void *connectorSpace = zmalloc(sizeof(RedisClientPool<T>) + 2 * l + 1);
+    void *connectorSpace = rxMemAlloc(sizeof(RedisClientPool<T>) + 2 * l + 1);
     memset(connectorSpace, 0xff, sizeof(RedisClientPool<T>) + 2 * l + 1);
     char *r = (char *)connectorSpace + sizeof(RedisClientPool<T>);
     char *h = r + l + 1;
@@ -74,7 +74,7 @@ RedisClientPool<T> *RedisClientPool<T>::New(const char *address, int initial_num
 
 template <typename T>
 void RedisClientPool<T>::Free(RedisClientPool *connector){
-    zfree(connector);
+    rxMemFree(connector);
 }
 
 template <typename T>

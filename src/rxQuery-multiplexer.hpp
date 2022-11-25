@@ -143,7 +143,7 @@ static void *execQueryThread(void *ptr)
         void *stash = command_reponse_queue->Dequeue();
         while (stash != NULL)
         {
-            zfree(stash);
+            rxMemFree(stash);
             stash = command_reponse_queue->Dequeue();
         }
 

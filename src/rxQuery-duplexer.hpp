@@ -27,7 +27,7 @@ extern "C"
 
 // #include "string.h"
 #include "util.h"
-// #include "zmalloc.h"
+// #include "sdsWrapper.h"
 
 #ifdef __cplusplus
 }
@@ -125,7 +125,7 @@ static void *execQueryThread(void *ptr)
         sds *stash = command_reponse_queue->Dequeue();
         while (stash != NULL)
         {
-            zfree(stash);
+            rxMemFree(stash);
             stash = command_reponse_queue->Dequeue();
         }
 
@@ -145,7 +145,7 @@ static void *execQueryThread(void *ptr)
         sds *stash2 = command_reponse_queue->Dequeue();
         while (stash2 != NULL)
         {
-            zfree(stash2);
+            rxMemFree(stash2);
             stash2 = command_reponse_queue->Dequeue();
         }
     }

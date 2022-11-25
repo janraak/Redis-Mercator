@@ -14,11 +14,11 @@ def check_server(must_flush):
     print ('Number of arguments: {} arguments.'.format(len(sys.argv))) 
     print ('Argument List: {}'.format( str(sys.argv)))
     filename = abspath(sys.argv[0])
-    print(filename)
+    print("filename: {}".format(filename))
     path = Path(sys.argv[0])
     modulePath = path.parent.parent.joinpath("src").absolute()
-    print(modulePath)
-
+    print("modulePath: {}".format(modulePath))
+    
     redis_client = redis.StrictRedis('192.168.1.180', 6400, 0)
 
     while True:
