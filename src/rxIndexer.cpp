@@ -756,7 +756,8 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     initRxSuite();
 
-    REDISMODULE_NOT_USED(argv);
+    char *libpath = getenv("LD_LIBRARY_PATH");
+    rxServerLog(rxLL_NOTICE, "rxIndexer LD_LIBRARY_PATH=%s", libpath);
 
     if (RedisModule_Init(ctx, "rxIndexer", 1, REDISMODULE_APIVER_1) == REDISMODULE_ERR)
         return REDISMODULE_ERR;

@@ -53,6 +53,7 @@ redisNodeInfo *rxIndexNode();
 redisNodeInfo *rxDataNode();
 void rxRegisterConfig(void **argv, int argc);
 
+char *rxGetExecutable();
 void finalizeRxSuite();
 // #endif
 

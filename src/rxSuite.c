@@ -153,3 +153,7 @@ void rxRegisterConfig(void **oargv, int argc)
     config->dataNode.is_local = config->indexNode.is_local;
     config->dataNode.host_reference = sdscatprintf(sdsempty(), "%s:%d", config->dataNode.host, config->dataNode.port);
 }
+
+char *rxGetExecutable(){
+    return server.executable;
+}

@@ -66,17 +66,6 @@ void touchCommandIntercept(client *c);
 struct redisCommandInterceptRule{
     char *name;
     redisCommandProc *proc;
-    // int arity;
-    // char *sflags;   /* Flags as string representation, one char per flag. */
-    // uint64_t flags; /* The actual flags, obtained from the 'sflags' field. */
-    // /* Use a function to determine keys arguments in a command line.
-    //  * Used for Redis Cluster redirect. */
-    // redisGetKeysProc *getkeys_proc;
-    // /* What keys should be loaded in background when calling this command? */
-    // int firstkey; /* The first argument that's a key (0 = no keys) */
-    // int lastkey;  /* The last argument that's a key */
-    // int keystep;  /* The step between first and last key */
-    // long long microseconds, calls, rejected_calls, failed_calls;
     int id;     /* Command ID. This is a progressive ID starting from 0 that
                    is assigned at runtime, and is used in order to check
                    ACLs. A connection is able to execute a given command if
@@ -89,57 +78,57 @@ struct redisCommandInterceptRule interceptorCommandTable[] = {
 /* Note that we can't flag set as fast, since it may perform an
  * implicit DEL of a large key. */
 #define SET_INTERCEPT 0
-    {"set", setCommandIntercept/*, -3, "write use-memory @string", 0, NULL, 1, 1, 1, 0, INIT_CMD_STATS */, 0} ,
+    {"set", setCommandIntercept, 0} ,
 #define SETNX_INTERCEPT 1
-    {"setnx", setnxCommandIntercept/*, 3, "write use-memory fast @string", 0, NULL, 1, 1, 1, 0, INIT_CMD_STATS */, 0},
+    {"setnx", setnxCommandIntercept, 0},
 #define SETEX_INTERCEPT 2
-    {"setex", setexCommandIntercept/*, 4, "write use-memory @string", 0, NULL, 1, 1, 1, 0, INIT_CMD_STATS */, 0},
+    {"setex", setexCommandIntercept, 0},
 #define PSETEX_INTERCEPT 3
-    {"psetex", psetexCommandIntercept/*, 4, "write use-memory @string", 0, NULL, 1, 1, 1, 0, INIT_CMD_STATS */, 0},
+    {"psetex", psetexCommandIntercept, 0},
 #define APPEND_INTERCEPT 4
-    {"append", appendCommandIntercept/*, 3, "write use-memory fast @string", 0, NULL, 1, 1, 1, 0, INIT_CMD_STATS */, 0},
+    {"append", appendCommandIntercept, 0},
 #define DEL_INTERCEPT 5
-    {"del", delCommandIntercept/*, -2, "write @keyspace", 0, NULL, 1, -1, 1, 0, INIT_CMD_STATS */, 0},
+    {"del", delCommandIntercept, 0},
 #define HSET_INTERCEPT 6
-    {"hset", hsetCommandIntercept/*, -4, "write use-memory fast @hash", 0, NULL, 1, 1, 1, 0, INIT_CMD_STATS */, 0},
+    {"hset", hsetCommandIntercept, 0},
 #define HSETNX_INTERCEPT 7
-    {"hsetnx", hsetnxCommandIntercept/*, 4, "write use-memory fast @hash", 0, NULL, 1, 1, 1, 0, INIT_CMD_STATS */, 0},
+    {"hsetnx", hsetnxCommandIntercept, 0},
 #define HMSET_INTERCEPT 8
-    {"hmset", hsetCommandIntercept/*, -4, "write use-memory fast @hash", 0, NULL, 1, 1, 1, 0, INIT_CMD_STATS */, 0},
+    {"hmset", hsetCommandIntercept, 0},
 #define HDEL_INTERCEPT 9
-    {"hdel", hdelCommandIntercept/*, -3, "write fast @hash", 0, NULL, 1, 1, 1, 0, INIT_CMD_STATS */, 0},
+    {"hdel", hdelCommandIntercept, 0},
 #define GETSET_INTERCEPT 10
-    {"getset", getsetCommandIntercept/*, 3, "write use-memory fast @string", 0, NULL, 1, 1, 1, 0, INIT_CMD_STATS */, 0},
+    {"getset", getsetCommandIntercept, 0},
 #define MSET_INTERCEPT 11
-    {"mset", msetCommandIntercept/*, -3, "write use-memory @string", 0, NULL, 1, -1, 2, 0, INIT_CMD_STATS */, 0},
+    {"mset", msetCommandIntercept, 0},
 #define MSETNX_INTERCEPT 12
-    {"msetnx", msetnxCommandIntercept/*, -3, "write use-memory @string", 0, NULL, 1, -1, 2, 0, INIT_CMD_STATS */, 0},
+    {"msetnx", msetnxCommandIntercept, 0},
 #define MOVE_INTERCEPT 13
-    {"move", moveCommandIntercept/*, 3, "write fast @keyspace", 0, NULL, 1, 1, 1, 0, INIT_CMD_STATS */, 0},
+    {"move", moveCommandIntercept, 0},
 /* Like for SET, we can't mark rename as a fast command because
  * overwriting the target key may result in an implicit slow DEL. */
 #define RENAME_INTERCEPT 14
-    {"rename", renameCommandIntercept/*, 3, "write @keyspace", 0, NULL, 1, 2, 1, 0, INIT_CMD_STATS */, 0},
+    {"rename", renameCommandIntercept, 0},
 #define RENAMENX_INTERCEPT 15
-    {"renamenx", renamenxCommandIntercept/*, 3, "write fast @keyspace", 0, NULL, 1, 2, 1, 0, INIT_CMD_STATS */, 0},
+    {"renamenx", renamenxCommandIntercept, 0},
 #define FLUSHALL_INTERCEPT 16
-    {"NOflushdb", genericCommandIntercept/*, -1, "write @keyspace @dangerous", 0, NULL, 0, 0, 0, 0, INIT_CMD_STATS */, 0},
+    {"NOflushdb", genericCommandIntercept, 0},
 #define FLUSHDB_INTERCEPT 17
-    {"NOflushall", genericCommandIntercept/*, -1, "write @keyspace @dangerous", 0, NULL, 0, 0, 0, 0, INIT_CMD_STATS */, 0},
+    {"NOflushall", genericCommandIntercept, 0},
 #define BGSAVE_INTERCEPT 18
-    {"NObgsave", genericCommandIntercept/*, -1, "write @keyspace @dangerous", 0, NULL, 0, 0, 0, 0, INIT_CMD_STATS */, 0},
+    {"NObgsave", genericCommandIntercept, 0},
 #define INFO_INTERCEPT 19
-    {"info", infoCommandIntercept/*, -1, "readonly", 0, NULL, 0, 0, 0, 0, INIT_CMD_STATS */, 0},
+    {"info", infoCommandIntercept, 0},
 #define SELECT_INTERCEPT 20
-    {"select", selectCommandIntercept/*, -1, "readonly", 0, NULL, 0, 0, 0, 0, INIT_CMD_STATS */, 0},
+    {"select", selectCommandIntercept, 0},
 #define SWAPDB_INTERCEPT 21
-    {"NOswapdb", genericCommandIntercept/*, -1, "readonly", 0, NULL, 0, 0, 0, 0, INIT_CMD_STATS */, 0},
+    {"NOswapdb", genericCommandIntercept, 0},
 #define XADD_INTERCEPT 22
-    {"xadd", xaddCommandIntercept/*, -1, "write", 0, NULL, 0, 0, 0, 0, INIT_CMD_STATS */, 0},
+    {"xadd", xaddCommandIntercept, 0},
 #define XDEL_INTERCEPT 23
-    {"xdel", xdelCommandIntercept/*, -2, "write", 0, NULL, 1, -1, 1, 0, INIT_CMD_STATS */, 0},
+    {"xdel", xdelCommandIntercept, 0},
 #define TOUCH_INTERCEPT 24
-    {"NOtouch", touchCommandIntercept/*, -2, "write", 0, NULL, 1, -1, 1, 0, INIT_CMD_STATS */, 0}};
+    {"NOtouch", touchCommandIntercept, 0}};
 
 void freeIndexingRequest(void *kfv)
 {

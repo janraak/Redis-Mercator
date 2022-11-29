@@ -155,6 +155,7 @@ FaBlok *SilNikParowy_Kontekst::GetOperationPair(char const  *operation, int load
 
     rxString keyset_name = rxStringFormat("%s %s %s", l->setname, operation, r->setname);
     FaBlok *kd = FaBlok::Get(keyset_name, KeysetDescriptor_TYPE_KEYSET);
+    rxStringFree(keyset_name);
     kd->left = l;
     kd->right = r;
     kd->start = ustime();

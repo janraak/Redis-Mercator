@@ -194,7 +194,7 @@ const char *HELP_STRING = "RX Query Commands:\n"
 //     return json;
 // }
 
-void executeTest(Sjiboleth *parser, const char *cmd, int fetch_rows, RedisModuleCtx *ctx, list *errors){
+void executeQueryCommand(Sjiboleth *parser, const char *cmd, int fetch_rows, RedisModuleCtx *ctx, list *errors){
     rxUNUSED(errors);
     rxUNUSED(fetch_rows);
 
@@ -266,9 +266,10 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         parser = new QueryDialect();
 
     list *errors = listCreate();
-    executeTest(parser, (const char *)query + dialect_skippy, fetch_rows, ctx, errors);
+    executeQueryCommand(parser, (const char *)query + dialect_skippy, fetch_rows, ctx, errors);
     listRelease(errors);
     releaseParser(parser);
+    rxStringFree(query);
     return REDISMODULE_OK;
 }
 
