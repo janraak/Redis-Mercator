@@ -112,11 +112,9 @@ rxGraphdb.so: ../../src/redismodule.h rxGraphdb.cpp graphstack.hpp   rxSuite.xo 
 
 sjiboleth.so: ../../src/redismodule.h sjiboleth.cpp sjiboleth.hpp   rxSuite.xo  rxSuiteHelpers.xo  sjiboleth.cpp sjiboleth-silnikparowy.cpp  sjiboleth-silnikparowy-ctx.cpp sjiboleth-generic.cpp sjiboleth-gremlin.cpp sjiboleth-json.cpp sjiboleth-query.cpp sjiboleth-text.cpp  sjiboleth-fablok.cpp rxSuite.xo  rxSuiteHelpers.xo sjiboleth.cpp         sjiboleth-generic.cpp  sjiboleth-parser.cpp  sjiboleth-text.cpp  sjiboleth-gremlin.cpp  sjiboleth-query.cpp   sjibolethWrapper.cpp sjiboleth-fablok.cpp  sjiboleth.xo  sjiboleth-json.cpp sjiboleth.hpp graphstack.hpp makefile client-pool.hpp client-pool.cpp sdsWrapper.xo
 	g++ -o sjiboleth.so  $(CXXFLAGS) -shared  $(WARNNING) $(FILT) $(SHOBJ_CFLAGS)  $(INCLUDE_PATHS)  -g -ggdb  -isystem -DUSE_JEMALLOC -Werror=main -std=c++17 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -isystem -DUSE_JEMALLOC   -fPIC  sjiboleth.cpp  sjiboleth-fablok.cpp sjiboleth-generic.cpp  sjiboleth-gremlin.cpp  sjiboleth-json.cpp  sjiboleth-parser.cpp  sjiboleth-query.cpp sjiboleth-text.cpp  sjibolethWrapper.cpp   rxSuiteHelpers.xo client-pool.cpp  sdsWrapper.xo
-	sudo cp sjiboleth.so ../../..
-	sudo cp sjiboleth.so ../..
-	sudo cp sjiboleth.so ../../src
-	sudo cp sjiboleth.so /usr/bin
-
+	# sudo cp sjiboleth.so ../../..
+	# sudo cp sjiboleth.so ../..
+	# sudo cp sjiboleth.so ../../src
 
 makefile:
 	echo "build complete"
