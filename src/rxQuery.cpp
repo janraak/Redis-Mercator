@@ -1,5 +1,5 @@
 
-/* rxQuery -- Execute SET and/or Graph queries 
+/* rxQuery -- Execute SET and/or Graph queries
  *            against a Redis Database
  */
 #define REDISMODULE_EXPERIMENTAL_API
@@ -7,20 +7,19 @@
 #include <string>
 
 using std::string;
-#include "sjiboleth.h"
 #include "sjiboleth-fablok.hpp"
+#include "sjiboleth.h"
 
 #include "../../deps/hiredis/hiredis.h"
 #ifdef __cplusplus
 extern "C"
 {
 #endif
-#include <sys/stat.h>
-#include <string.h>
 #include "sdsWrapper.h"
+#include <string.h>
+#include <sys/stat.h>
 
 #include "rxSuiteHelpers.h"
-
 
     int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc);
 
@@ -194,20 +193,23 @@ const char *HELP_STRING = "RX Query Commands:\n"
 //     return json;
 // }
 
-void executeTest(Sjiboleth *parser, const char *cmd, int fetch_rows, RedisModuleCtx *ctx, list *errors){
+void executeQueryCommand(Sjiboleth *parser, const char *cmd, int fetch_rows, RedisModuleCtx *ctx, list *errors)
+{
     rxUNUSED(errors);
     rxUNUSED(fetch_rows);
 
     redisNodeInfo *index_config = rxIndexNode();
     redisNodeInfo *data_config = rxDataNode();
     auto *t = parser->Parse(cmd);
-    if(parsedWithErrors(t)){
+    if (parsedWithErrors(t))
+    {
         writeParsedErrors(t, ctx);
         return;
     }
     t->Show(cmd);
     auto *e = (SilNikParowy_Kontekst *)data_config->executor;
-    if(data_config->executor == NULL){
+    if (data_config->executor == NULL)
+    {
         e = new SilNikParowy_Kontekst(index_config, ctx);
         data_config->executor = e;
         index_config->executor = e;
@@ -262,13 +264,15 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     {
         parser = new GremlinDialect();
         dialect_skippy = strlen(GREMLIN_PREFX);
-    }else
+    }
+    else
         parser = new QueryDialect();
 
     list *errors = listCreate();
-    executeTest(parser, (const char *)query + dialect_skippy, fetch_rows, ctx, errors);
+    executeQueryCommand(parser, (const char *)query + dialect_skippy, fetch_rows, ctx, errors);
     listRelease(errors);
     releaseParser(parser);
+    rxStringFree(query);
     return REDISMODULE_OK;
 }
 
@@ -389,7 +393,7 @@ int executeCacheCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     return RedisModule_ReplyWithSimpleString(ctx, response);
 }
 
-int executeHelpCommand(RedisModuleCtx *ctx, RedisModuleString **, int )
+int executeHelpCommand(RedisModuleCtx *ctx, RedisModuleString **, int)
 {
     return RedisModule_ReplyWithSimpleString(ctx, HELP_STRING);
 }
@@ -399,29 +403,32 @@ int executeHelpCommand(RedisModuleCtx *ctx, RedisModuleString **, int )
 int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     if (RedisModule_Init(ctx, RX_QUERY, 1, REDISMODULE_APIVER_1) == REDISMODULE_ERR)
+    {
+        rxServerLog(rxLL_NOTICE, "OnLoad rxQuery. Init error!");
         return REDISMODULE_ERR;
+    }
     initRxSuite();
     rxRegisterConfig((void **)argv, argc);
 
     if (RedisModule_CreateCommand(ctx, RX_QUERY,
-                                  executeQueryCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
+                                  executeQueryCommand, "readonly write", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     if (RedisModule_CreateCommand(ctx, RX_GET,
-                                  executeQueryCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
+                                  executeQueryCommand, "readonly write", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     if (RedisModule_CreateCommand(ctx, RXCACHE,
                                   executeCacheCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, RX_LOADSCRIPT,
-                                  executeLoadScriptCommand, "", 0, 0, 0) == REDISMODULE_ERR)
+                                  executeLoadScriptCommand, "write", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, RX_EVALSHA,
-                                  executeEvalShaCommand, "", 0, 0, 0) == REDISMODULE_ERR)
+                                  executeEvalShaCommand, "write", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, RX_HELP,
-                                  executeHelpCommand, "", 0, 0, 0) == REDISMODULE_ERR)
+                                  executeHelpCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     redisNodeInfo *index_config = rxIndexNode();
@@ -430,14 +437,13 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     redisNodeInfo *data_config = rxDataNode();
     c = (struct client *)RedisClientPool<struct client>::Acquire(data_config->host_reference);
     RedisClientPool<struct client>::Release(c);
-
+    rxServerLog(rxLL_NOTICE, "OnLoad rxQuery. Done!");
     return REDISMODULE_OK;
 }
 
 int RedisModule_OnUnload(RedisModuleCtx *ctx)
 {
-    rxUNUSED(ctx);    
+    rxUNUSED(ctx);
     finalizeRxSuite();
     return REDISMODULE_OK;
 }
- 

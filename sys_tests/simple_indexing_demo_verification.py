@@ -39,6 +39,7 @@ def check_server(must_flush):
         if m[b'name'].decode('utf-8') == "rxIndexer": indexer_loaded= True
         if m[b'name'].decode('utf-8') == "RXQUERY": query_loaded= True
         if m[b'name'].decode('utf-8') == "rxRule": rules_loaded= True
+    execute(-2,redis_client,"MODULE LOAD {}/rxMercator.so CLIENT".format(modulePath))
     if not indexer_loaded:
         execute(-2,redis_client,"MODULE LOAD {}/rxIndexer.so INDEX 192.168.1.180 6401 0 DATA 192.168.1.180 6400 0".format(modulePath))
     if not query_loaded:
@@ -55,9 +56,14 @@ def check_server(must_flush):
     for m in data:
         print(m)
         if m[b'name'].decode('utf-8') == "rxIndexStore": fetcher_loaded= True
+    redis_index.execute_command("MODULE LOAD {}/rxMercator.so CLIENT".format(modulePath))
     if not fetcher_loaded:
         redis_index.execute_command("MODULE LOAD {}/rxIndexStore.so a b c".format(modulePath))
 
+    data = execute(-1,redis_client,"MODULE LIST")
+    print(data)
+    data = redis_index.execute_command("MODULE LIST")
+    print(data)
     # exit(0)    
     
     if must_flush:

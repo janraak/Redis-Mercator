@@ -251,31 +251,31 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **, int)
     }
 
     rxInitComparisonsProcs();
-    rxServerLog(rxLL_NOTICE, "OnLoad rxIndexStore. Comparers initializrf");
+    rxServerLog(rxLL_NOTICE, "OnLoad rxIndexStore. Comparers initialized");
 
     if (RedisModule_CreateCommand(ctx, "rxFetch",
                                   rx_fetch, "readonly", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     if (RedisModule_CreateCommand(ctx, "rxAdd",
-                                  rx_add, "readonly", 1, 1, 0) == REDISMODULE_ERR)
+                                  rx_add, "write", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
 
     if (RedisModule_CreateCommand(ctx, "rxDel",
-                                  rx_del, "readonly", 1, 1, 0) == REDISMODULE_ERR)
+                                  rx_del, "write", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     if (RedisModule_CreateCommand(ctx, "rxBegin",
-                                  rx_begin_key, "readonly", 1, 1, 0) == REDISMODULE_ERR)
+                                  rx_begin_key, "write", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     if (RedisModule_CreateCommand(ctx, "rxCommit",
-                                  rx_commit_key, "readonly", 1, 1, 0) == REDISMODULE_ERR)
+                                  rx_commit_key, "write", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     if (RedisModule_CreateCommand(ctx, "rxRollback",
-                                  rx_rollback_key, "readonly", 1, 1, 0) == REDISMODULE_ERR)
+                                  rx_rollback_key, "write", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     if (RedisModule_CreateCommand(ctx, "rxDescribe",

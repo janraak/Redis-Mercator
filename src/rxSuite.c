@@ -57,15 +57,13 @@ extern "C"
 
 void *rxMercatorShared = NULL;
 
-void initRxSuite()
+void *initRxSuite()
 {
     if (!rxMercatorShared)
     {
         rxSuiteShared *shared = zmalloc(sizeof(rxSuiteShared));
-        // shared->OperationMap = NULL;
-        // shared->KeysetCache = NULL;
+        memset(shared, 0x00, sizeof(rxSuiteShared));
         shared->parserClaimCount = 0;
-        // shared->tokenDictType = &tokenDictTypeDefinition;
         rxMercatorShared = shared;
 
         shared->indexNode.host_reference = sdsnew("127.0.0.1:6379");
@@ -82,7 +80,17 @@ void initRxSuite()
         shared->dataNode.is_local = 0;
         shared->dataNode.executor = NULL;
         shared->defaultQueryOperator = sdsnew("&");
+
+        shared->controllerNode.host_reference = sdsnew("127.0.0.1:6379");
+        shared->controllerNode.host = sdsnew("127.0.0.1");
+        shared->controllerNode.port = 6379;
+        shared->controllerNode.database_id = 0;
+        shared->controllerNode.is_local = 0;
+        shared->controllerNode.executor = NULL;
+
+
     }
+    return rxMercatorShared;
 }
 
 rxSuiteShared *getRxSuite()
@@ -112,6 +120,12 @@ redisNodeInfo *rxDataNode()
     return &config->dataNode;
 }
 
+redisNodeInfo *rxControllerNode()
+{
+    rxSuiteShared *config = getRxSuite();
+    return &config->controllerNode;
+}
+
 static void extractArgs(RedisModuleString **oargv, int j, redisNodeInfo *node)
 {
     RedisModuleString **argv = (RedisModuleString **)oargv;
@@ -126,7 +140,7 @@ static void extractArgs(RedisModuleString **oargv, int j, redisNodeInfo *node)
 void rxRegisterConfig(void **oargv, int argc)
 {
     RedisModuleString **argv = (RedisModuleString **)oargv;
-    rxSuiteShared *config = rxMercatorShared;
+    rxSuiteShared *config = initRxSuite();
     for (int j = 0; j < argc; ++j)
     {
         const char *arg = (const char *)argv[j]->ptr;
@@ -141,15 +155,49 @@ void rxRegisterConfig(void **oargv, int argc)
             extractArgs(argv, j + 1, &config->dataNode);
             j += 3;
         }
+        else if (stringmatchlen(arg, argl, "CONTROLLER", 4, 1) == 1)
+        {
+            extractArgs(argv, j + 1, &config->controllerNode);
+            j += 3;
+        }
         else if (stringmatchlen(arg, argl, "DEFAULT_OPERATOR", 16, 1) == 1)
         {
             ++j;
             const char *s = (const char *)argv[j]->ptr;
             config->defaultQueryOperator = sdsnew(s);
         }
+        else if (stringmatchlen(arg, argl, "CDN", 16, 1) == 1)
+        {
+            ++j;
+            const char *s = (const char *)argv[j]->ptr;
+            config->cdnRootUrl = sdsnew(s);
+        }
+        else if (stringmatchlen(arg, argl, "START-SCRIPT", 16, 1) == 1)
+        {
+            ++j;
+            const char *s = (const char *)argv[j]->ptr;
+            config->startScript = sdsnew(s);
+        }
+        else if (stringmatchlen(arg, argl, "INSTALL-SCRIPT", 16, 1) == 1)
+        {
+            ++j;
+            const char *s = (const char *)argv[j]->ptr;
+            config->installScript = sdsnew(s);
+        }
     }
     config->indexNode.is_local = strcmp(config->indexNode.host, config->dataNode.host) == 0 && config->indexNode.port == config->dataNode.port;
     config->indexNode.host_reference = sdscatprintf(sdsempty(), "%s:%d", config->indexNode.host, config->indexNode.port);
     config->dataNode.is_local = config->indexNode.is_local;
     config->dataNode.host_reference = sdscatprintf(sdsempty(), "%s:%d", config->dataNode.host, config->dataNode.port);
+    if (config->cdnRootUrl == NULL)
+        config->cdnRootUrl = sdsnew("https://roxoft.dev/assets");
+    if (config->startScript == NULL)
+        config->startScript = sdsnew("__start_redis.sh");
+    if (config->installScript == NULL)
+        config->installScript = sdsnew("__install_rxmercator.sh");
+}
+
+char *rxGetExecutable()
+{
+    return server.executable;
 }

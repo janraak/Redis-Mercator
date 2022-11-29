@@ -44,15 +44,21 @@ typedef struct
     int parserClaimCount;
     redisNodeInfo indexNode;
     redisNodeInfo dataNode;
-    const char * defaultQueryOperator;
+    redisNodeInfo controllerNode;
+    const char *defaultQueryOperator;
+    const char *cdnRootUrl;
+    const char *startScript;
+    const char *installScript;
 } rxSuiteShared;
 
-void initRxSuite();
+void *initRxSuite();
 rxSuiteShared *getRxSuite();
 redisNodeInfo *rxIndexNode();
 redisNodeInfo *rxDataNode();
+redisNodeInfo *rxControllerNode();
 void rxRegisterConfig(void **argv, int argc);
 
+char *rxGetExecutable();
 void finalizeRxSuite();
 // #endif
 

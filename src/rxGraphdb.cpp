@@ -10,10 +10,10 @@
 #include "client-pool.hpp"
 
 using std::string;
-#include "rxSuite.h"
-#include "sjiboleth.hpp"
 #include "graphstack.hpp"
 #include "rxGraphLoad-multiplexer.hpp"
+#include "rxSuite.h"
+#include "sjiboleth.hpp"
 
 extern "C"
 {
@@ -55,7 +55,6 @@ int g_set_async(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     multiplexer->Start(ctx);
     return REDISMODULE_OK;
 };
-
 
 /*
   Return the graph for the given keys.
@@ -583,21 +582,25 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     initRxSuite();
 
-    if (RedisModule_Init(ctx, "graphdb", 1, REDISMODULE_APIVER_1) == REDISMODULE_ERR)
+    if (RedisModule_Init(ctx, "rxGraphdb", 1, REDISMODULE_APIVER_1) == REDISMODULE_ERR)
+    {
+        rxServerLog(rxLL_NOTICE, "OnLoad rxGraphdb. Init error!");
         return REDISMODULE_ERR;
+    }
 
     rxRegisterConfig((void **)argv, argc);
 
     if (RedisModule_CreateCommand(ctx, "g.set",
-                                  g_set_async, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)
+                                  g_set_async, "write", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "g.get",
-                                  g_get, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)
+                                  g_get, "readonly", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "g.get_deep",
-                                  get_deep, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)
+                                  get_deep, "readonly", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
+    rxServerLog(rxLL_NOTICE, "OnLoad rxGraphdb. Done!");
     return REDISMODULE_OK;
 }
 

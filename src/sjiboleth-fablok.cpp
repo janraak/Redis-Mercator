@@ -326,7 +326,7 @@ int FaBlok::FetchKeySet(redisNodeInfo *serviceConfig, const char *rh)
     long long start = ustime();
     try
     {
-        redisReply *rcc;
+        redisReply *rcc = NULL;
         int segments = 0;
         rxString *parts = rxStringSplitLen(rh, strlen(rh), " ", 1, &segments);
         switch (segments)
@@ -361,7 +361,7 @@ int FaBlok::FetchKeySet(redisNodeInfo *serviceConfig, const char *lh, const char
         return C_OK;
     if (index_context == NULL)
         return C_ERR;
-    redisReply *rcc;
+    redisReply *rcc = NULL;
     long long start = ustime();
     if (isdigit(*rh))
     {
@@ -377,6 +377,7 @@ int FaBlok::FetchKeySet(redisNodeInfo *serviceConfig, const char *lh, const char
     }
     this->latency = ustime() - start;
     this->pushIndexEntries(rcc);
+    freeReplyObject(rcc);
     RedisClientPool<redisContext>::Release(index_context);
     return C_OK;
 }

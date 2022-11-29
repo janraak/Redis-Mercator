@@ -29,10 +29,17 @@ long long rust_helper_cron = -1;
 
 extern rxString hashTypeGetFromHashTable(robj *o, rxString field);
 extern int hashTypeGetValue(robj *o, rxString field, unsigned char **vstr, POINTER *vlen, long long *vll);
-extern int hashTypeGetFromZiplist(robj *o, rxString field,
-                                  unsigned char **vstr,
-                                  unsigned int *vlen,
-                                  long long *vll);
+#if REDIS_VERSION_NUM >=  0x00070000
+    #define HASTYPEGETFROMPACKED hashTypeGetFromListpack
+    #define HASHTYPE_PACKED OBJ_ENCODING_LISTPACK
+#else
+    #define HASTYPEGETFROMPACKED hashTypeGetFromZiplist
+    #define HASHTYPE_PACKED OBJ_ENCODING_ZIPLIST
+#endif
+extern int HASTYPEGETFROMPACKED(robj *o, rxString field,
+                                unsigned char **vstr,
+                                unsigned int *vlen,
+                                long long *vll);
 
 zskiplistNode *zslGetElementByRank(zskiplist *zsl, unsigned long rank);
 
@@ -210,13 +217,13 @@ int rxMatchHasValue(void *oO, const char *f, rxString pattern, int plen)
 
     rxString field = rxStringNew(f);
 
-    if (o->encoding == OBJ_ENCODING_ZIPLIST)
+    if (o->encoding == HASHTYPE_PACKED)
     {
         unsigned char *vstr = NULL;
         POINTER vlen = UINT_MAX;
         long long vll = LLONG_MAX;
 
-        int ret = hashTypeGetFromZiplist(o, field, &vstr, &vlen, &vll);
+        int ret = HASTYPEGETFROMPACKED(o, field, &vstr, &vlen, &vll);
         if (ret < 0)
         {
             rxStringFree(field);
@@ -286,13 +293,13 @@ rxString rxGetHashField(void *oO, const char *f)
         return rxStringEmpty();
     }
 
-    if (o->encoding == OBJ_ENCODING_ZIPLIST)
+    if (o->encoding == HASHTYPE_PACKED)
     {
         unsigned char *vstr = NULL;
         unsigned int vlen = UINT_MAX;
         long long vll = LLONG_MAX;
 
-        ret = hashTypeGetFromZiplist(o, field, &vstr, &vlen, &vll);
+        ret = HASTYPEGETFROMPACKED(o, field, &vstr, &vlen, &vll);
         if (ret >= 0)
         {
             if (vstr)
@@ -618,7 +625,7 @@ void rxHarvestSortedSetMembers(void *obj, rax *bucket)
 
     rangelen = llen;
 
-    if (zobj->encoding == OBJ_ENCODING_ZIPLIST)
+    if (zobj->encoding == HASHTYPE_PACKED)
     {
         unsigned char *zl = zobj->ptr;
         unsigned char *eptr, *sptr;

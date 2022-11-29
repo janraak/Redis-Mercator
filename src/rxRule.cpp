@@ -174,7 +174,6 @@ int rxApply(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     return REDISMODULE_OK;
 }
 
-
 /* This function must be present on each R
 edis module. It is used in order to
  * register the commands into the Redis server. */
@@ -183,41 +182,45 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     initRxSuite();
 
     if (RedisModule_Init(ctx, "rxRule", 1, REDISMODULE_APIVER_1) == REDISMODULE_ERR)
+    {
+        rxServerLog(rxLL_NOTICE, "OnLoad rxRule. Init error!");
         return REDISMODULE_ERR;
+    }
 
     rxRegisterConfig((void **)argv, argc);
     redisNodeInfo *index_config = rxIndexNode();
     redisNodeInfo *data_config = rxDataNode();
 
     rxServerLogRaw(rxLL_WARNING, rxStringFormat("\nrxRule loaded, is local:%d index: %s data: %s \n\n",
-                                              index_config->is_local,
-                                              index_config->host_reference,
-                                              data_config->host_reference));
+                                                index_config->is_local,
+                                                index_config->host_reference,
+                                                data_config->host_reference));
     if (RedisModule_CreateCommand(ctx, "RULE.SET",
-                                  rxRuleSet, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)
+                                  rxRuleSet, "admin write", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "RULEADD",
-                                  rxRuleSet, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)
+                                  rxRuleSet, "admin write", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "RULE.APPLY",
-                                  rxApply, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)
+                                  rxApply, "write", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "RXTRIGGER",
-                                  rxApply, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)
+                                  rxApply, "write", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "RULE.LIST",
-                                  rxRuleList, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)
+                                  rxRuleList, "admin readonly", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "RULE.DEL",
-                                  rxRuleDel, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)
+                                  rxRuleDel, "admin write", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "RULE.GET",
-                                  rxRuleGet, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)
+                                  rxRuleGet, "admin readonly", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     // if (RedisModule_CreateCommand(ctx, "test.json",
     //                               executeQueryCommand, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)
     //     return REDISMODULE_ERR;
 
+    rxServerLog(rxLL_NOTICE, "OnLoad rxRule. Done!");
     return REDISMODULE_OK;
 }
 
