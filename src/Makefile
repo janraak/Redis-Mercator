@@ -4,10 +4,10 @@ uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
 DEPENDENCY_TARGETS=hiredis linenoise lua
 CPPSOURCES := $(wildcard*.cpp)
 
-INCLUDE_PATHS = -isystem -DUSE_JEMALLOC -I.. -I../../src -I../deps -I../deps/hiredis  -I../../deps/hdr_histogram -I../deps/linenoise -I../../deps/lua/src -I/usr/include 
+INCLUDE_PATHS = -isystem -DUSE_JEMALLOC -I.. -I../../src -I../deps -I../deps/hiredis  -I../../deps/hdr_histogram -I../deps/linenoise -I../../deps/lua/src -I/usr/include -L ../../extensions/src -lc
 
 
-# Compile flags for linux / osx
+# Compile flags for linux / osxext
 CFLAGS ?= -std=c99
 ifeq ($(uname_S),Linux)
 	SHOBJ_CFLAGS ?= -W -Wall -fno-common -g -ggdb -O0  -fPIC
@@ -96,7 +96,7 @@ DEBUG += -g -ggdb
 all: sdsWrapper.xo indexIntercepts.xo rxSuite.xo  rxSuiteHelpers.xo rxIndexer.so rxQuery.so rxIndexStore.so rxMercator.so rxRule.xo  rxRule.so sjiboleth.so rxGraphdb.so 
 
 .c.xo: 
-	$(CC) -I.. -I. $(CFLAGS) $(SHOBJ_CFLAGS)  -isystem -DUSE_JEMALLOC   $(INCLUDE_PATHS) -fPIC -c $< -o $@
+	$(CC) -o $@ -I.. -I. $(CFLAGS) $(SHOBJ_CFLAGS)  -isystem -DUSE_JEMALLOC   $(INCLUDE_PATHS) -fPIC -c $<
 
 OBSOLETEFLAGS=-std=c99 
 FILT = $(filter-out $(OBSOLETEFLAGS), $(CFLAGS))
@@ -112,9 +112,6 @@ rxGraphdb.so: ../../src/redismodule.h rxGraphdb.cpp graphstack.hpp   rxSuite.xo 
 
 sjiboleth.so: ../../src/redismodule.h sjiboleth.cpp sjiboleth.hpp   rxSuite.xo  rxSuiteHelpers.xo  sjiboleth.cpp sjiboleth-silnikparowy.cpp  sjiboleth-silnikparowy-ctx.cpp sjiboleth-generic.cpp sjiboleth-gremlin.cpp sjiboleth-json.cpp sjiboleth-query.cpp sjiboleth-text.cpp  sjiboleth-fablok.cpp rxSuite.xo  rxSuiteHelpers.xo sjiboleth.cpp         sjiboleth-generic.cpp  sjiboleth-parser.cpp  sjiboleth-text.cpp  sjiboleth-gremlin.cpp  sjiboleth-query.cpp   sjibolethWrapper.cpp sjiboleth-fablok.cpp  sjiboleth.xo  sjiboleth-json.cpp sjiboleth.hpp graphstack.hpp makefile client-pool.hpp client-pool.cpp sdsWrapper.xo
 	g++ -o sjiboleth.so  $(CXXFLAGS) -shared  $(WARNNING) $(FILT) $(SHOBJ_CFLAGS)  $(INCLUDE_PATHS)  -g -ggdb  -isystem -DUSE_JEMALLOC -Werror=main -std=c++17 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -isystem -DUSE_JEMALLOC   -fPIC  sjiboleth.cpp  sjiboleth-fablok.cpp sjiboleth-generic.cpp  sjiboleth-gremlin.cpp  sjiboleth-json.cpp  sjiboleth-parser.cpp  sjiboleth-query.cpp sjiboleth-text.cpp  sjibolethWrapper.cpp   rxSuiteHelpers.xo client-pool.cpp  sdsWrapper.xo
-	# sudo cp sjiboleth.so ../../..
-	# sudo cp sjiboleth.so ../..
-	# sudo cp sjiboleth.so ../../src
 
 makefile:
 	echo "build complete"

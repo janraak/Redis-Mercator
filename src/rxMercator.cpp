@@ -397,6 +397,9 @@ int rx_start_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
         return RedisModule_ReplyWithSimpleString(ctx, "cluster not found");
     char cwd[FILENAME_MAX]; // create string buffer to hold path
     GetCurrentDir(cwd, FILENAME_MAX);
+    char *data = strstr(cwd, "/data");
+    if(data != NULL)
+        *data = 0x00;
 
     void *si = NULL;
     rxString node;
@@ -423,10 +426,13 @@ int rx_start_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
         rxString primary_name = rxGetHashField2(node_info, PRIMARY_FIELD);
         printf(".... starting node:%s %s:%s role:%s shard:%s index_name:%s primary_name:%s \n", node, address, port, role, shard, index_name, primary_name);
         rxString startup_command = rxStringFormat(
-            "python3 %s/extensions/src/start_node.py %s %s %s %s %s %s  >>data/startup.log ",
-            cwd, sha1, address, port,
+            "python3 %s/extensions/src/start_node.py %s %s %s %s %s %s  >>%s/data/startup.log ",
+            cwd, 
+            sha1, 
+            address, port,
             role,
-            index_address, index_port);
+            index_address, index_port, 
+            cwd);
 
         rxServerLog(rxLL_NOTICE, "%s\n", startup_command);
         start_redis(startup_command);
@@ -659,17 +665,18 @@ int rx_setconfig(RedisModuleCtx *ctx, RedisModuleString **, int)
     char *libpath = getenv("LD_LIBRARY_PATH");
     if (ctx == NULL)
     {
-        char cwd[4096];
-        getcwd(cwd, sizeof(cwd));
+        char var[4096] = "LD_LIBRARY_PATH=";
+        // char cwd[4096] = "LD_LIBRARY_PATH=";
+        // getcwd(cwd, sizeof(cwd));
+        // strcat(var, cwd);
         char *executable = rxGetExecutable();
         char *name = strstr(executable, "/src/redis-server");
+        int h = strlen(var);
         int n = name - executable;
-        strncpy(cwd, executable, n);
-        strcpy(cwd + n, "/extensions/src:");
-        // cwd[n] = ':';
-        // cwd[n + 1] = 0x00;
-        strcat(cwd, libpath);
-        setenv("LD_LIBRARY_PATH", cwd, 1);
+        strncat(var, executable, n);
+        strcpy(var + h + n, "/extensions/src:");
+        strcat(var, libpath);
+        putenv(var);
     }
 
     if (ctx == NULL)
@@ -716,6 +723,8 @@ int rx_add_server(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
  * register the commands into the Redis server. */
 int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
+    char *libpath = getenv("LD_LIBRARY_PATH");
+    rxServerLog(rxLL_NOTICE, "1) rxMercator LD_LIBRARY_PATH=%s", libpath);
     if (RedisModule_Init(ctx, "rxMercator", 1, REDISMODULE_APIVER_1) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
@@ -724,6 +733,8 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         RedisModule_CreateCommand(ctx, "mercator.config", rx_setconfig, "readonly", 1, 1, 0);
         rx_setconfig(NULL, NULL, 0);
         RedisModule_CreateCommand(ctx, "mercator.healthcheck", rx_healthcheck, "readonly", 1, 1, 0);
+        libpath = getenv("LD_LIBRARY_PATH");
+        rxServerLog(rxLL_NOTICE, "3) rxMercator LD_LIBRARY_PATH=%s", libpath);
         return REDISMODULE_OK;
     }
     if (RedisModule_CreateCommand(ctx, "mercator.create.cluster", rx_create_cluster, "", 1, 1, 0) == REDISMODULE_ERR)
@@ -756,8 +767,8 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     if (RedisModule_CreateCommand(ctx, "mercator.help", rx_help, "readonly", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
-    char *libpath = getenv("LD_LIBRARY_PATH");
-    rxServerLog(rxLL_NOTICE, "rxMercator LD_LIBRARY_PATH=%s", libpath);
+    libpath = getenv("LD_LIBRARY_PATH");
+    rxServerLog(rxLL_NOTICE, "2) rxMercator LD_LIBRARY_PATH=%s", libpath);
     return REDISMODULE_OK;
 }
 
