@@ -194,25 +194,25 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
                                               index_config->host_reference,
                                               data_config->host_reference));
     if (RedisModule_CreateCommand(ctx, "RULE.SET",
-                                  rxRuleSet, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)
+                                  rxRuleSet, "admin write no-mandatory-keys may-replicate", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "RULEADD",
-                                  rxRuleSet, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)
+                                  rxRuleSet, "admin write no-mandatory-keys may-replicate", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "RULE.APPLY",
-                                  rxApply, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)
+                                  rxApply, "write may-replicate", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "RXTRIGGER",
-                                  rxApply, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)
+                                  rxApply, "write may-replicate", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "RULE.LIST",
-                                  rxRuleList, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)
+                                  rxRuleList, "admin readonly", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "RULE.DEL",
-                                  rxRuleDel, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)
+                                  rxRuleDel, "admin write no-mandatory-keys may-replicate", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "RULE.GET",
-                                  rxRuleGet, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)
+                                  rxRuleGet, "admin readonly", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     // if (RedisModule_CreateCommand(ctx, "test.json",
     //                               executeQueryCommand, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)

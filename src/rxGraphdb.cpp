@@ -589,13 +589,13 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     rxRegisterConfig((void **)argv, argc);
 
     if (RedisModule_CreateCommand(ctx, "g.set",
-                                  g_set_async, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)
+                                  g_set_async, "write no-mandatory-keys may-replicate", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "g.get",
-                                  g_get, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)
+                                  g_get, "readonly", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "g.get_deep",
-                                  get_deep, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)
+                                  get_deep, "readonly", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     return REDISMODULE_OK;

@@ -775,7 +775,7 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
                                   indexerControl, "readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "rxReIndex",
-                                  reindex, "", 0, 0, 0) == REDISMODULE_ERR)
+                                  reindex, "readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     installIndexerInterceptors();

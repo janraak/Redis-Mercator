@@ -730,38 +730,38 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 
     if (argc == 1 && strcmp((char *)rxGetContainedObject(argv[0]), "CLIENT") == 0)
     {
-        RedisModule_CreateCommand(ctx, "mercator.config", rx_setconfig, "readonly", 1, 1, 0);
+        RedisModule_CreateCommand(ctx, "mercator.config", rx_setconfig, "admin write", 1, 1, 0);
         rx_setconfig(NULL, NULL, 0);
-        RedisModule_CreateCommand(ctx, "mercator.healthcheck", rx_healthcheck, "readonly", 1, 1, 0);
+        RedisModule_CreateCommand(ctx, "mercator.healthcheck", rx_healthcheck, "admin write", 1, 1, 0);
         libpath = getenv("LD_LIBRARY_PATH");
         rxServerLog(rxLL_NOTICE, "3) rxMercator LD_LIBRARY_PATH=%s", libpath);
         return REDISMODULE_OK;
     }
-    if (RedisModule_CreateCommand(ctx, "mercator.create.cluster", rx_create_cluster, "", 1, 1, 0) == REDISMODULE_ERR)
+    if (RedisModule_CreateCommand(ctx, "mercator.create.cluster", rx_create_cluster, "admin write", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
-    if (RedisModule_CreateCommand(ctx, "mercator.destroy.cluster", rx_destroy_cluster, "", 1, 1, 0) == REDISMODULE_ERR)
+    if (RedisModule_CreateCommand(ctx, "mercator.destroy.cluster", rx_destroy_cluster, "admin write", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
-    if (RedisModule_CreateCommand(ctx, "mercator.start.cluster", rx_start_cluster, "readonly", 1, 1, 0) == REDISMODULE_ERR)
+    if (RedisModule_CreateCommand(ctx, "mercator.start.cluster", rx_start_cluster, "admin write", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
-    if (RedisModule_CreateCommand(ctx, "mercator.stop.cluster", rx_stop_cluster, "readonly", 1, 1, 0) == REDISMODULE_ERR)
+    if (RedisModule_CreateCommand(ctx, "mercator.stop.cluster", rx_stop_cluster, "admin write", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
-    if (RedisModule_CreateCommand(ctx, "mercator.kill.cluster", rx_kill_cluster, "readonly", 1, 1, 0) == REDISMODULE_ERR)
+    if (RedisModule_CreateCommand(ctx, "mercator.kill.cluster", rx_kill_cluster, "admin write", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     if (RedisModule_CreateCommand(ctx, "mercator.snapshot.cluster", rx_snapshot_cluster, "readonly", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
-    if (RedisModule_CreateCommand(ctx, "mercator.info.cluster", rx_info_cluster, "readonly", 1, 1, 0) == REDISMODULE_ERR)
+    if (RedisModule_CreateCommand(ctx, "mercator.info.cluster", rx_info_cluster, "admin write", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
-    if (RedisModule_CreateCommand(ctx, "mercator.flush.cluster", rx_flush_cluster, "readonly", 1, 1, 0) == REDISMODULE_ERR)
+    if (RedisModule_CreateCommand(ctx, "mercator.flush.cluster", rx_flush_cluster, "admin write", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
-    if (RedisModule_CreateCommand(ctx, "mercator.add.server", rx_add_server, "", 1, 1, 0) == REDISMODULE_ERR)
+    if (RedisModule_CreateCommand(ctx, "mercator.add.server", rx_add_server, "admin write", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     if (RedisModule_CreateCommand(ctx, "mercator.help", rx_help, "readonly", 1, 1, 0) == REDISMODULE_ERR)

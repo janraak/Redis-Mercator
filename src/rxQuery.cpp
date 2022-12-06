@@ -405,24 +405,24 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     rxRegisterConfig((void **)argv, argc);
 
     if (RedisModule_CreateCommand(ctx, RX_QUERY,
-                                  executeQueryCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
+                                  executeQueryCommand, "readonly write no-mandatory-keys", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     if (RedisModule_CreateCommand(ctx, RX_GET,
-                                  executeQueryCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
+                                  executeQueryCommand, "readonly write no-mandatory-keys", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     if (RedisModule_CreateCommand(ctx, RXCACHE,
                                   executeCacheCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, RX_LOADSCRIPT,
-                                  executeLoadScriptCommand, "", 0, 0, 0) == REDISMODULE_ERR)
+                                  executeLoadScriptCommand, "write", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, RX_EVALSHA,
-                                  executeEvalShaCommand, "", 0, 0, 0) == REDISMODULE_ERR)
+                                  executeEvalShaCommand, "write", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, RX_HELP,
-                                  executeHelpCommand, "", 0, 0, 0) == REDISMODULE_ERR)
+                                  executeHelpCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     redisNodeInfo *index_config = rxIndexNode();
