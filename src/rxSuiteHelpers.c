@@ -63,7 +63,6 @@ void installInterceptors(interceptRule *commandTable, int no_of_commands, timePr
     {
         rust_helper_cron = aeCreateTimeEvent(server.el, 1, (aeTimeProc *)cron_proc, NULL, NULL);
         int i = cron_proc(NULL, 0, NULL);
-        rxServerLog(LL_NOTICE, "Rust cron started: %lld   0x%lx %d", rust_helper_cron, (long)cron_proc, i);
     }
 }
 

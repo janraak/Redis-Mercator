@@ -38,7 +38,6 @@ public:
 public:
     Graph_Leg(rxString key, float weight)
     {
-        /////**/ rxServerLog(LL_NOTICE, "0x%x %s #add_graph_leg# ", (POINTER)this, key);
         this->key = rxStringDup(key);
         this->length = weight;
         this->start = NULL;
@@ -149,9 +148,7 @@ public:
 
     void Show(){
         return;
-        printf("tally:%d object: 0x%x %s\n   path:", this->refCnt, (POINTER)this->object, this->object_key);
         if(this->object == NULL){
-            printf(" ODD object = NULL: 0x%x %s\n   path:", (POINTER)this->object, this->object_key);
             return;
         }
         listIter *li = listGetIterator(this->path, 0);
@@ -166,8 +163,8 @@ public:
 
     rxString Json(rxString json)
     {
-        json = rxStringFormat("%s{\"object\":\"%s\", \"data\":\"%x\"", 
-            json, this->object_key, (POINTER)this->object);
+        json = rxStringFormat("%s{\"object\":\"%s\", ", 
+            json, this->object_key);
 
         if(listLength(this->path) > 0){
             char sep = ' ';
@@ -317,8 +314,6 @@ public:
             triplet->edges.Add(e);
         }
         void *t = rxCreateObject(OBJ_TRIPLET, triplet);
-        // printf("triplet  0x%x in  0x%x\n", (POINTER) triplet, (POINTER) t);
-        // triplet->Show();
         return t;
     }
 
@@ -441,7 +436,7 @@ public:
     {
         return;
         printf("== Triplet ==\n");
-        printf(" 0x%x subject: 0x%x %s length=%f\n", (POINTER)this, (POINTER)this->subject, this->subject_key, this->length);
+        printf(" %s length=%f\n", this->subject_key, this->length);
 
         
         if (this->containers.HasEntries())
@@ -472,8 +467,8 @@ public:
     rxString Json(rxString key)
     {
         rxString json = rxStringFormat( "{\"key\":\"%s\", \"value\":\"{\"", key);
-        json = rxStringFormat("%s\"subject\":\"%s\", \"data\":\"%x\", \"length\":\"%f\" ", 
-        json, subject_key, (POINTER)subject, length);
+        json = rxStringFormat("%s\"subject\":\"%s\", \"length\":\"%f\" ", 
+        json, subject_key, length);
 
         // if (this->containers.HasEntries())
         // {

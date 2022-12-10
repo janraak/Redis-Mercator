@@ -663,13 +663,11 @@ ParsedExpression::ParsedExpression(Sjiboleth *dialect)
     this->expression = new GraphStack<ParserToken>();
     this->side_track = listCreate();
     this->errors = listCreate();
-    // printf(" ParsedExpression()%x, %x, %x\n", (POINTER)this->expression, (POINTER)this->side_track, (POINTER)this->errors);
     this->next = NULL;
 };
 
 ParsedExpression::~ParsedExpression()
 {
-    // printf("~ParsedExpression()%x, %x, %x\n", (POINTER)this->expression, (POINTER)this->side_track, (POINTER)this->errors);
     if (this->side_track)
         listRelease(this->side_track);
     if(this->errors)

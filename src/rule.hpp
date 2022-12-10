@@ -107,7 +107,6 @@ public:
         while (raxNext(&ri))
         {
             rxString ruleName = rxStringNewLen((const char*)ri.key, ri.key_len);
-            rxServerLogRaw(rxLL_WARNING, rxStringFormat("# ForgetAll # 100 # rule: %s", ruleName));
             rxStringFree(ruleName);
             BusinessRule *br = (BusinessRule *)ri.data;
             while(BusinessRule::RegistryLock){
@@ -118,7 +117,6 @@ public:
         }
         raxStop(&ri);
         BusinessRule::Registry = NULL;
-        rxServerLogRaw(rxLL_WARNING, rxStringFormat("# ForgetAll # 800 # BusinessRule::Registry isnull: %x", (POINTER)BusinessRule::Registry));
     }
 
     static int WriteList(RedisModuleCtx *ctx)

@@ -623,14 +623,11 @@ public:
         while (e)
         {
             printf("++++++++++++++++++ DUMP ++++ %d ++ %s ++++++++++++++++\n", depth, label);
-            printf("this:         0x%x\n", (unsigned int)e);
             printf("token_key:    %s\n", e->token_key);
             printf("inv_token_key:%s\n", e->inverse_token_key);
             printf("token_value:  %s\n", e->token_key);
             printf("token_type:   %s\n", e->token_type);
             printf("weight:       %0.0f\n", e->weight);
-            printf("parent:       0x%x\n", (unsigned int)e->parent);
-            printf("hash:         0x%x\n", (unsigned int)e->entity);
             if (e->entity)
             {
                 e->entity->StartIterator();

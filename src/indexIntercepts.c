@@ -147,7 +147,6 @@ void freeCompletedRequests()
     while (canDequeueSimpleQueue(index_info.key_indexing_respone_queue))
     {
         sds *index_request = dequeueSimpleQueue(index_info.key_indexing_respone_queue);
-        // /**/ printf("x%x #3 key_indexing_respone_queue\n", (POINTER)index_request);
         freeIndexingRequest(index_request);
     }
 }

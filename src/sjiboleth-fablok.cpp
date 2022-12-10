@@ -64,13 +64,10 @@ bool FaBlok::IsValid()
     }
     if ((strlen(this->setname) > 0 && this->size != raxSize(&this->keyset)) || !(this->marked_for_deletion == 653974783 || this->marked_for_deletion == 2069722765))
     {
-        printf("FaBlok for %s may be corrupted fab: 0x%x reused:%d sz: %u set:0x%x sz: %lld  marked_for_deletion:%d temp:%d\n",
+        printf("FaBlok for %s may be corrupted fab: reused:%lu sz: %lu marked_for_deletion:%d temp:%d\n",
                this->setname,
-               (POINTER)this,
                this->reuse_count,
                this->size,
-               (POINTER) & this->keyset,
-               raxSize(&this->keyset),
                this->marked_for_deletion,
                this->is_temp);
         return false;
@@ -516,7 +513,6 @@ void FaBlok::PushResult(GraphStack<FaBlok> *stack)
     }
     this->latency = ustime() - this->start;
     stack->Push(this);
-    // rxServerLog(LL_NOTICE, "#putKeysetDescriptor2# 0x%x nm=%s reuse=%d", (POINTER) kd, kd->setname, kd->reuse_count);
 }
 
 FaBlok *FaBlok::Open()
@@ -524,14 +520,10 @@ FaBlok *FaBlok::Open()
     this->start = ustime();
     if (this->marked_for_deletion == 2069722765)
     {
-        printf("Opening a deleted FABLOK!  for %s fab: 0x%x reused:%d sz: %u set:0x%x sz: %lld  \n",
-
+        printf("Opening a deleted FABLOK!  for %s fab: reused:%lu sz: %lu    \n",
                this->setname,
-               (POINTER)this,
                this->reuse_count,
-               this->size,
-               (POINTER) & this->keyset,
-               &this->keyset != NULL ? raxSize(&this->keyset) : 0);
+               this->size);
     }
     this->IsValid();
     return this;
