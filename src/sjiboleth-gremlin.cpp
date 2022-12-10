@@ -89,7 +89,7 @@ SJIBOLETH_HANDLER(GremlinDialect::executeMatch)
         result->AsTemp();
         result->Open();
 
-        raxStart(&leadersIterator, &leaders->keyset);
+        raxStart(&leadersIterator, leaders->keyset);
         raxSeek(&leadersIterator, "^", NULL, 0);
         result = FaBlok::Get(setname, KeysetDescriptor_TYPE_GREMLINSET);
 
@@ -100,7 +100,7 @@ SJIBOLETH_HANDLER(GremlinDialect::executeMatch)
         FaBlok *to = FaBlok::New(terminator_temp_setname, KeysetDescriptor_TYPE_GREMLINSET);
 
         raxIterator terminatorsIterator;
-        raxStart(&terminatorsIterator, &terminators->keyset);
+        raxStart(&terminatorsIterator, terminators->keyset);
 
         while (raxNext(&leadersIterator))
         {
@@ -116,7 +116,7 @@ SJIBOLETH_HANDLER(GremlinDialect::executeMatch)
                     if (rxStringCharCount(terminator, ':') < 2)
                     {
                         to->InsertKey(terminatorsIterator.key, terminatorsIterator.key_len, terminatorsIterator.data);
-                        breadthFirstSearch(from, NULL, result, GRAPH_TRAVERSE_INOUT, 1, &to->keyset, (rax *)stack->Recall("matchIncludes"), (rax *)stack->Recall("matchExcludes"));
+                        breadthFirstSearch(from, NULL, result, GRAPH_TRAVERSE_INOUT, 1, to->keyset, (rax *)stack->Recall("matchIncludes"), (rax *)stack->Recall("matchExcludes"));
                     }
                     to->RemoveKey(terminatorsIterator.key, terminatorsIterator.key_len);
                     rxStringFree(terminator);
@@ -171,8 +171,8 @@ SJIBOLETH_HANDLER(GremlinDialect::executeNomatch)
         FaBlok *nomatches = FaBlok::Get(setname, KeysetDescriptor_TYPE_GREMLINSET);
         FaBlok *matches_for_leader = FaBlok::Get(setname, KeysetDescriptor_TYPE_GREMLINSET);
         matches_for_leader->Open();
-        raxStart(&leadersIterator, &leaders->keyset);
-        raxStart(&terminatorsIterator, &terminators->keyset);
+        raxStart(&leadersIterator, leaders->keyset);
+        raxStart(&terminatorsIterator, terminators->keyset);
 
         raxSeek(&leadersIterator, "^", NULL, 0);
 
@@ -196,7 +196,7 @@ SJIBOLETH_HANDLER(GremlinDialect::executeNomatch)
                     if (rxStringCharCount(terminator, ':') < 2)
                     {
                         to->InsertKey(terminatorsIterator.key, terminatorsIterator.key_len, terminatorsIterator.data);
-                        breadthFirstSearch(from, NULL, matches_for_leader, GRAPH_TRAVERSE_INOUT, 1, &to->keyset, (rax *)stack->Recall("matchIncludes"), (rax *)stack->Recall("matchExcludes"));
+                        breadthFirstSearch(from, NULL, matches_for_leader, GRAPH_TRAVERSE_INOUT, 1, to->keyset, (rax *)stack->Recall("matchIncludes"), (rax *)stack->Recall("matchExcludes"));
                     }
                     to->RemoveKey(terminatorsIterator.key, terminatorsIterator.key_len);
                     rxStringFree(terminator);
@@ -747,7 +747,7 @@ SJIBOLETH_HANDLER(executeGremlinGroupby)
     out->Open();
     {
         raxIterator ungroupedIterator;
-        raxStart(&ungroupedIterator, &kd->keyset);
+        raxStart(&ungroupedIterator, kd->keyset);
         raxSeek(&ungroupedIterator, "^", NULL, 0);
         while (raxNext(&ungroupedIterator))
         {
@@ -986,7 +986,7 @@ SJIBOLETH_HANDLER(executeGremlinLinkVertex)
     if (v->IsParameterList() && v->parameter_list->Size() == 2)
     {
         FaBlok *nv = createVertex(stack, v); // Use new vertex!
-        vertex_set = &nv->keyset;
+        vertex_set = nv->keyset;
         FaBlok::Delete(v);
     }
     else
@@ -1002,7 +1002,7 @@ SJIBOLETH_HANDLER(executeGremlinLinkVertex)
         raxInsert(vertex_set, (UCHAR *)v->setname, strlen(v->setname), o, NULL);
     }
     raxIterator edge_iterator;
-    raxStart(&edge_iterator, &e->keyset);
+    raxStart(&edge_iterator, e->keyset);
     raxSeek(&edge_iterator, "^", NULL, 0);
     while ((raxNext(&edge_iterator)))
     {
@@ -1101,7 +1101,7 @@ SJIBOLETH_HANDLER(executeGremlinAddEdge)
         // FaBlok *o = NULL; // iri of object by materializing iri from pred property on subject!
 
         raxIterator SubjectIterator;
-        raxStart(&SubjectIterator, &s->keyset);
+        raxStart(&SubjectIterator, s->keyset);
         raxSeek(&SubjectIterator, "^", NULL, 0);
         while (raxNext(&SubjectIterator))
         {
@@ -1285,7 +1285,7 @@ SJIBOLETH_HANDLER(executeGremlinAddProperty)
         FaBlok *v = pl->parameter_list->Dequeue();
 
         raxIterator targetObjectIterator;
-        raxStart(&targetObjectIterator, &s->keyset);
+        raxStart(&targetObjectIterator, s->keyset);
         raxSeek(&targetObjectIterator, "^", NULL, 0);
         while (raxNext(&targetObjectIterator))
         {
@@ -1340,7 +1340,7 @@ SJIBOLETH_HANDLER(executeGremlinRedisCommand)
         int no_of_parts = pl->parameter_list->Size();
 
         raxIterator keysetIterator;
-        raxStart(&keysetIterator, &s->keyset);
+        raxStart(&keysetIterator, s->keyset);
         raxSeek(&keysetIterator, "^", NULL, 0);
         rxString kw_key = rxStringNew("@key");
         rxString kw_tuple = rxStringNew("@tuple");
@@ -1803,17 +1803,17 @@ int breadthFirstSearch(FaBlok *leaders, list *patterns, FaBlok *kd, int traverse
 {
     int numkeys = 0;
 
-    if (raxSize(&leaders->keyset) <= 0)
+    if (raxSize(leaders->keyset) <= 0)
         leaders->LoadKey(0, leaders->setname);
 
-    if (leaders && raxSize(&leaders->keyset) > 0)
+    if (leaders && raxSize(leaders->keyset) > 0)
     {
         GraphStack<Graph_Leg> bsf_q;
         GraphStack<Graph_Leg> bsf_c;
         rax *touches = raxNew();
         // Seed the search
         raxIterator leadersIterator;
-        raxStart(&leadersIterator, &leaders->keyset);
+        raxStart(&leadersIterator, leaders->keyset);
         raxSeek(&leadersIterator, "^", NULL, 0);
         while (raxNext(&leadersIterator))
         {

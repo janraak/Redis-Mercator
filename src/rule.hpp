@@ -47,7 +47,7 @@ const char *QUERY_DIALECT = "query";
 class BusinessRule
 {
 public:
-    static rax *Registry;
+    static rax *RuleRegistry;
     static bool RegistryLock;
     // Parser *rule;
     ParsedExpression *rule = NULL;
@@ -62,29 +62,29 @@ public:
 
     static BusinessRule *Retain(BusinessRule *br)
     {
-        if (BusinessRule::Registry == NULL)
-            BusinessRule::Registry = raxNew();
+        if (BusinessRule::RuleRegistry == NULL)
+            BusinessRule::RuleRegistry = raxNew();
         while (BusinessRule::RegistryLock)
         {
             sched_yield();
         }
         BusinessRule *old;
-        raxTryInsert(BusinessRule::Registry, (UCHAR *)br->setName, strlen(br->setName), br, (void **)&old);
+        raxTryInsert(BusinessRule::RuleRegistry, (UCHAR *)br->setName, strlen(br->setName), br, (void **)&old);
         return old;
     }
 
     static BusinessRule *Forget(BusinessRule *br)
     {
-        if (BusinessRule::Registry == NULL)
+        if (BusinessRule::RuleRegistry == NULL)
             return NULL;
         while (BusinessRule::RegistryLock)
         {
             sched_yield();
         }
-        BusinessRule *old = (BusinessRule *)raxFind(BusinessRule::Registry, (UCHAR *)br->setName, strlen(br->setName));
+        BusinessRule *old = (BusinessRule *)raxFind(BusinessRule::RuleRegistry, (UCHAR *)br->setName, strlen(br->setName));
         if (old != raxNotFound)
         {
-            raxRemove(BusinessRule::Registry, (UCHAR *)br->setName, strlen(br->setName), (void **)&old);
+            raxRemove(BusinessRule::RuleRegistry, (UCHAR *)br->setName, strlen(br->setName), (void **)&old);
         }
         return old;
     }
@@ -98,11 +98,11 @@ public:
     static void ForgetAll()
     {
         rxServerLogRaw(rxLL_WARNING, rxStringFormat("# ForgetAll # 000 #"));
-        if (BusinessRule::Registry == NULL)
+        if (BusinessRule::RuleRegistry == NULL)
             return;
         rxServerLogRaw(rxLL_WARNING, rxStringFormat("# ForgetAll # 010 #"));
         raxIterator ri;
-        raxStart(&ri, BusinessRule::Registry);
+        raxStart(&ri, BusinessRule::RuleRegistry);
         raxSeek(&ri, "^", NULL, 0);
         while (raxNext(&ri))
         {
@@ -116,19 +116,19 @@ public:
             raxSeek(&ri, "^", NULL, 0);
         }
         raxStop(&ri);
-        BusinessRule::Registry = NULL;
+        BusinessRule::RuleRegistry = NULL;
     }
 
     static int WriteList(RedisModuleCtx *ctx)
     {
-        RedisModule_ReplyWithArray(ctx, raxSize(BusinessRule::Registry));
+        RedisModule_ReplyWithArray(ctx, raxSize(BusinessRule::RuleRegistry));
         raxIterator ri;
 
-        if (BusinessRule::Registry != NULL)
+        if (BusinessRule::RuleRegistry != NULL)
         {
             BusinessRule::RegistryLock = true;
 
-            raxStart(&ri, BusinessRule::Registry);
+            raxStart(&ri, BusinessRule::RuleRegistry);
             raxSeek(&ri, "^", NULL, 0);
             while (raxNext(&ri))
             {
@@ -161,13 +161,13 @@ public:
     static rxString ApplyAll(rxString key)
     {
 
-        if (BusinessRule::Registry == NULL)
+        if (BusinessRule::RuleRegistry == NULL)
             return rxStringEmpty();
         BusinessRule::RegistryLock = true;
         rxString response = rxStringEmpty();
         raxIterator ri;
 
-        raxStart(&ri, BusinessRule::Registry);
+        raxStart(&ri, BusinessRule::RuleRegistry);
         raxSeek(&ri, "^", NULL, 0);
         while (raxNext(&ri))
         {
@@ -212,7 +212,7 @@ public:
             while(BusinessRule::RegistryLock){
                 sched_yield();
             }
-            raxRemove(BusinessRule::Registry, (UCHAR *)this->setName, strlen(this->setName), (void **)&old);
+            raxRemove(BusinessRule::RuleRegistry, (UCHAR *)this->setName, strlen(this->setName), (void **)&old);
             rxStringFree(this->setName);
             this->setName = NULL;
             delete this->rule;
@@ -223,12 +223,12 @@ public:
 
     static BusinessRule *Find(rxString name)
     {
-        if(BusinessRule::Registry == NULL)
+        if(BusinessRule::RuleRegistry == NULL)
             return NULL;
         while(BusinessRule::RegistryLock){
             sched_yield();
         }
-        auto *br = (BusinessRule *)raxFind(BusinessRule::Registry, (UCHAR *)name, strlen(name));
+        auto *br = (BusinessRule *)raxFind(BusinessRule::RuleRegistry, (UCHAR *)name, strlen(name));
         if (br != raxNotFound)
             return br;
         return NULL;
@@ -335,6 +335,6 @@ public:
 };
 
 GremlinDialect *BusinessRule::RuleParser = new GremlinDialect();
-rax *BusinessRule::Registry = raxNew();
+rax *BusinessRule::RuleRegistry = raxNew();
 bool BusinessRule::RegistryLock = false;
 #endif

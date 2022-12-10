@@ -325,7 +325,7 @@ Sjiboleth::~Sjiboleth()
         while (raxPrev(&ri))
         {
             void *old = NULL;
-            raxRemove(FaBlok::Get_Thread_Registry(), ri.key, ri.key_len, (void **)&old);
+            raxRemove(FaBlok::Get_FaBlok_Registry(), ri.key, ri.key_len, (void **)&old);
             auto *t = (ParserToken *)ri.data;
             if(t->Token() == ri.data + sizeof(ParserToken))
                 rxMemFree(ri.data);

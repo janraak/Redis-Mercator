@@ -173,7 +173,7 @@ RedisClientPool<redisContext>::Release(index_node);
 raxFree(collector);
 executor->Forget("@@TEXT_PARSER@@");
 executor->Forget("@@collector@@");
-executor->Reset();
+//TODO: executor->Reset();
 
 END_COMMAND_INTERCEPTOR(indexingHandlerXaddCommand)
 
@@ -274,7 +274,7 @@ static int indexingHandler(int, void *stash, redisNodeInfo *index_config, SilNik
             rxString f = (rxString)rxGetContainedObject(argv[j]);
             rxString v = (rxString)rxGetContainedObject(argv[j + 1]);
 
-            rxServerLogRaw(rxLL_WARNING, rxStringFormat("Indexing Hash field %s with %s", f, v));
+            rxServerLog(rxLL_DEBUG, "Indexing Hash field %s with %s", f, v);
 
             executor->Memoize("@@field@@", (void *)f);
             auto *parser = v[0] == '{' ? json_parser : text_parser;
@@ -296,7 +296,7 @@ static int indexingHandler(int, void *stash, redisNodeInfo *index_config, SilNik
     RedisClientPool<redisContext>::Release(index_node);
     raxFree(collector);
     collector = NULL;
-    executor->Reset();
+    //TODO: executor->Reset();
 
     rxStashCommand(index_info.index_update_request_queue, "RXTRIGGER", 1, key);
     return C_OK;
@@ -501,7 +501,7 @@ int reindex_cron(struct aeEventLoop *, long long, void *clientData)
         auto *index_node = RedisClientPool<redisContext>::Acquire(index_config->host_reference);
         TextDialect::FlushIndexables(collector, key, key_type, index_node);
         RedisClientPool<redisContext>::Release(index_node);
-        engine->Reset();
+        //TODO: engine->Reset();
         raxFree(collector);
         engine->Forget("@@collector@@");
 

@@ -14,7 +14,6 @@ typedef struct
 
 char *KEYTYPE_TAGS[] = {"S", "L", "C", "Z", "H", "M", "X"};
 
-
 bool TextDialect::FlushIndexables(rax *collector, rxString key, int key_type, redisContext *index)
 {
 	raxIterator indexablesIterator;
@@ -52,13 +51,13 @@ bool TextDialect::FlushIndexables(rax *collector, rxString key, int key_type, re
 	return true;
 }
 
-bool static CollectIndexables(rax *collector, rxString field_name, const char * field_value, double w)
+bool static CollectIndexables(rax *collector, rxString field_name, const char *field_value, double w)
 {
-	if(collector == NULL)
+	if (collector == NULL)
 		return false;
 	rxString key = rxStringDup(field_name);
-	key = rxStringFormat("%s%s",key, "/");
-	key = rxStringFormat("%s%s",key, field_value);
+	key = rxStringFormat("%s%s", key, "/");
+	key = rxStringFormat("%s%s", key, field_value);
 	rxStringToUpper(key);
 	auto *indexable = (Indexable *)raxFind(collector, (UCHAR *)key, strlen(key));
 	if (indexable == raxNotFound)
@@ -214,12 +213,15 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(TextCommaScopeCheck)
 	if (!HasParkedToken(expression, ":"))
 	{
 		rxString referal = rxStringNew("!!!");
-		referal = rxStringFormat("%s%s",referal, ((ParserToken *)t)->TokenAsSds());
+		referal = rxStringFormat("%s%s", referal, ((ParserToken *)t)->TokenAsSds());
 		t = lookupToken(pO, referal);
+		if (t != NULL)
+			t = (CParserToken *)((ParserToken *)t)->Copy();
 		rxStringFree(referal);
 	}
 }
 END_SJIBOLETH_PARSER_CONTEXT_CHECKER(TextCommaScopeCheck)
+
 SJIBOLETH_PARSER_CONTEXT_CHECKER(TextColonScopeCheck)
 {
 	rxUNUSED(head);
@@ -236,8 +238,10 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(TextColonScopeCheck)
 			if ((*(s + 1) == 0x80 && *(s + 2) == 0x9c) || (*(s + 1) == 0x80 && *(s + 2) == 0x98) || (*(s + 1) == 0x20 && *(s + 2) == 0x39))
 			{
 				rxString referal = rxStringNew("!!!");
-				referal = rxStringFormat("%s%s",referal, ((ParserToken *)t)->TokenAsSds());
+				referal = rxStringFormat("%s%s", referal, ((ParserToken *)t)->TokenAsSds());
 				t = lookupToken(pO, referal);
+				if (t != NULL)
+					t = (CParserToken *)((ParserToken *)t)->Copy();
 				rxStringFree(referal);
 			}
 			break;
@@ -246,8 +250,10 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(TextColonScopeCheck)
 		case 0x60:
 		{
 			rxString referal = rxStringNew("!!!");
-			referal = rxStringFormat("%s%s",referal, ((ParserToken *)t)->TokenAsSds());
+			referal = rxStringFormat("%s%s", referal, ((ParserToken *)t)->TokenAsSds());
 			t = lookupToken(pO, referal);
+			if (t != NULL)
+				t = (CParserToken *)((ParserToken *)t)->Copy();
 			rxStringFree(referal);
 			break;
 		}
@@ -264,8 +270,10 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(TextBulletScopeCheck)
 	rxUNUSED(expression);
 	rxUNUSED(pO);
 	rxString referal = rxStringNew("!!!");
-	referal = rxStringFormat("%s%s",referal, ((ParserToken *)t)->TokenAsSds());
+	referal = rxStringFormat("%s%s", referal, ((ParserToken *)t)->TokenAsSds());
 	t = lookupToken(pO, referal);
+	if (t != NULL)
+		t = (CParserToken *)((ParserToken *)t)->Copy();
 	rxStringFree(referal);
 }
 END_SJIBOLETH_PARSER_CONTEXT_CHECKER(TextBulletScopeCheck)
@@ -278,8 +286,10 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(TextDashScopeCheck)
 	if (isdigit(*(head - 1)))
 	{
 		rxString referal = rxStringNew("!!!");
-		referal = rxStringFormat("%s%s",referal, ((ParserToken *)t)->TokenAsSds());
+		referal = rxStringFormat("%s%s", referal, ((ParserToken *)t)->TokenAsSds());
 		t = lookupToken(pO, referal);
+		if (t != NULL)
+			t = (CParserToken *)((ParserToken *)t)->Copy();
 		rxStringFree(referal);
 	}
 }

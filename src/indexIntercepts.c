@@ -312,7 +312,7 @@ void genericCommandIntercept(client *c)
 
 void infoCommandIntercept(client *c)
 {
-    rxServerLog(LL_NOTICE, "INFO_INTERCEPT");
+    rxServerLog(LL_DEBUG, "INFO_INTERCEPT");
     redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[INFO_INTERCEPT].id];
     standard_command_proc(c);
 }

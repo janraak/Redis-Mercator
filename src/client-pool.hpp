@@ -22,9 +22,9 @@ template <typename T>
 class RedisClientPool
 {
 public:
-      static  rax *Get_Thread_Registry();
+      static  rax *Get_ClientPool_Registry();
 public:
-    static rax *Registry;
+    static rax *HostRegistry;
     static rax *Lookup;
 
     const char *host_reference;

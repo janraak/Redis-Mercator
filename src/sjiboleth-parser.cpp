@@ -247,19 +247,19 @@ void ParsedExpression::show(const char *query)
     return;
     // if (p->show_debug_info)
     // {
-    printf("expression: %d entries\n", this->expression->Size());
-    printf("side_track: %ld entries\n", this->side_track->len);
+    rxServerLog(rxLL_NOTICE, "expression: %d entries\n", this->expression->Size());
+    rxServerLog(rxLL_NOTICE, "side_track: %ld entries\n", this->side_track->len);
     // }
     // listRelease(side_track);
     // if (p->show_debug_info)
     // {
-    printf("parsed: %s %d tokens\n", query, this->expression->Size());
+    rxServerLog(rxLL_NOTICE, "parsed: %s %d tokens\n", query, this->expression->Size());
     this->expression->StartHead();
     ParserToken *t;
     int j = 0;
     while ((t = this->expression->Next()) != NULL)
     {
-        printf("Parse: %d %d %s\n", j, t->TokenType(), t->Token());
+        rxServerLog(rxLL_NOTICE, "Parse: %d %d %s\n", j, t->TokenType(), t->Token());
         ++j;
     }
     // }
@@ -267,22 +267,28 @@ void ParsedExpression::show(const char *query)
 
 void ParsedExpression::Show(const char *query)
 {
-    // return;
+    return;
     // if (p->show_debug_info)
     // {
-    printf("expression: %d entries\n", this->expression->Size());
-    printf("side_track: %ld entries\n", this->side_track->len);
+    rxServerLog(rxLL_NOTICE, "expression: %d entries", this->expression->Size());
+    rxServerLog(rxLL_NOTICE, "side_track: %ld entries", this->side_track->len);
     // }
     // listRelease(side_track);
     // if (p->show_debug_info)
     // {
-    printf("parsed: %s %d tokens\n", query, this->expression->Size());
+    rxServerLog(rxLL_NOTICE, "parsed: %s %d tokens", query, this->expression->Size());
     this->expression->StartHead();
     ParserToken *t;
     int j = 0;
     while ((t = this->expression->Next()) != NULL)
     {
-        printf("Parse: %d %d %s\n", j, t->TokenType(), t->Token());
+        auto tt = t->TokenType();
+        if(tt >= _operand && tt <= _immediate_operator){
+        rxServerLog(rxLL_NOTICE, "Parse: %d %d %s", j, t->TokenType(), t->Token());
+        }else{
+        rxServerLog(rxLL_NOTICE, "Corrupt token: %d %d", j, tt);
+
+        }
         ++j;
     }
     // }

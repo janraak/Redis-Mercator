@@ -17,14 +17,16 @@ extern "C"
 struct client;
 
 template <typename T>
-rax *RedisClientPool<T>::Get_Thread_Registry()
+rax *RedisClientPool<T>::Get_ClientPool_Registry()
 {
-    pthread_t id = pthread_self();
-    rax *local_registry = (rax *)raxFind(RedisClientPool<T>::Registry, (UCHAR *)&id, sizeof(id));
+    pthread_t tid = pthread_self();
+    char id[64];
+    snprintf(id, sizeof(id), "cp:%lx", tid);
+    rax *local_registry = (rax *)raxFind(RedisClientPool<T>::HostRegistry, (UCHAR *)&id, sizeof(id));
     if (local_registry == raxNotFound)
     {
         local_registry = raxNew();
-        raxInsert(RedisClientPool<T>::Registry, (UCHAR *)&id, sizeof(id), local_registry, NULL);
+        raxInsert(RedisClientPool<T>::HostRegistry, (UCHAR *)&id, sizeof(id), local_registry, NULL);
     }
     return local_registry;
 }
@@ -133,12 +135,13 @@ int RedisClientPool<T>::Grow()
 template <typename T>
 T *RedisClientPool<T>::Acquire(const char *address)
 {
-    auto *pool = (RedisClientPool *)raxFind(RedisClientPool<T>::Get_Thread_Registry(), (UCHAR *)address, strlen(address));
+    rax * host_pool = RedisClientPool<T>::Get_ClientPool_Registry();
+    auto *pool = (RedisClientPool *)raxFind(host_pool, (UCHAR *)address, strlen(address));
     if (pool == raxNotFound)
     {
         pool = RedisClientPool::New(address, 4, 4);
         void *old;
-        raxInsert(RedisClientPool<T>::Get_Thread_Registry(), (UCHAR *)address, strlen(address), pool, &old);
+        raxInsert(RedisClientPool<T>::Get_ClientPool_Registry(), (UCHAR *)address, strlen(address), pool, &old);
     }
     if (!pool->free.HasEntries())
     {
@@ -166,7 +169,7 @@ void RedisClientPool<T>::Release(T *client)
 }
 
 template <typename T>
-rax *RedisClientPool<T>::Registry = raxNew();
+rax *RedisClientPool<T>::HostRegistry = raxNew();
 template <typename T>
 rax *RedisClientPool<T>::Lookup = raxNew();
 

@@ -282,7 +282,7 @@ void FreeResultObject(void *o){
 }
 
 void FreeResults(rax *result){
-    raxFreeWithCallback(result, FreeResultObject);
+    rxRaxFreeWithCallback(result, FreeResultObject);
     // raxFreeWithCallback(result, NULL);
 }
 

@@ -54,12 +54,12 @@ class SilNikParowy;
 class FaBlok
 {
 public:
-    static rax *Registry;
+    static rax *FaBlokRegistry;
     void pushIndexEntries(redisReply *reply);
 
     UCHAR value_type;
 public:
-      static  rax *Get_Thread_Registry();
+      static  rax *Get_FaBlok_Registry();
       static void Free_Thread_Registry();
       /*
           Since  expression are parsed into Reversed Polish Notation
@@ -72,7 +72,7 @@ public:
       const char *setname;
       size_t reuse_count;
       size_t size;
-      rax keyset;
+      rax *keyset;
       char rumble_strip1[16];
       GraphStack<FaBlok> *parameter_list;
       char rumble_strip2[16];
@@ -141,9 +141,9 @@ public:
 
       bool IsParameterList();
       FaBlok();
-      FaBlok *Init();
+      FaBlok *Init(void *r);
       FaBlok(rxString sn, UCHAR value_type);
-      void InitKeyset(bool withRootNode);
+      void InitKeyset(void *r, bool withRootNode);
       ~FaBlok();
 
       static FaBlok *New(const char *sn, UCHAR value_type);
@@ -233,7 +233,7 @@ public:
     {                                                 \
         rxString m = rxStringNew(msg);                          \
         stack->AddError(m);                             \
-        printf("ERROR: %s\n", m);                             \
+        rxServerLog(rxLL_NOTICE, "ERROR: %s\n", m);                             \
         rxStringFree(m);                                   \
         return C_ERR;                                 \
     }
@@ -241,7 +241,7 @@ public:
 #define ERROR_RETURN_NULL(msg)                        \
     {                                                 \
         rxString m = rxStringNew(msg);                          \
-        printf("ERROR: %s\n", m);                     \
+        rxServerLog(rxLL_NOTICE, "ERROR: %s\n", m);                     \
         stack->AddError(m);                           \
         rxStringFree(m);                                   \
         return NULL;                                  \

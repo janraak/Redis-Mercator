@@ -873,3 +873,16 @@ rxComparisonProc *rxFindComparisonProc(const char *op)
         return NULL;
     return compare;
 }
+
+
+// rxMercator overrides for embededded rax object
+/* Free a whole radix tree, calling the specified callback in order to
+ * free the auxiliary data. */
+void rxRaxFreeWithCallback(rax *rax, void (*free_callback)(void*)) {
+    raxRecursiveFree(rax,rax->head,free_callback);
+}
+
+/* Free a whole radix tree. */
+void rxRaxFree(rax *rax) {
+    rxRaxFreeWithCallback(rax,NULL);
+}

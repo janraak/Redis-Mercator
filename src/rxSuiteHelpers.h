@@ -151,6 +151,9 @@ typedef int rxComparisonProc2(const char *l, int ll, const char *r, const char *
 void rxInitComparisonsProcs();
 rxComparisonProc *rxFindComparisonProc(const char *op);
 
+// rxMercator overrides for embededded rax object
+void rxRaxFreeWithCallback(rax *rax, void (*free_callback)(void*));
+void rxRaxFree(rax *rax);
 #ifdef __cplusplus
 }
 #endif

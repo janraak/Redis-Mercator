@@ -54,7 +54,7 @@ void SilNikParowy_Kontekst::AddError(rxString msg)
 
 void SilNikParowy_Kontekst::Reset()
 {
-    FaBlok::DeleteAllTempDescriptors();
+    FaBlok::ClearCache();
 }
 
 SilNikParowy_Kontekst::SilNikParowy_Kontekst()
@@ -145,7 +145,7 @@ FaBlok *SilNikParowy_Kontekst::GetOperationPair(char const  *operation, int load
         rxStringFree(rk);
     }
 
-    int do_swap = ((load_left_and_or_right && QE_SWAP_LARGEST_FIRST) && (raxSize(&l->keyset) < raxSize(&r->keyset))) || ((load_left_and_or_right && QE_SWAP_SMALLEST_FIRST) && (raxSize(&l->keyset) > raxSize(&r->keyset)));
+    int do_swap = ((load_left_and_or_right && QE_SWAP_LARGEST_FIRST) && (raxSize(l->keyset) < raxSize(r->keyset))) || ((load_left_and_or_right && QE_SWAP_SMALLEST_FIRST) && (raxSize(l->keyset) > raxSize(r->keyset)));
     if (do_swap)
     {
         FaBlok *swap = l;

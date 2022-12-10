@@ -165,11 +165,11 @@ int rxApply(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     rxUNUSED(ctx);
     rxUNUSED(argc);
     rxString key = (char *)rxGetContainedObject(argv[1]);
-    rxServerLogRaw(rxLL_WARNING,
+    rxServerLogRaw(rxLL_DEBUG,
                    rxStringFormat("Applying all rules to: %s\n", key));
     rxString response = BusinessRule::ApplyAll(key);
     RedisModule_ReplyWithSimpleString(ctx, response);
-    rxServerLogRaw(rxLL_WARNING, rxStringFormat("Applied all rules to: %s\n", key));
+    rxServerLogRaw(rxLL_DEBUG, rxStringFormat("Applied all rules to: %s\n", key));
     rxStringFree(response);
     return REDISMODULE_OK;
 }

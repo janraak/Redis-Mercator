@@ -26,7 +26,6 @@ extern "C"
 rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, const char *key)
 {
     FaBlok *v = FaBlok::Get((char *)key, KeysetDescriptor_TYPE_KEYSET);
-    v->InitKeyset(true);
     v->AsTemp();
     // if(v->size <= 0 )
     v->LoadKey(0, v->setname);

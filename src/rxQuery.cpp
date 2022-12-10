@@ -330,7 +330,7 @@ int executeEvalShaCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int arg
                 ++j;
             }
             char msg[512];
-            snprintf((char *)&msg, sizeof(msg), "script %s called with %d members from %s", sha1, j, setname);
+            snprintf((char *)&msg, sizeof(msg), "script %s called with %ld members from %s", sha1, j, setname);
             RedisModule_ReplyWithSimpleString(ctx, msg);
         }
         else
