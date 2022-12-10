@@ -4,7 +4,7 @@ uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
 DEPENDENCY_TARGETS=hiredis linenoise lua
 CPPSOURCES := $(wildcard*.cpp)
 
-INCLUDE_PATHS = -isystem -DUSE_JEMALLOC -I.. -I../../src -I../deps -I../deps/hiredis  -I../../deps/hdr_histogram -I../deps/linenoise -I../../deps/lua/src -I/usr/include -L ../../extensions/src -lc
+INCLUDE_PATHS = -isystem  -DUSE_JEMALLOC -I.. -I../../src -I../deps -I../deps/hiredis  -I../../deps/hdr_histogram -I../deps/linenoise -I../../deps/lua/src -I/usr/include 
 
 
 # Compile flags for linux / osxext
@@ -96,7 +96,7 @@ DEBUG += -g -ggdb
 all: sdsWrapper.xo indexIntercepts.xo rxSuite.xo  rxSuiteHelpers.xo rxIndexer.so rxQuery.so rxIndexStore.so rxMercator.so rxRule.xo  rxRule.so sjiboleth.so rxGraphdb.so 
 
 .c.xo: 
-	$(CC) -o $@ -I.. -I. $(CFLAGS) $(SHOBJ_CFLAGS)  -isystem -DUSE_JEMALLOC   $(INCLUDE_PATHS) -fPIC -c $<
+	$(CC) -o $@ -I.. -I. $(CFLAGS) $(SHOBJ_CFLAGS)  -isystem -DUSE_JEMALLOC -D_POSIX_C_SOURCE=199309L  $(INCLUDE_PATHS) -fPIC -c $<
 
 OBSOLETEFLAGS=-std=c99 
 FILT = $(filter-out $(OBSOLETEFLAGS), $(CFLAGS))
@@ -141,7 +141,7 @@ indexIntercepts.xo: indexIntercepts.c indexIntercepts.h  simpleQueue.hpp sdsWrap
 	$(CXX) -o $@ $(CXXFLAGS)   $(WARNNING) $(CFLAGS) $(SHOBJ_CFLAGS) -std=c++17 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -s  -DUSE_JEMALLOC $(INCLUDE_PATHS) -fPIC  -c $< 
 
 %.xo: %.cpp $(CPPSOURCES)
-	$(CXX) -o $@ $(CXXFLAGS)   $(WARNNING) $(CFLAGS) $(SHOBJ_CFLAGS) -std=c++17 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -s  -DUSE_JEMALLOC $(INCLUDE_PATHS) -fPIC  -std=c++17 -c $< 
+	$(CXX) -o $@ $(CXXFLAGS)   $(WARNNING) $(CFLAGS) $(SHOBJ_CFLAGS) -std=c++17 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -s  -DUSE_JEMALLOC $(INCLUDE_PATHS) -fPIC  -c $< 
 
 
 clean:

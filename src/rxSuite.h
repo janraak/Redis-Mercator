@@ -10,7 +10,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "/usr/include/arm-linux-gnueabihf/bits/types/siginfo_t.h"
 #include <sched.h>
 #include <signal.h>
 #include <ctype.h>

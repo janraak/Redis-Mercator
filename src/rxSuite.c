@@ -197,11 +197,6 @@ void rxRegisterConfig(void **oargv, int argc)
         config->installScript = sdsnew("__install_rxmercator.sh");
 }
 
-char *rxGetExecutable()
-{
-    return server.executable;
-}
-
 char *rxGetExecutable(){
     return server.executable;
 }
