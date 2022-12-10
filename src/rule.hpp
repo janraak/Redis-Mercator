@@ -118,7 +118,7 @@ public:
         }
         raxStop(&ri);
         BusinessRule::Registry = NULL;
-        rxServerLogRaw(rxLL_WARNING, rxStringFormat("# ForgetAll # 800 # BusinessRule::Registry isnull: %x", (POINTER)BusinessRule::Registry));
+        rxServerLogRaw(rxLL_WARNING, rxStringFormat("# ForgetAll # 800 # BusinessRule::Registry isnull: %lx", (POINTER)BusinessRule::Registry));
     }
 
     static int WriteList(RedisModuleCtx *ctx)

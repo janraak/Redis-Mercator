@@ -38,7 +38,7 @@ public:
 public:
     Graph_Leg(rxString key, float weight)
     {
-        /////**/ rxServerLog(LL_NOTICE, "0x%x %s #add_graph_leg# ", (POINTER)this, key);
+        /////**/ rxServerLog(LL_NOTICE, "0x%lx %s #add_graph_leg# ", (POINTER)this, key);
         this->key = rxStringDup(key);
         this->length = weight;
         this->start = NULL;
@@ -149,9 +149,9 @@ public:
 
     void Show(){
         return;
-        printf("tally:%d object: 0x%x %s\n   path:", this->refCnt, (POINTER)this->object, this->object_key);
+        printf("tally:%d object: 0x%lx %s\n   path:", this->refCnt, (POINTER)this->object, this->object_key);
         if(this->object == NULL){
-            printf(" ODD object = NULL: 0x%x %s\n   path:", (POINTER)this->object, this->object_key);
+            printf(" ODD object = NULL: 0x%lx %s\n   path:", (POINTER)this->object, this->object_key);
             return;
         }
         listIter *li = listGetIterator(this->path, 0);
@@ -166,7 +166,7 @@ public:
 
     rxString Json(rxString json)
     {
-        json = rxStringFormat("%s{\"object\":\"%s\", \"data\":\"%x\"", 
+        json = rxStringFormat("%s{\"object\":\"%s\", \"data\":\"%lx\"", 
             json, this->object_key, (POINTER)this->object);
 
         if(listLength(this->path) > 0){
@@ -317,7 +317,7 @@ public:
             triplet->edges.Add(e);
         }
         void *t = rxCreateObject(OBJ_TRIPLET, triplet);
-        // printf("triplet  0x%x in  0x%x\n", (POINTER) triplet, (POINTER) t);
+        // printf("triplet  0x%lx in  0x%lx\n", (POINTER) triplet, (POINTER) t);
         // triplet->Show();
         return t;
     }
@@ -441,7 +441,7 @@ public:
     {
         return;
         printf("== Triplet ==\n");
-        printf(" 0x%x subject: 0x%x %s length=%f\n", (POINTER)this, (POINTER)this->subject, this->subject_key, this->length);
+        printf(" 0x%lx subject: 0x%lx %s length=%f\n", (POINTER)this, (POINTER)this->subject, this->subject_key, this->length);
 
         
         if (this->containers.HasEntries())
@@ -472,7 +472,7 @@ public:
     rxString Json(rxString key)
     {
         rxString json = rxStringFormat( "{\"key\":\"%s\", \"value\":\"{\"", key);
-        json = rxStringFormat("%s\"subject\":\"%s\", \"data\":\"%x\", \"length\":\"%f\" ", 
+        json = rxStringFormat("%s\"subject\":\"%s\", \"data\":\"%lx\", \"length\":\"%f\" ", 
         json, subject_key, (POINTER)subject, length);
 
         // if (this->containers.HasEntries())

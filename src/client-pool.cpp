@@ -159,7 +159,7 @@ void RedisClientPool<T>::Release(T *client)
     auto *pool = (RedisClientPool<T> *)raxFind(RedisClientPool::Lookup, (UCHAR *)client, sizeof(client));
     if (pool == raxNotFound)
     {
-        printf("RedisClientPool unregisted redis client: 0x%x\n", (POINTER)client);
+        printf("RedisClientPool unregisted redis client: 0x%lx\n", (POINTER)client);
     }
     pool->in_use.Remove(client);
     pool->free.Push(client);

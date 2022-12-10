@@ -1086,7 +1086,7 @@ SJIBOLETH_HANDLER(executeGremlinAddEdge)
         rxServerLogRaw(rxLL_WARNING, rxStringFormat("executeGremlinAddEdge stack peek %s", pk->setname));
         FaBlok *s = et->parameter_list->Dequeue(); // Ignore @ marker
         s = stack->Pop();                          // left side subject set
-        rxServerLogRaw(rxLL_WARNING, rxStringFormat("executeGremlinAddEdge subject set %s %d entries keyset=%x", s->setname, s->size, (POINTER)&s->keyset));
+        rxServerLogRaw(rxLL_WARNING, rxStringFormat("executeGremlinAddEdge subject set %s %d entries keyset=%lx", s->setname, s->size, (POINTER)&s->keyset));
         FaBlok *pred = et->parameter_list->Dequeue(); // predicate(type)
         rxServerLogRaw(rxLL_WARNING, rxStringFormat("executeGremlinAddEdge predicate %s", pred->setname));
         FaBlok *inv_pred;
@@ -1783,10 +1783,10 @@ int matchEdges(int db, Graph_Leg *leg, list *patterns, FaBlok *kd, GraphStack<Gr
         }
         else if (patterns == NULL)
         {
-            // rxServerLog(LL_NOTICE, "no match: 0x%x %s member %s start=0x%x", (POINTER)leg, leg->key, elesds, (POINTER)leg->start);
+            // rxServerLog(LL_NOTICE, "no match: 0x%lx %s member %s start=0x%lx", (POINTER)leg, leg->key, elesds, (POINTER)leg->start);
             // Is the subject or object of the requested type?
 
-            // rxServerLog(LL_NOTICE, "follow: 0x%x %s member %s", (POINTER)leg, leg->key, elesds);
+            // rxServerLog(LL_NOTICE, "follow: 0x%lx %s member %s", (POINTER)leg, leg->key, elesds);
             Graph_Leg *next = Graph_Leg::Add(link, weight, leg, bsf_q, touches);
             if (next)
             {
