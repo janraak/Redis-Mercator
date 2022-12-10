@@ -9,7 +9,6 @@ extern "C"
 #endif
 
 #define REDISMODULE_EXPERIMENTAL_API
-#include "/usr/include/arm-linux-gnueabihf/bits/types/siginfo_t.h"
 #include <sched.h>
 #include <signal.h>
 
