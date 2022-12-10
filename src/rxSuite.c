@@ -201,3 +201,7 @@ char *rxGetExecutable()
 {
     return server.executable;
 }
+
+char *rxGetExecutable(){
+    return server.executable;
+}

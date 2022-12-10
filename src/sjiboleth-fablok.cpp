@@ -344,6 +344,7 @@ int FaBlok::FetchKeySet(redisNodeInfo *serviceConfig, const char *rh)
         rxStringFreeSplitRes(parts, segments);
         this->latency = ustime() - start;
         this->pushIndexEntries(rcc);
+        freeReplyObject(rcc);
     }
     catch (...)
     {
