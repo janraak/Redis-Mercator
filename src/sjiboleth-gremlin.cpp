@@ -595,7 +595,7 @@ static SJIBOLETH_HANDLER(executeGremlinHas)
     int field_len = strlen(ad->AsSds());
     int plen = strlen(vd->AsSds());
     od->AsTemp();
-    rxServerLogRaw(rxLL_WARNING, rxStringFormat("About to execute executeGremlinHas on %s\n", set_name));
+    rxServerLog(rxLL_DEBUG, "About to execute executeGremlinHas on %s", set_name);
     // rxStringFree(msg);
     void *params[] = {&must_match, (void *)ad->AsSds(), &field_len, (void *)vd->AsSds(), &plen, NULL, NULL};
     FaBlok *kd = od->Copy(set_name, KeysetDescriptor_TYPE_GREMLINSET, FilterTypes, params);
@@ -1077,18 +1077,18 @@ SJIBOLETH_HANDLER(executeGremlinAddEdge)
     {
         is_link_from_property = (strcmp(et->parameter_list->Peek()->setname, asterisk) == 0);
     }
-    rxServerLogRaw(rxLL_WARNING, rxStringFormat("executeGremlinAddEdge %s=%d %d parameters %d parameters", asterisk, is_link_from_property, et->parameter_list->Size(), stack->Size()));
+    rxServerLog(rxLL_DEBUG, "executeGremlinAddEdge %s=%d %d parameters %d parameters", asterisk, is_link_from_property, et->parameter_list->Size(), stack->Size());
     rxStringFree(asterisk);
     if (et->IsParameterList() && no_vertex_parms >= 3 && is_link_from_property == 1)
     {
         FaBlok *e = FaBlok::Get(et->setname, KeysetDescriptor_TYPE_GREMLINSET);
         FaBlok *pk = stack->Peek();
-        rxServerLogRaw(rxLL_WARNING, rxStringFormat("executeGremlinAddEdge stack peek %s", pk->setname));
+        rxServerLog(rxLL_DEBUG, "executeGremlinAddEdge stack peek %s", pk->setname);
         FaBlok *s = et->parameter_list->Dequeue(); // Ignore @ marker
         s = stack->Pop();                          // left side subject set
-        rxServerLogRaw(rxLL_WARNING, rxStringFormat("executeGremlinAddEdge subject set %s %d entries ", s->setname, s->size));
+        rxServerLog(rxLL_DEBUG, "executeGremlinAddEdge subject set %s %d entries ", s->setname, s->size);
         FaBlok *pred = et->parameter_list->Dequeue(); // predicate(type)
-        rxServerLogRaw(rxLL_WARNING, rxStringFormat("executeGremlinAddEdge predicate %s", pred->setname));
+        rxServerLog(rxLL_DEBUG, "executeGremlinAddEdge predicate %s", pred->setname);
         FaBlok *inv_pred;
         rxString backLink = rxStringEmpty();
         if (no_vertex_parms >= 3)
@@ -1097,7 +1097,7 @@ SJIBOLETH_HANDLER(executeGremlinAddEdge)
             inv_pred = pred;
         const char *fwd_predicate = pred->setname;
         const char *bwd_predicate = inv_pred->setname;
-        rxServerLogRaw(rxLL_WARNING, rxStringFormat("executeGremlinAddEdge inverse predicate %s", bwd_predicate));
+        rxServerLog(rxLL_DEBUG, "executeGremlinAddEdge inverse predicate %s", bwd_predicate);
         // FaBlok *o = NULL; // iri of object by materializing iri from pred property on subject!
 
         raxIterator SubjectIterator;
@@ -1137,8 +1137,8 @@ SJIBOLETH_HANDLER(executeGremlinAddEdge)
             rxString subject_link = rxStringFormat("^%s", key);
             rxString object_link = rxStringFormat("^%s", objectKey);
 
-            rxServerLogRaw(rxLL_WARNING, rxStringFormat("edge_name: %s\nedge_link: %s\ninv_edge_name: %s\ninv_edge_link: %s\nsubjectKey: %s\nobjectKey: %s\n",
-                                                      edge_name, edge_link, inv_edge_name, inv_edge_link, key, objectKey));
+            rxServerLog(rxLL_DEBUG, "edge_name: %s\nedge_link: %s\ninv_edge_name: %s\ninv_edge_link: %s\nsubjectKey: %s\nobjectKey: %s\n",
+                                                      edge_name, edge_link, inv_edge_name, inv_edge_link, key, objectKey);
             if (pred != inv_pred)
             {
                 backLink = rxStringFormat("%s%s:%s:%s:%s", key, backLink, fwd_predicate, fwd_predicate, objectKey);

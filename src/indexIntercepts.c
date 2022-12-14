@@ -161,7 +161,7 @@ void setCommandIntercept(client *c)
     // SET key value
 
     index_info.set_tally++;
-    redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[SET_INTERCEPT].id];
+    redisCommandProc *standard_command_proc = standard_command_procs[SET_INTERCEPT];
     enqueueSetCommand(c);
     standard_command_proc(c);
 }
@@ -169,7 +169,7 @@ void setCommandIntercept(client *c)
 void hsetCommandIntercept(client *c)
 {
     index_info.hset_tally++;
-    redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[HSET_INTERCEPT].id];
+    redisCommandProc *standard_command_proc = standard_command_procs[HSET_INTERCEPT];
     enqueueSetCommand(c);
     standard_command_proc(c);
 }
@@ -177,34 +177,34 @@ void hsetCommandIntercept(client *c)
 void setnxCommandIntercept(client *c)
 {
     rxServerLog(LL_NOTICE, "SETNX_INTERCEPT");
-    redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[SETNX_INTERCEPT].id];
+    redisCommandProc *standard_command_proc = standard_command_procs[SETNX_INTERCEPT];
     standard_command_proc(c);
 }
 
 void setexCommandIntercept(client *c)
 {
     rxServerLog(LL_NOTICE, "SETEX_INTERCEPT");
-    redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[SETEX_INTERCEPT].id];
+    redisCommandProc *standard_command_proc = standard_command_procs[SETEX_INTERCEPT];
     standard_command_proc(c);
 }
 
 void psetexCommandIntercept(client *c)
 {
     rxServerLog(LL_NOTICE, "PSETEX_INTERCEPT");
-    redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[PSETEX_INTERCEPT].id];
+    redisCommandProc *standard_command_proc = standard_command_procs[PSETEX_INTERCEPT];
     standard_command_proc(c);
 }
 
 void appendCommandIntercept(client *c)
 {
     rxServerLog(LL_NOTICE, "APPEND_INTERCEPT");
-    redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[APPEND_INTERCEPT].id];
+    redisCommandProc *standard_command_proc = standard_command_procs[APPEND_INTERCEPT];
     standard_command_proc(c);
 }
 
 void delCommandIntercept(client *c)
 {
-    redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[DEL_INTERCEPT].id];
+    redisCommandProc *standard_command_proc = standard_command_procs[DEL_INTERCEPT];
     enqueueSetCommand(c);
     standard_command_proc(c);
 }
@@ -212,56 +212,56 @@ void delCommandIntercept(client *c)
 void hsetnxCommandIntercept(client *c)
 {
     rxServerLog(LL_NOTICE, "HSETNX_INTERCEPT");
-    redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[HSETNX_INTERCEPT].id];
+    redisCommandProc *standard_command_proc = standard_command_procs[HSETNX_INTERCEPT];
     standard_command_proc(c);
 }
 
 void hdelCommandIntercept(client *c)
 {
     rxServerLog(LL_NOTICE, "HDEL_INTERCEPT");
-    redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[HDEL_INTERCEPT].id];
+    redisCommandProc *standard_command_proc = standard_command_procs[HDEL_INTERCEPT];
     standard_command_proc(c);
 }
 
 void getsetCommandIntercept(client *c)
 {
     rxServerLog(LL_NOTICE, "GETSET_INTERCEPT");
-    redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[GETSET_INTERCEPT].id];
+    redisCommandProc *standard_command_proc = standard_command_procs[GETSET_INTERCEPT];
     standard_command_proc(c);
 }
 
 void msetCommandIntercept(client *c)
 {
     rxServerLog(LL_NOTICE, "MSET_INTERCEPT");
-    redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[MSET_INTERCEPT].id];
+    redisCommandProc *standard_command_proc = standard_command_procs[MSET_INTERCEPT];
     standard_command_proc(c);
 }
 
 void msetnxCommandIntercept(client *c)
 {
     rxServerLog(LL_NOTICE, "MSETNX_INTERCEPT");
-    redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[MSETNX_INTERCEPT].id];
+    redisCommandProc *standard_command_proc = standard_command_procs[MSETNX_INTERCEPT];
     standard_command_proc(c);
 }
 
 void moveCommandIntercept(client *c)
 {
     rxServerLog(LL_NOTICE, "MOVE_INTERCEPT");
-    redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[MOVE_INTERCEPT].id];
+    redisCommandProc *standard_command_proc = standard_command_procs[MOVE_INTERCEPT];
     standard_command_proc(c);
 }
 
 void renameCommandIntercept(client *c)
 {
     rxServerLog(LL_NOTICE, "RENAME_INTERCEPT");
-    redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[RENAME_INTERCEPT].id];
+    redisCommandProc *standard_command_proc = standard_command_procs[RENAME_INTERCEPT];
     standard_command_proc(c);
 }
 
 void renamenxCommandIntercept(client *c)
 {
     rxServerLog(LL_NOTICE, "RENAMENX_INTERCEPT");
-    redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[RENAMENX_INTERCEPT].id];
+    redisCommandProc *standard_command_proc = standard_command_procs[RENAMENX_INTERCEPT];
     standard_command_proc(c);
 }
 
@@ -269,27 +269,27 @@ void selectCommandIntercept(client *c)
 {
     redisNodeInfo *index_config = rxIndexNode();
     index_config->database_id = atoi(c->argv[1]->ptr);
-    redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[SELECT_INTERCEPT].id];
+    redisCommandProc *standard_command_proc = standard_command_procs[SELECT_INTERCEPT];
     standard_command_proc(c);
 }
 
 void xaddCommandIntercept(client *c)
 {
-    redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[XADD_INTERCEPT].id];
+    redisCommandProc *standard_command_proc = standard_command_procs[XADD_INTERCEPT];
     enqueueSetCommand(c);
     standard_command_proc(c);
 }
 
 void xdelCommandIntercept(client *c)
 {
-    redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[DEL_INTERCEPT].id];
+    redisCommandProc *standard_command_proc = standard_command_procs[DEL_INTERCEPT];
     enqueueSetCommand(c);
     standard_command_proc(c);
 }
 
 void touchCommandIntercept(client *c)
 {
-    redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[TOUCH_INTERCEPT].id];
+    redisCommandProc *standard_command_proc = standard_command_procs[TOUCH_INTERCEPT];
     standard_command_proc(c);
 }
 
@@ -313,20 +313,22 @@ void genericCommandIntercept(client *c)
 void infoCommandIntercept(client *c)
 {
     rxServerLog(LL_DEBUG, "INFO_INTERCEPT");
-    redisCommandProc *standard_command_proc = standard_command_procs[interceptorCommandTable[INFO_INTERCEPT].id];
+    redisCommandProc *standard_command_proc = standard_command_procs[INFO_INTERCEPT];
     standard_command_proc(c);
 }
 
+static int no_of_intercepts = 0;
 void installIndexerInterceptors()
 {
-    standard_command_procs = rxMemAlloc(sizeof(redisCommandProc *) * dictSize(server.commands));
-    for (unsigned int j = 0; j < sizeof(interceptorCommandTable) / sizeof(struct redisCommandInterceptRule); ++j)
+    no_of_intercepts = sizeof(interceptorCommandTable) / sizeof(struct redisCommandInterceptRule);
+    standard_command_procs = rxMemAlloc(sizeof(redisCommandProc *) * no_of_intercepts);
+    for (unsigned int j = 0; j < no_of_intercepts; ++j)
     {
         struct redisCommand *cmd = lookupCommandByCString(interceptorCommandTable[j].name);
         if (cmd)
         {
             interceptorCommandTable[j].id = cmd->id;
-            standard_command_procs[cmd->id] = cmd->proc;
+            standard_command_procs[j] = cmd->proc;
             cmd->proc = interceptorCommandTable[j].proc;
         }
     }
@@ -335,12 +337,12 @@ void installIndexerInterceptors()
 void uninstallIndexerInterceptors()
 {
     // Restore original command processors
-    for (unsigned int j = 0; j < sizeof(interceptorCommandTable) / sizeof(struct redisCommandInterceptRule); ++j)
+    for (unsigned int j = 0; j < no_of_intercepts; ++j)
     {
         struct redisCommand *cmd = lookupCommandByCString(interceptorCommandTable[j].name);
         if (cmd)
         {
-            cmd->proc = standard_command_procs[cmd->id];
+            cmd->proc = standard_command_procs[j];
             standard_command_procs[cmd->id] = NULL;
         }
     }

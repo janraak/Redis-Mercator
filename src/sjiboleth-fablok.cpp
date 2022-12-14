@@ -68,9 +68,9 @@ bool FaBlok::IsValid()
     {
         rxServerLog(rxLL_NOTICE, "Possible memory corruption fablok=%p instead of %p rax=%p instead of %p",
                     this,
-                    ((void *)this->keyset) + sizeof(rax)),
-            this->keyset,
-            ((void *)this - sizeof(rax));
+                    ((void *)this->keyset) + sizeof(rax),
+                    this->keyset,
+                    ((void *)this) - sizeof(rax));
         return false;
     }
 
@@ -219,10 +219,6 @@ void FaBlok::InitKeyset(void *r, bool withRootNode)
     this->keyset->numele = 0;
     this->keyset->numnodes = 1;
     this->keyset->head = (withRootNode == true) ? raxNewNode(0, 0) : NULL;
-}
-
-FaBlok *FaBlok::Attach(rax *r)
-{
 }
 
 rax *FaBlok::AsRax()

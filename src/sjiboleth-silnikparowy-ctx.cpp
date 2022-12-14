@@ -117,12 +117,13 @@ void SilNikParowy_Kontekst::ClearStack()
 
 void SilNikParowy_Kontekst::DumpStack()
 {
+    return;
     this->StartHead();
     FaBlok *kd;
     int n = 0;
     while ((kd = this->Next()) != NULL)
     {
-        printf("%2d 0x%10x temp=%d type=%d size=%d %s\n", n++, (POINTER)kd, kd->is_temp, kd->value_type, kd->size, kd->setname);
+        rxServerLog(rxLL_DEBUG, "%2d %p temp=%d type=%d size=%d %s", n++, kd, kd->is_temp, kd->value_type, kd->size, kd->setname);
     }
     this->Stop();
 }
