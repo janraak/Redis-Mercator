@@ -134,7 +134,6 @@ public:
       int MergeFrom(FaBlok *left, FaBlok *right);
       int MergeDisjunct(FaBlok *left, FaBlok *right);
       int CopyNotIn(FaBlok *left, FaBlok *right);
-      FaBlok *Attach(rax *d);
       rax *AsRax();
 
       rxString AsSds();
