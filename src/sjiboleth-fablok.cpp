@@ -296,16 +296,12 @@ void FaBlok::pushIndexEntries(redisReply *reply)
         {
             redisReply *row = reply->element[j];
             redisReply *item = row->element[0];
+            double score = (row->elements > 1) ? atof(row->element[1]->str) : 1.0;
             rxString index_entry = rxStringNew(item->str);
 
-            int segments = 0;
-            rxString *parts = rxStringSplitLen(index_entry, strlen(index_entry), "\t", 1, &segments);
-            if (segments > 0)
-            {
-                void *o = rxCreateStringObject(index_entry, strlen(index_entry));
-                this->InsertKey((UCHAR *)parts[0], strlen(parts[0]), o);
-            }
-            rxStringFreeSplitRes(parts, segments);
+            rxIndexEntry *ie = rxIndexEntry::New(index_entry, score);
+            void *o = rxCreateObject(rxOBJ_INDEX_ENTRY, ie);
+            this->InsertKey((UCHAR *)ie->key, strlen(ie->key), o);
         }
         this->size = raxSize(this->keyset);
     }
@@ -499,8 +495,14 @@ int FaBlok::MergeInto(FaBlok *out)
             out->InsertKey(riIn.key, riIn.key_len, riIn.data);
             ++c;
         }
-        else
+        else{
+            if(rxGetObjectType(riIn.data) == rxOBJ_INDEX_ENTRY && rxGetObjectType(riIn.data) == rxGetObjectType(riOut.data) ){
+                rxIndexEntry *in = (rxIndexEntry *)rxGetContainedObject(riIn.data) ;
+                rxIndexEntry *out = (rxIndexEntry *)rxGetContainedObject(riOut.data) ;
+                out->key_score += in->key_score;
+            }
             raxPrev(&riOut);
+        }
     }
     raxStop(&riIn);
     out->size = raxSize(out->keyset);
@@ -557,6 +559,11 @@ int FaBlok::MergeFrom(FaBlok *left, FaBlok *right)
     {
         if (raxCompare(&riRight, "==", riLeft.key, riLeft.key_len) == 1)
         {
+            if(rxGetObjectType(riLeft.data) == rxOBJ_INDEX_ENTRY && rxGetObjectType(riLeft.data) == rxGetObjectType(riRight.data) ){
+                rxIndexEntry *left = (rxIndexEntry *)rxGetContainedObject(riLeft.data) ;
+                rxIndexEntry *right = (rxIndexEntry *)rxGetContainedObject(riRight.data) ;
+                left->key_score += right->key_score;
+            }
             this->InsertKey(riLeft.key, riLeft.key_len, riLeft.data);
             raxNext(&riLeft);
             raxNext(&riLeft);

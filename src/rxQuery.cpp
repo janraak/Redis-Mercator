@@ -217,7 +217,7 @@ void executeQueryCommand(Sjiboleth *parser, const char *cmd, int fetch_rows, Red
     rax *r = e->Execute(t);
     if (r)
     {
-        WriteResults(r, ctx, 0, NULL);
+        WriteResults(r, ctx, fetch_rows, NULL);
         if (e->CanDeleteResult())
             FreeResults(r);
     }

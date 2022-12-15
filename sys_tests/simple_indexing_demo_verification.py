@@ -19,7 +19,7 @@ def check_server(must_flush):
     modulePath = path.parent.parent.joinpath("src").absolute()
     print("modulePath: {}".format(modulePath))
     
-    redis_client = redis.StrictRedis('192.168.1.180', 6400, 0)
+    redis_client = redis.StrictRedis('192.168.1.182', 6400, 0)
 
     while True:
         data =  execute(-1,redis_client,"info Persistence").decode('utf-8')
@@ -41,15 +41,15 @@ def check_server(must_flush):
         if m[b'name'].decode('utf-8') == "rxRule": rules_loaded= True
     execute(-2,redis_client,"MODULE LOAD {}/rxMercator.so CLIENT".format(modulePath))
     if not indexer_loaded:
-        execute(-2,redis_client,"MODULE LOAD {}/rxIndexer.so INDEX 192.168.1.180 6401 0 DATA 192.168.1.180 6400 0".format(modulePath))
+        execute(-2,redis_client,"MODULE LOAD {}/rxIndexer.so INDEX 192.168.1.182 6401 0 DATA 192.168.1.182 6400 0".format(modulePath))
     if not query_loaded:
-        data = execute(-2,redis_client,"MODULE LOAD {}/rxQuery.so   INDEX 192.168.1.180 6401 0 DATA 192.168.1.180 6400 0 DEFAULT_OPERATOR &".format(modulePath))
+        data = execute(-2,redis_client,"MODULE LOAD {}/rxQuery.so   INDEX 192.168.1.182 6401 0 DATA 192.168.1.182 6400 0 DEFAULT_OPERATOR &".format(modulePath))
     if not rules_loaded:
-        data = execute(-2,redis_client,"MODULE LOAD {}/rxRule.so   INDEX 192.168.1.180 6401 0 DATA 192.168.1.180 6400 0 ".format(modulePath))
+        data = execute(-2,redis_client,"MODULE LOAD {}/rxRule.so   INDEX 192.168.1.182 6401 0 DATA 192.168.1.182 6400 0 ".format(modulePath))
     if not graphdb_loaded:
-        execute(-2,redis_client,"MODULE LOAD {}/rxGraphdb.so    INDEX 192.168.1.180 6401 0 DATA 192.168.1.180 6400 0 ".format(modulePath))
+        execute(-2,redis_client,"MODULE LOAD {}/rxGraphdb.so    INDEX 192.168.1.182 6401 0 DATA 192.168.1.182 6400 0 ".format(modulePath))
 
-    redis_index = redis.StrictRedis('192.168.1.180', 6401, 0)
+    redis_index = redis.StrictRedis('192.168.1.182', 6401, 0)
     data = redis_index.execute_command("MODULE LIST")
     fetcher_loaded = False
     print(data)

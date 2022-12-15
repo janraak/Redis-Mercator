@@ -92,7 +92,8 @@ int rxMatchHasValue(void *oO, const char *field, rxString pattern, int plen);
 #define rxOBJ_ZSET 3      /* Sorted set object. */
 #define rxOBJ_HASH 4      /* Hash object. */
 #define rxOBJ_STREAM 6      /* Hash object. */
-#define rxOBJ_RAX 14  /* Rax object. */
+#define rxOBJ_INDEX_ENTRY 13  /* Rax object. */
+#define rxOBJ_RAX 14  /* RX Index Entry object. */
 #define rxOBJ_TRIPLET 15  /* RX triplet object. */
 
 

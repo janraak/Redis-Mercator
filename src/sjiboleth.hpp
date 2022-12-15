@@ -1,6 +1,9 @@
 #ifndef __SJIBOLETH_HPP__
 #define __SJIBOLETH_HPP__
 
+#include <string>
+#include <string.h>
+
 #include "rxSuite.h"
 #include "sjiboleth.h"
 
@@ -113,6 +116,7 @@ protected:
     DECLARE_SJIBOLETH_HANDLER(executeAnd);
     DECLARE_SJIBOLETH_HANDLER(executeXor);
     DECLARE_SJIBOLETH_HANDLER(executeNotIn);
+
 public:
     ParserToken *LookupToken(rxString token);
 
@@ -229,4 +233,42 @@ public:
     GraphStack<ParserToken> *RPN();
 };
 
+class rxIndexEntry
+{
+public:
+    const char *key;
+    char key_type;
+    double key_score;
+    void *obj;
+
+    rxIndexEntry *Init(char *key, char *key_type, double key_score)
+    {
+        this->key = key;
+        this->key_type = *key_type;
+        this->key_score = key_score;
+        this->obj = NULL;
+        return this;
+    }
+
+    static rxIndexEntry *New(const char *entry, double key_score)
+    {
+        void *ie = rxMemAlloc(sizeof(rxIndexEntry) + strlen(entry) )+ 1 ;
+        char *key = (char *)(ie +  sizeof(rxIndexEntry));
+        strcpy(key, entry);
+        char *tab = strchr((char *)key, '\t');
+        *tab = 0x00;
+        return ((rxIndexEntry *)ie)->Init(key, tab +1, key_score);
+    }
+
+
+    void Write(RedisModuleCtx * ctx){
+        RedisModule_ReplyWithArray(ctx, 6);
+        RedisModule_ReplyWithStringBuffer(ctx, "key", 3);
+        RedisModule_ReplyWithStringBuffer(ctx, this->key, strlen(this->key));
+        RedisModule_ReplyWithStringBuffer(ctx, "type", 4);
+        RedisModule_ReplyWithStringBuffer(ctx, &this->key_type, 1);
+        RedisModule_ReplyWithStringBuffer(ctx, "score", 5);
+        RedisModule_ReplyWithDouble(ctx, this->key_score);
+    }
+};
 #endif
