@@ -12,6 +12,7 @@
 using std::string;
 #include "graphstack.hpp"
 #include "rxGraphLoad-multiplexer.hpp"
+#include "rxTextLoad-multiplexer.hpp"
 #include "rxSuite.h"
 #include "sjiboleth.hpp"
 
@@ -48,6 +49,13 @@ string readFileIntoString3(const string &path)
 }
 
 #include "graphstackentry.hpp"
+
+int text_load_async(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
+{
+    auto *multiplexer = new RxTextLoadMultiplexer(argv, argc);
+    multiplexer->Start(ctx);
+    return REDISMODULE_OK;
+};
 
 int g_set_async(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
@@ -598,6 +606,9 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "g.get_deep",
                                   get_deep, "readonly", 1, 1, 0) == REDISMODULE_ERR)
+        return REDISMODULE_ERR;
+    if (RedisModule_CreateCommand(ctx, "load.text",
+                                  text_load_async, "write", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     rxServerLog(rxLL_NOTICE, "OnLoad rxGraphdb. Done!");

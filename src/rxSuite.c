@@ -63,7 +63,7 @@ void *initRxSuite()
     {
         rxSuiteShared *shared = zmalloc(sizeof(rxSuiteShared));
         memset(shared, 0x00, sizeof(rxSuiteShared));
-        shared->parserClaimCount = 0;
+        shared->parserClaimCount = 0;        
         rxMercatorShared = shared;
 
         shared->indexNode.host_reference = sdsnew("127.0.0.1:6379");
@@ -199,4 +199,15 @@ void rxRegisterConfig(void **oargv, int argc)
 
 char *rxGetExecutable(){
     return server.executable;
+}
+
+void rxRegisterCronCommandQueue(CSimpleQueue *queue){
+    rxSuiteShared *config = initRxSuite();
+    config->cron_command_request_queue = queue;
+}
+
+CSimpleQueue *rxGetCronCommandQueue(){
+    rxSuiteShared *config = initRxSuite();
+    return config->cron_command_request_queue;
+
 }

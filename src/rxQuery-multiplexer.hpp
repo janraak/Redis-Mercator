@@ -28,6 +28,9 @@ extern "C"
 const char *AS_ARG = "AS";
 const char *DEBUG_ARG = "DEBUG";
 const char *RESET_ARG = "RESET";
+const char *RANKED_ARG = "RANKED";
+const char *OVER_ARG = "OVER";
+const char *BELOW_ARG = "UNDER";
 const char *CLEAR_ARG = "RESET";
 const char *GREMLIN_PREFX = "g:";
 const char *GREMLIN_PREFIX_ALT = "g.";

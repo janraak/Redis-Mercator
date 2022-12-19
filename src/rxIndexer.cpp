@@ -168,7 +168,7 @@ while (j < argc)
     j = j + 2;
 }
 
-TextDialect::FlushIndexables(collector, okey, key_type, index_node);
+// TextDialect::FlushIndexables(collector, okey, key_type, index_node, bool use_bracket);
 RedisClientPool<redisContext>::Release(index_node);
 raxFree(collector);
 executor->Forget("@@TEXT_PARSER@@");
@@ -246,7 +246,7 @@ static int indexingHandler(int, void *stash, redisNodeInfo *index_config, SilNik
 
     ParsedExpression *parsed_text;
     int key_type;
-
+    bool use_bracket = true;
     if (argc == 3)
     {
         rxString f = rxStringNew("*");
@@ -269,6 +269,7 @@ static int indexingHandler(int, void *stash, redisNodeInfo *index_config, SilNik
     else
     {
         key_type = rxOBJ_HASH;
+        use_bracket = argc > 4;
         for (int j = 2; j < argc; j += 2)
         {
             rxString f = (rxString)rxGetContainedObject(argv[j]);
@@ -292,7 +293,7 @@ static int indexingHandler(int, void *stash, redisNodeInfo *index_config, SilNik
     if (!index_node)
         index_node = RedisClientPool<redisContext>::Acquire(index_config->host_reference);
     if (raxSize(collector) > 0)
-        TextDialect::FlushIndexables(collector, key, key_type, index_node);
+        TextDialect::FlushIndexables(collector, key, key_type, index_node, use_bracket);
     RedisClientPool<redisContext>::Release(index_node);
     raxFree(collector);
     collector = NULL;
@@ -499,7 +500,7 @@ int reindex_cron(struct aeEventLoop *, long long, void *clientData)
             break;
         }
         auto *index_node = RedisClientPool<redisContext>::Acquire(index_config->host_reference);
-        TextDialect::FlushIndexables(collector, key, key_type, index_node);
+        TextDialect::FlushIndexables(collector, key, key_type, index_node, true);
         RedisClientPool<redisContext>::Release(index_node);
         //TODO: engine->Reset();
         raxFree(collector);

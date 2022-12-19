@@ -280,43 +280,67 @@ int rx_create_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     case 0: // Not Replicated, Not Clustered
         data = CreateClusterNode(cluster_key, sha1, DATA_ROLE_VALUE, "1", "1", ctx);
         index = CreateClusterNode(cluster_key, sha1, INDEX_FIELD, "1", "1", ctx);
-        RedisModule_FreeCallReply(
-            RedisModule_Call(ctx, "HSET", "ccc", data, INDEX_FIELD, index));
+        if (data != NULL && index != NULL)
+        {
+            RedisModule_FreeCallReply(
+                RedisModule_Call(ctx, "HSET", "ccc", data, INDEX_FIELD, index));
+        }
+        else
+            return RedisModule_ReplyWithSimpleString(ctx, "No server space available");
         break;
     case 1: // Replicated, Not Clustered
         data = CreateClusterNode(cluster_key, sha1, DATA_ROLE_VALUE, "1", "1", ctx);
         index = CreateClusterNode(cluster_key, sha1, INDEX_FIELD, "1", "1", ctx);
-        RedisModule_FreeCallReply(
-            RedisModule_Call(ctx, "HSET", "ccc", data, INDEX_FIELD, index));
-        data2 = CreateClusterNode(cluster_key, sha1, DATA_ROLE_VALUE, "2", "1", ctx);
-        RedisModule_FreeCallReply(
-            RedisModule_Call(ctx, "HSET", "ccccc", data2, INDEX_FIELD, index, PRIMARY_FIELD, data));
+        if (data != NULL && index != NULL)
+        {
+            RedisModule_FreeCallReply(
+                RedisModule_Call(ctx, "HSET", "ccc", data, INDEX_FIELD, index));
+            data2 = CreateClusterNode(cluster_key, sha1, DATA_ROLE_VALUE, "2", "1", ctx);
+            RedisModule_FreeCallReply(
+                RedisModule_Call(ctx, "HSET", "ccccc", data2, INDEX_FIELD, index, PRIMARY_FIELD, data));
+        }
         break;
     case 2: // Not Replicated, Clustered
         data = CreateClusterNode(cluster_key, sha1, DATA_ROLE_VALUE, "1", "1", ctx);
         index = CreateClusterNode(cluster_key, sha1, INDEX_FIELD, "1", "1", ctx);
-        RedisModule_FreeCallReply(
-            RedisModule_Call(ctx, "HSET", "ccc", data, INDEX_FIELD, index));
-        data = CreateClusterNode(cluster_key, sha1, DATA_ROLE_VALUE, "1", "2", ctx);
-        RedisModule_FreeCallReply(
-            RedisModule_Call(ctx, "HSET", "ccc", data, INDEX_FIELD, index));
+        if (data != NULL && index != NULL)
+        {
+            RedisModule_FreeCallReply(
+                RedisModule_Call(ctx, "HSET", "ccc", data, INDEX_FIELD, index));
+            data = CreateClusterNode(cluster_key, sha1, DATA_ROLE_VALUE, "1", "2", ctx);
+            RedisModule_FreeCallReply(
+                RedisModule_Call(ctx, "HSET", "ccc", data, INDEX_FIELD, index));
+        }
+        else
+            return RedisModule_ReplyWithSimpleString(ctx, "No server space available");
         break;
     case 3: // Not Replicated, Clustered
         data = CreateClusterNode(cluster_key, sha1, DATA_ROLE_VALUE, "1", "1", ctx);
         index = CreateClusterNode(cluster_key, sha1, INDEX_FIELD, "1", "1", ctx);
-        RedisModule_FreeCallReply(
-            RedisModule_Call(ctx, "HSET", "ccc", data, INDEX_FIELD, index));
-        data2 = CreateClusterNode(cluster_key, sha1, DATA_ROLE_VALUE, "2", "1", ctx);
-        RedisModule_FreeCallReply(
-            RedisModule_Call(ctx, "HSET", "cccc", data2, INDEX_FIELD, index, PRIMARY_FIELD, data));
+        if (data != NULL && index != NULL)
+        {
+            RedisModule_FreeCallReply(
+                RedisModule_Call(ctx, "HSET", "ccc", data, INDEX_FIELD, index));
+            data2 = CreateClusterNode(cluster_key, sha1, DATA_ROLE_VALUE, "2", "1", ctx);
+            RedisModule_FreeCallReply(
+                RedisModule_Call(ctx, "HSET", "cccc", data2, INDEX_FIELD, index, PRIMARY_FIELD, data));
 
-        data = CreateClusterNode(cluster_key, sha1, DATA_ROLE_VALUE, "1", "2", ctx);
-        index = CreateClusterNode(cluster_key, sha1, INDEX_FIELD, "1", "2", ctx);
-        RedisModule_FreeCallReply(
-            RedisModule_Call(ctx, "HSET", "ccc", data, INDEX_FIELD, index));
-        data2 = CreateClusterNode(cluster_key, sha1, DATA_ROLE_VALUE, "2", "2", ctx);
-        RedisModule_FreeCallReply(
-            RedisModule_Call(ctx, "HSET", "ccccc", data2, INDEX_FIELD, index, PRIMARY_FIELD, data));
+            if (data != NULL && index != NULL)
+            {
+                data = CreateClusterNode(cluster_key, sha1, DATA_ROLE_VALUE, "1", "2", ctx);
+                index = CreateClusterNode(cluster_key, sha1, INDEX_FIELD, "1", "2", ctx);
+                RedisModule_FreeCallReply(
+                    RedisModule_Call(ctx, "HSET", "ccc", data, INDEX_FIELD, index));
+                data2 = CreateClusterNode(cluster_key, sha1, DATA_ROLE_VALUE, "2", "2", ctx);
+                RedisModule_FreeCallReply(
+                    RedisModule_Call(ctx, "HSET", "ccccc", data2, INDEX_FIELD, index, PRIMARY_FIELD, data));
+            }
+            else
+                return RedisModule_ReplyWithSimpleString(ctx, "No server space available");
+        }
+        else
+            return RedisModule_ReplyWithSimpleString(ctx, "No server space available");
+
         break;
     default:
         return RedisModule_ReplyWithSimpleString(ctx, "Invalid parameters");
@@ -430,7 +454,7 @@ int rx_start_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
         rxString startup_command = rxStringFormat(
             "python3 %s/extensions/src/start_node.py %s %s %s %s %s %s %s \"%s\" \"%s\" \"%s\" >>$HOME/redis-%s/data/startup.log  2>>$HOME/redis-%s/data/startup.log ",
             cwd,
-            sha1, 
+            sha1,
             address, port,
             role,
             index_address, index_port,
@@ -661,7 +685,7 @@ int rx_info_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
 
 int rx_info_config(RedisModuleCtx *ctx, RedisModuleString **argv, int)
 {
-   rxSuiteShared *config = getRxSuite(); 
+    rxSuiteShared *config = getRxSuite();
 
     rxString info = rxStringNew("{ \"defaultQueryOperator\":\"");
     info = rxStringFormat("%s%s", info, config->defaultQueryOperator);
@@ -768,7 +792,6 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 
     if (RedisModule_CreateCommand(ctx, "mercator.info.config", rx_info_config, "admin write", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
-
 
     if (argc == 1 && strcmp((char *)rxGetContainedObject(argv[0]), "CLIENT") == 0)
     {

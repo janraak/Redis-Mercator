@@ -49,6 +49,8 @@ const char *EDGE_TYPE_OBJECT_TO_EDGE = "OE";
 const char *WREDIS_CMD_SADD = "sadd";
 const char *WREDIS_CMD_SMEMBERS = "SMEMBERS";
 
+const char *WREDIS_CMD_SET = "set";
+const char *WREDIS_CMD_GET = "get";
 const char *WREDIS_CMD_HSET = "hset";
 const char *WREDIS_CMD_HGETALL = "HGETALL";
 const char *WOK = "WOK";
@@ -224,7 +226,10 @@ void ExecuteRedisCommand(SimpleQueue *ctx, void *stash, const char *host_referen
     rxAllocateClientArgs(c, argv, argc);
     rxString commandName = (rxString)rxGetContainedObject(argv[0]);
     void *command_definition = rxLookupCommand((rxString)commandName);
-    rxClientExecute(c, command_definition);
+    if(command_definition)
+        rxClientExecute(c, command_definition);
+    else
+        rxServerLog(rxLL_WARNING, "Unknown command %s,  arg count: %d", commandName, argc);
     RedisClientPool<struct client>::Release(c);
     if(ctx)
         enqueueSimpleQueue(ctx, stash);

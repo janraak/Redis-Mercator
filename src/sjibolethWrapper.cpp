@@ -1,4 +1,8 @@
 
+#include <iostream>
+#include <algorithm>
+#include <vector>
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -201,83 +205,93 @@ int CopyNotIn(CFaBlok *outO, CFaBlok *leftO, CFaBlok *rightO)
     return out->CopyNotIn(left, right);
 }
 
-int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *target_setname)
+// define the function:
+bool score_comparator(const rxIndexEntry *lhs, const rxIndexEntry *rhs)
 {
-    RedisModule_ReplyWithArray(ctx, raxSize(result));
-    RedisModuleCallReply *reply = NULL;
+    if (lhs->key_score < rhs->key_score)
+        return lhs->key < rhs->key;
+    // hi-lo sort
+    return lhs->key_score > rhs->key_score;
+}
 
+std::vector<rxIndexEntry *> FilterAndSortResults(rax *result, bool ranked, double ranked_lower_bound, double ranked_upper_bound)
+{
+    std::vector<rxIndexEntry *> vec;
     raxIterator resultsIterator;
     raxStart(&resultsIterator, result);
     raxSeek(&resultsIterator, "^", NULL, 0);
+    int tally = 0;
     while (raxNext(&resultsIterator))
     {
-        rxString key = rxStringNewLen((const char *)resultsIterator.key, resultsIterator.key_len);
-
         void *o = resultsIterator.data;
-        if (target_setname)
+        rxIndexEntry *ro = NULL;
+        if (rxGetObjectType(o) == rxOBJ_TRIPLET)
         {
-            RedisModuleCallReply *r = RedisModule_Call(ctx,
-                                                       REDIS_CMD_SADD, "cc",
-                                                       target_setname,
-                                                       (char *)key);
-            if (r)
-                RedisModule_FreeCallReply(r);
+            Graph_Triplet *t = (Graph_Triplet *)rxGetContainedObject(o);
+            ro = rxIndexEntry::New((const char *)resultsIterator.key, resultsIterator.key_len, 1.0, t);
+            ranked = false; // Traversal objects are not sorted!
         }
-        if (fetch_rows == 0)
+        else if (rxGetObjectType(o) == rxOBJ_INDEX_ENTRY)
         {
-            if (rxGetObjectType(o) == rxOBJ_TRIPLET)
+            rxIndexEntry *t = (rxIndexEntry *)rxGetContainedObject(o);
+            if (t->key_score >= ranked_lower_bound && t->key_score <= ranked_upper_bound)
             {
-                Graph_Triplet *t = (Graph_Triplet *)rxGetContainedObject(o);
-                t->Write(ctx);
-            }
-            else if (rxGetObjectType(o) == rxOBJ_INDEX_ENTRY)
-            {
-                rxIndexEntry *t = (rxIndexEntry *)rxGetContainedObject(o);
-                t->Write(ctx);
-            }
-            else
-                RedisModule_ReplyWithStringBuffer(ctx, (char *)key, strlen((char *)key));
-        }
-        else
-        {
-            if (rxGetObjectType(o) == rxOBJ_TRIPLET)
-            {
-                Graph_Triplet *t = (Graph_Triplet *)rxGetContainedObject(o);
-                t->Write(ctx);
-            }
-            else if (rxGetObjectType(o) == rxOBJ_INDEX_ENTRY)
-            {
-                rxIndexEntry *t = (rxIndexEntry *)rxGetContainedObject(o);
-                // t->Write(ctx);
-
-                RedisModule_ReplyWithArray(ctx, 6);
-                RedisModule_ReplyWithStringBuffer(ctx, "key", 3);
-                RedisModule_ReplyWithStringBuffer(ctx, (char *)t->key, strlen(t->key));
-                RedisModule_ReplyWithStringBuffer(ctx, "score", 5);
-                RedisModule_ReplyWithDouble(ctx, t->key_score);
-                rxString e;
-                switch (t->key_type)
-                {
-                case HASHTYPE:
-                    reply = RedisModule_Call(ctx, REDIS_CMD_HGETALL, "c", (char *)key);
-                    break;
-                case STRINGTYPE:
-                    reply = RedisModule_Call(ctx, REDIS_CMD_GET, "c", (char *)key);
-                    break;
-                default:
-                    e = rxStringFormat("%c: Unsupported key type found: %s!", t->key_type, t->key);
-                    RedisModule_ReplyWithStringBuffer(ctx, e, strlen(e));
-                    // return RedisModule_ReplyWithError(ctx, "Unsupported key type found!");
-                }
-                RedisModule_ReplyWithStringBuffer(ctx, "value", 5);
-                RedisModule_ReplyWithCallReply(ctx, reply);
-                if (reply)
-                    RedisModule_FreeCallReply(reply);
-                // RedisModule_ReplySetArrayLength(ctx, 2);
+                ro = t;
             }
         }
+        if (ro != NULL)
+            vec.push_back(ro);
     }
     raxStop(&resultsIterator);
+    if (ranked)
+    {
+        // Using lambda expressions in C++11
+        sort(vec.begin(), vec.end(), &score_comparator);
+    }
+    return vec;
+}
+
+int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *target_setname, bool ranked, double ranked_lower_bound, double ranked_upper_bound)
+{
+    auto resultsFilteredAndSort = FilterAndSortResults(result, ranked, ranked_lower_bound, ranked_upper_bound);
+    RedisModule_ReplyWithArray(ctx, resultsFilteredAndSort.size());
+
+    RedisModuleCallReply *reply = NULL;
+
+    for (auto r : resultsFilteredAndSort)
+    {
+        if (r->obj != NULL)
+            // Traversal objects do not need fetching
+            ((Graph_Triplet *)r->obj)->Write(ctx);
+        else if (fetch_rows == 0)
+            r->Write(ctx);
+        else
+        {
+            RedisModule_ReplyWithArray(ctx, 6);
+            RedisModule_ReplyWithStringBuffer(ctx, "key", 3);
+            RedisModule_ReplyWithStringBuffer(ctx, (char *)r->key, strlen(r->key));
+            RedisModule_ReplyWithStringBuffer(ctx, "score", 5);
+            RedisModule_ReplyWithDouble(ctx, r->key_score);
+            rxString e;
+            switch (r->key_type)
+            {
+            case HASHTYPE:
+                reply = RedisModule_Call(ctx, REDIS_CMD_HGETALL, "c", (char *)r->key);
+                break;
+            case STRINGTYPE:
+                reply = RedisModule_Call(ctx, REDIS_CMD_GET, "c", (char *)r->key);
+                break;
+            default:
+                e = rxStringFormat("%c: Unsupported key type found: %s!", r->key_type, r->key);
+                RedisModule_ReplyWithStringBuffer(ctx, e, strlen(e));
+                // return RedisModule_ReplyWithError(ctx, "Unsupported key type found!");
+            }
+            RedisModule_ReplyWithStringBuffer(ctx, "value", 5);
+            RedisModule_ReplyWithCallReply(ctx, reply);
+            if (reply)
+                RedisModule_FreeCallReply(reply);
+        }
+    }
     return 0;
 }
 

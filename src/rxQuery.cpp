@@ -193,7 +193,7 @@ const char *HELP_STRING = "RX Query Commands:\n"
 //     return json;
 // }
 
-void executeQueryCommand(Sjiboleth *parser, const char *cmd, int fetch_rows, RedisModuleCtx *ctx, list *errors)
+void executeQueryCommand(Sjiboleth *parser, const char *cmd, int fetch_rows, RedisModuleCtx *ctx, list *errors, bool ranked, double ranked_lower_bound, double ranked_upper_bound)
 {
     rxUNUSED(errors);
     rxUNUSED(fetch_rows);
@@ -217,7 +217,7 @@ void executeQueryCommand(Sjiboleth *parser, const char *cmd, int fetch_rows, Red
     rax *r = e->Execute(t);
     if (r)
     {
-        WriteResults(r, ctx, fetch_rows, NULL);
+        WriteResults(r, ctx, fetch_rows, NULL, ranked, ranked_lower_bound, ranked_upper_bound);
         if (e->CanDeleteResult())
             FreeResults(r);
     }
@@ -234,21 +234,42 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     rxStringToUpper(cmd);
     int fetch_rows = strcmp(RX_GET, cmd) == 0 ? 1 : 0;
     rxString query = rxStringEmpty();
+    bool ranked = false;
+    double ranked_lower_bound = std::numeric_limits<double>::min();
+    double ranked_upper_bound = std::numeric_limits<double>::max();
     int dialect_skippy = 0;
     size_t arg_len;
     char sep[2] = {0x00, 0x00};
     for (int j = 1; j < argc; ++j)
     {
         char *q = (char *)RedisModule_StringPtrLen(argv[j], &arg_len);
-        if (rxStringMatchLen(q, strlen(AS_ARG), AS_ARG, strlen(AS_ARG), 1) && strlen(q) == strlen(AS_ARG))
+        if (rxStringMatch(q, AS_ARG, 1) && strlen(q) == strlen(AS_ARG))
         {
             ++j;
             q = (char *)RedisModule_StringPtrLen(argv[j], &arg_len);
             target_setname = q;
         }
-        else if (rxStringMatchLen(q, strlen(RESET_ARG), RESET_ARG, strlen(RESET_ARG), 1) && strlen(q) == strlen(RESET_ARG))
+        else if (rxStringMatch(q, RESET_ARG, 1) )
         {
             FaBlok::ClearCache();
+        }
+        else if (rxStringMatch(q, RANKED_ARG, 1) )
+        {
+            ranked = true;
+        }
+        else if (rxStringMatch(q, OVER_ARG, 1) )
+        {
+            ++j;
+            q = (char *)RedisModule_StringPtrLen(argv[j], &arg_len);
+            ranked_lower_bound = atof(q);
+            ranked_upper_bound = std::numeric_limits<double>::max();
+        }
+        else if (rxStringMatch(q, BELOW_ARG, 1) )
+        {
+            ++j;
+            q = (char *)RedisModule_StringPtrLen(argv[j], &arg_len);
+            ranked_lower_bound = std::numeric_limits<double>::min();
+            ranked_upper_bound = atof(q);
         }
         else
         {
@@ -264,12 +285,13 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     {
         parser = new GremlinDialect();
         dialect_skippy = strlen(GREMLIN_PREFX);
+        ranked = false;
     }
     else
         parser = new QueryDialect();
 
     list *errors = listCreate();
-    executeQueryCommand(parser, (const char *)query + dialect_skippy, fetch_rows, ctx, errors);
+    executeQueryCommand(parser, (const char *)query + dialect_skippy, fetch_rows, ctx, errors, ranked, ranked_lower_bound, ranked_upper_bound);
     listRelease(errors);
     releaseParser(parser);
     rxStringFree(query);

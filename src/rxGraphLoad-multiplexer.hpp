@@ -82,16 +82,12 @@ static void Load(ParsedExpression *rpn, SimpleQueue *ctx)
     // int tally = 0;
     while ((t3 = rpn->RPN()->Next()) != NULL)
     {
-        // if(tally++ >= 10000)
-        //     break;
-        // printf("Stack: %d ParserToken: %d %d %s\n", graph_stack->Size(), item++, t3->TokenType(), t3->TokenAsSds());
         switch (t3->TokenType())
         {
         case _literal: // A string token
         case _key_set: // A string token
         case _operand: // A string token
         {
-            // printf("-->ITEM %d --> ", item);
             se = new GraphStackEntry(t3->TokenAsSds(), graph_stack->Peek());
             se->ctx = ctx;
             graph_stack->Push(se);
@@ -105,25 +101,24 @@ static void Load(ParsedExpression *rpn, SimpleQueue *ctx)
             if (strcmp(t3->TokenAsSds(), COLON) == 0)
             {
                 try{
-                // printf("-->ITEM %d --> ", item);
-                GraphStackEntry *v = graph_stack->Pop();
-                GraphStackEntry *k = graph_stack->Pop();
-                if (k->token_value)
-                {
-                    GraphStackEntry *d = graph_stack->Pop();
-                    d->Set(k, v);
-                    free(v);
-                    free(k);
-                    graph_stack->Push(d);
-                }
-                else
-                {
-                    k->Set(v);
-                    graph_stack->Push(k);
-                }
+                    GraphStackEntry *v = graph_stack->Pop();
+                    GraphStackEntry *k = graph_stack->Pop();
+                    if (k->token_value)
+                    {
+                        GraphStackEntry *d = graph_stack->Pop();
+                        d->Set(k, v);
+                        free(v);
+                        free(k);
+                        graph_stack->Push(d);
+                    }
+                    else
+                    {
+                        k->Set(v);
+                        graph_stack->Push(k);
+                    }
                 }
                 catch(...){
-                    printf("graphdb load exception\n");
+                    rxServerLog(rxLL_NOTICE, "graphdb load exception\n");
                 }
             }
             break;
@@ -181,7 +176,7 @@ int Execute_Command_Cron(struct aeEventLoop *, long long, void *clientData)
         {
             return execute_command_delay_ms;
         }
-        ExecuteRedisCommand(queue, request, data_config->host_reference);
+        ExecuteRedisCommand(queue->response_queue, request, data_config->host_reference);
 
         // Check in loop! Slot time exhausted?
         if (ustime() - start >= execute_command_interval_ms * 1000)
@@ -200,8 +195,7 @@ static void *execLoadThread(void *ptr)
     SimpleQueue *command_request_queue =  new SimpleQueue(command_reponse_queue);
     execute_command_cron_id =  rxCreateTimeEvent(1, (aeTimeProc *)Execute_Command_Cron, command_request_queue, NULL);
     SimpleQueue *loader_queue = (SimpleQueue *)ptr;
-    // indexer_set_thread_title("rxGraphDb async loader");
-    printf("rxGraphDb async loader started\n");
+    rxServerLog(rxLL_NOTICE, "rxGraphDb async loader started\n");
     loader_queue->Started();
 
     // long long start = ustime();
@@ -221,7 +215,6 @@ static void *execLoadThread(void *ptr)
         auto *sub = parsed_json;
         while (sub != NULL)
         {
-            // printf("%s\n", sub->ToString());
             Load(sub, command_request_queue);
             sub = sub->Next();
         }
@@ -246,7 +239,7 @@ static void *execLoadThread(void *ptr)
     //     break;
     // }
     loader_queue->Stopped();
-    printf("rxGraphDb async loader stopped\n");
+    rxServerLog(rxLL_NOTICE, "rxGraphDb async loader stopped\n");
     while ((command_reponse_queue->QueueLength() + command_request_queue->QueueLength()) > 0)
     {
         // free stashed redis command on same thread as allocated
@@ -257,7 +250,8 @@ static void *execLoadThread(void *ptr)
             stash2 = command_reponse_queue->Dequeue();
         }
     }
-    printf("rxGraphDb async redis commands stopped\n");
+    rxDeleteTimeEvent(execute_command_cron_id);
+    rxServerLog(rxLL_NOTICE, "rxGraphDb async redis commands stopped\n");
     return NULL;
 }
 

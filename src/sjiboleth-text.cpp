@@ -14,16 +14,17 @@ typedef struct
 
 char *KEYTYPE_TAGS[] = {"S", "L", "C", "Z", "H", "M", "X"};
 
-bool TextDialect::FlushIndexables(rax *collector, rxString key, int key_type, redisContext *index)
+bool TextDialect::FlushIndexables(rax *collector, rxString key, int key_type, redisContext *index, bool use_bracket)
 {
 	raxIterator indexablesIterator;
 	raxStart(&indexablesIterator, collector);
 	raxSeek(&indexablesIterator, "^", NULL, 0);
 	redisReply *rcc = (redisReply *)redisCommand(index, "MULTI", "");
 	freeReplyObject(rcc);
-	rcc = (redisReply *)redisCommand(index, "RXBEGIN %s", key);
-	freeReplyObject(rcc);
-
+	if(use_bracket){
+		rcc = (redisReply *)redisCommand(index, "RXBEGIN %s", key);
+		freeReplyObject(rcc);
+	}
 	while (raxNext(&indexablesIterator))
 	{
 		rxString avp = rxStringNewLen((const char *)indexablesIterator.key, indexablesIterator.key_len);
@@ -44,8 +45,10 @@ bool TextDialect::FlushIndexables(rax *collector, rxString key, int key_type, re
 	}
 	raxStop(&indexablesIterator);
 
-	rcc = (redisReply *)redisCommand(index, "RXCOMMIT %s", key);
-	freeReplyObject(rcc);
+	if(use_bracket){
+		rcc = (redisReply *)redisCommand(index, "RXCOMMIT %s", key);
+		freeReplyObject(rcc);
+	}
 	rcc = (redisReply *)redisCommand(index, "EXEC");
 	freeReplyObject(rcc);
 	return true;

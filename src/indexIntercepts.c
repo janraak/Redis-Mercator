@@ -151,7 +151,7 @@ void freeCompletedRequests()
     }
 }
 
-void enqueueSetCommand(client *c)
+void enqueueWriteCommand(client *c)
 {
     rxStashCommand2(index_info.key_indexing_request_queue, NULL, 2, c->argc, (void **)c->argv);
     freeCompletedRequests();
@@ -162,7 +162,7 @@ void setCommandIntercept(client *c)
 
     index_info.set_tally++;
     redisCommandProc *standard_command_proc = standard_command_procs[SET_INTERCEPT];
-    enqueueSetCommand(c);
+    enqueueWriteCommand(c);
     standard_command_proc(c);
 }
 
@@ -170,7 +170,7 @@ void hsetCommandIntercept(client *c)
 {
     index_info.hset_tally++;
     redisCommandProc *standard_command_proc = standard_command_procs[HSET_INTERCEPT];
-    enqueueSetCommand(c);
+    enqueueWriteCommand(c);
     standard_command_proc(c);
 }
 
@@ -205,7 +205,7 @@ void appendCommandIntercept(client *c)
 void delCommandIntercept(client *c)
 {
     redisCommandProc *standard_command_proc = standard_command_procs[DEL_INTERCEPT];
-    enqueueSetCommand(c);
+    enqueueWriteCommand(c);
     standard_command_proc(c);
 }
 
@@ -276,14 +276,14 @@ void selectCommandIntercept(client *c)
 void xaddCommandIntercept(client *c)
 {
     redisCommandProc *standard_command_proc = standard_command_procs[XADD_INTERCEPT];
-    enqueueSetCommand(c);
+    enqueueWriteCommand(c);
     standard_command_proc(c);
 }
 
 void xdelCommandIntercept(client *c)
 {
     redisCommandProc *standard_command_proc = standard_command_procs[DEL_INTERCEPT];
-    enqueueSetCommand(c);
+    enqueueWriteCommand(c);
     standard_command_proc(c);
 }
 

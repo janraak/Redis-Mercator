@@ -216,9 +216,6 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     if (RedisModule_CreateCommand(ctx, "RULE.GET",
                                   rxRuleGet, "admin readonly", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
-    // if (RedisModule_CreateCommand(ctx, "test.json",
-    //                               executeQueryCommand, EMPTY_STRING, 1, 1, 0) == REDISMODULE_ERR)
-    //     return REDISMODULE_ERR;
 
     rxServerLog(rxLL_NOTICE, "OnLoad rxRule. Done!");
     return REDISMODULE_OK;

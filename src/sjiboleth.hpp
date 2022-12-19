@@ -179,7 +179,7 @@ class TextDialect : public Sjiboleth
 public:
     virtual bool RegisterDefaultSyntax();
 
-    bool static FlushIndexables(rax *collector, rxString key, int key_type, redisContext *index);
+    bool static FlushIndexables(rax *collector, rxString key, int key_type, redisContext *index, bool use_bracket);
 
     TextDialect();
     virtual SilNikParowy *GetEngine();
@@ -250,6 +250,13 @@ public:
         return this;
     }
 
+    rxIndexEntry *Init(char *key, char *key_type, double key_score, void *obj)
+    {
+        this->Init(key, key_type, key_score);
+        this->obj = obj;
+        return this;
+    }
+
     static rxIndexEntry *New(const char *entry, double key_score)
     {
         void *ie = rxMemAlloc(sizeof(rxIndexEntry) + strlen(entry) )+ 1 ;
@@ -260,6 +267,15 @@ public:
         return ((rxIndexEntry *)ie)->Init(key, tab +1, key_score);
     }
 
+    static rxIndexEntry *New(const char *entry, size_t len, double key_score, void *obj)
+    {
+        void *ie = rxMemAlloc(sizeof(rxIndexEntry) + strlen(entry) )+ 1 ;
+        char *key = (char *)(ie +  sizeof(rxIndexEntry));
+        strncpy(key, entry, len);
+        char *tab = strchr((char *)key, '\t');
+        *tab = 0x00;
+        return ((rxIndexEntry *)ie)->Init(key, tab +1, key_score, obj);
+    }
 
     void Write(RedisModuleCtx * ctx){
         RedisModule_ReplyWithArray(ctx, 6);

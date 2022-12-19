@@ -27,6 +27,8 @@ extern "C" {
 #define POINTER unsigned int
 #define UCHAR unsigned char
 
+typedef void CSimpleQueue;
+
 // #ifndef RXSUITE_SIMPLE
 typedef struct{
     const char * host_reference;
@@ -48,6 +50,7 @@ typedef struct
     const char *cdnRootUrl;
     const char *startScript;
     const char *installScript;
+    CSimpleQueue *cron_command_request_queue;
 } rxSuiteShared;
 
 void *initRxSuite();
@@ -56,6 +59,8 @@ redisNodeInfo *rxIndexNode();
 redisNodeInfo *rxDataNode();
 redisNodeInfo *rxControllerNode();
 void rxRegisterConfig(void **argv, int argc);
+void rxRegisterCronCommandQueue(CSimpleQueue *queue);
+CSimpleQueue *rxGetCronCommandQueue();
 
 char *rxGetExecutable();
 void finalizeRxSuite();
