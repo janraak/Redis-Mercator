@@ -5,6 +5,14 @@
 #include "sjiboleth-graph.hpp"
 #include "sjiboleth.h"
 #include "sjiboleth.hpp"
+#include "graphstackentry_abbreviated.hpp"
+
+#define STASH_STRING 1
+#define STASH_ROBJ 2
+
+
+// extern void *rxStashCommand(SimpleQueue *ctx, const char *command, int argc, ...);
+// extern void *rxStashCommand2(SimpleQueue *ctx, const char *command, int argt, int argc, void **args);
 
 typedef struct
 {
@@ -14,16 +22,17 @@ typedef struct
 
 char *KEYTYPE_TAGS[] = {"S", "L", "C", "Z", "H", "M", "X"};
 
-bool TextDialect::FlushIndexables(rax *collector, rxString key, int key_type, redisContext *index, bool use_bracket)
+bool TextDialect::FlushIndexables(rax *collector, rxString key, int key_type, CSimpleQueue *oPersist_q, bool use_bracket)
 {
+	SimpleQueue *persist_q = (SimpleQueue *)oPersist_q;
 	raxIterator indexablesIterator;
 	raxStart(&indexablesIterator, collector);
 	raxSeek(&indexablesIterator, "^", NULL, 0);
-	redisReply *rcc = (redisReply *)redisCommand(index, "MULTI", "");
-	freeReplyObject(rcc);
+    void *args[] = {(void *)key};
+    rxStashCommand2(persist_q, "MULTI", STASH_STRING, 0, NULL);
+
 	if(use_bracket){
-		rcc = (redisReply *)redisCommand(index, "RXBEGIN %s", key);
-		freeReplyObject(rcc);
+        rxStashCommand2(persist_q, "RXBEGIN", STASH_STRING, 1, args);
 	}
 	while (raxNext(&indexablesIterator))
 	{
@@ -31,26 +40,21 @@ bool TextDialect::FlushIndexables(rax *collector, rxString key, int key_type, re
 		int segments = 0;
 		rxString *parts = rxStringSplitLen(avp, indexablesIterator.key_len, "/", 1, &segments);
 		auto *indexable = (Indexable *)indexablesIterator.data;
-		rcc = (redisReply *)redisCommand(index, "RXADD %s %s %s %s %f 0", key, KEYTYPE_TAGS[key_type], parts[0], parts[1], indexable->sum_w / (indexable->tally * indexable->tally));
-		if (rcc)
-		{
-			if (index->err)
-			{
-				rxServerLogRaw(rxLL_WARNING, rxStringFormat("Error: %s on %s\n", index->errstr, avp));
-			}
-			freeReplyObject(rcc);
-		}
+		rxString score = rxStringFormat("%f", indexable->sum_w / (indexable->tally * indexable->tally));
+		// memset(score, 0x0, sizeof(sizeof(score)));
+		// snprintf(score, sizeof(score),"%f\000\000",indexable->sum_w / (indexable->tally * indexable->tally));
+	    void *add_args[] = {(void *)key, (void *)KEYTYPE_TAGS[key_type], (void *)parts[0], (void *)parts[1], (void *)score, (void *)"0"};
+        rxStashCommand2(persist_q, "RXADD", STASH_STRING, 6, add_args);
 		rxStringFreeSplitRes(parts, segments);
 		rxStringFree(avp);
+		rxStringFree(score);
 	}
 	raxStop(&indexablesIterator);
 
 	if(use_bracket){
-		rcc = (redisReply *)redisCommand(index, "RXCOMMIT %s", key);
-		freeReplyObject(rcc);
+        rxStashCommand2(persist_q, "RXCOMMIT", STASH_STRING, 1, args);
 	}
-	rcc = (redisReply *)redisCommand(index, "EXEC");
-	freeReplyObject(rcc);
+    rxStashCommand2(persist_q, "EXEC", STASH_STRING, 0, NULL);
 	return true;
 }
 

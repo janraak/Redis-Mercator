@@ -179,7 +179,7 @@ class TextDialect : public Sjiboleth
 public:
     virtual bool RegisterDefaultSyntax();
 
-    bool static FlushIndexables(rax *collector, rxString key, int key_type, redisContext *index, bool use_bracket);
+    bool static FlushIndexables(rax *collector, rxString key, int key_type, CSimpleQueue *persist_q, bool use_bracket);
 
     TextDialect();
     virtual SilNikParowy *GetEngine();

@@ -53,6 +53,7 @@ extern "C"
 #include <stdlib.h>
 #include <string.h>
 #include <version.h>
+#include <sys/wait.h>
 
     /* Utils */
     long long ustime(void);
@@ -367,9 +368,9 @@ std::string exec(const char *cmd)
     int tally = 0;
     do
     {
-        printf("cli:  ");
+        rxServerLog(rxLL_WARNING, "cli:  ");
         int rc = system(cmd);
-        printf(" rc = %d %s \n", rc, cmd);
+        rxServerLog(rxLL_WARNING, " rc = %d %s \n", rc, cmd);
         if (!(rc == -1 || WEXITSTATUS(rc) != 0))
         {
             return ("");
@@ -377,7 +378,7 @@ std::string exec(const char *cmd)
         stop = ustime();
         ++tally;
     } while (tally < 5 && stop - start <= 15 * 1000);
-    printf(" tally %d timing %lld :: %lld == %lld  \n", tally, stop, start, stop - start);
+    rxServerLog(rxLL_WARNING, " tally %d timing %lld :: %lld == %lld  \n", tally, stop, start, stop - start);
     return ("error");
     std::array<char, 128> buffer;
     std::string result;
@@ -392,22 +393,41 @@ std::string exec(const char *cmd)
     }
     return result;
 }
+
 int start_redis(rxString command)
 {
     pid_t child_pid;
     child_pid = fork(); // Create a new child process;
     if (child_pid < 0)
     {
-        printf("fork failed");
+        rxServerLog(rxLL_WARNING, "fork failed");
         return 1;
     }
     else if (child_pid == 0)
     { // New process
-        printf("Start attempt: %s\n", command);
+        rxServerLog(rxLL_WARNING, "Start attempt: %s\n", command);
         int rc = system(command);
-        printf("Start attempt rc: %d\n", rc);
+        rxServerLog(rxLL_WARNING, "Start attempt rc: %d\n", rc);
         exit(0);
     }
+    int status;
+    do
+    {
+        pid_t result = waitpid(child_pid, &status, WNOHANG);
+        if (result == 0)
+        {
+            // Child still alive
+        }
+        else if (result == -1)
+        {
+            return result;
+        }
+        else
+        {
+            kill(child_pid, SIGKILL);
+            return result;
+        }
+    }while(true);
     return 0;
 }
 
@@ -446,7 +466,7 @@ int rx_start_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
             index_address = rxStringDup(address);
             index_port = rxStringDup(port);
         }
-        printf("INDEX: %s %s %s\n", index_name, index_address, index_port);
+        rxServerLog(rxLL_WARNING, "INDEX: %s %s %s\n", index_name, index_address, index_port);
 
         auto *config = getRxSuite();
         rxString primary_name = rxGetHashField2(node_info, PRIMARY_FIELD);
@@ -481,20 +501,20 @@ int rx_start_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
             auto *redis_node = RedisClientPool<redisContext>::Acquire(controller);
             if (redis_node != NULL)
             {
-                printf(" start check: CONNECTED\n");
+                rxServerLog(rxLL_WARNING, " start check: CONNECTED\n");
                 RedisClientPool<redisContext>::Release(redis_node);
                 tally = 2069722764;
                 break;
             }
-            printf(" start check: CONNECTion failed\n");
+            rxServerLog(rxLL_WARNING, " start check: CONNECTion failed\n");
             stop = ustime();
             ++tally;
         } while (tally < 5 && stop - start <= 5 * 1000);
-        printf(" start check tally %d timing %lld :: %lld == %lld  \n", tally, stop, start, stop - start);
+        rxServerLog(rxLL_WARNING, " start check tally %d timing %lld :: %lld == %lld  \n", tally, stop, start, stop - start);
 
         if (tally != 2069722764)
         {
-            printf(" start check: START LOCAL\n");
+            rxServerLog(rxLL_WARNING, " start check: START LOCAL\n");
             start_redis(startup_command);
         }
 
@@ -537,17 +557,17 @@ int rx_stop_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
     void *si = NULL;
     rxString node;
     int64_t l;
-    printf("Stopping cluster:%s\n", sha1);
+    rxServerLog(rxLL_WARNING, "Stopping cluster:%s\n", sha1);
     while (rxScanSetMembers(nodes, &si, (char **)&node, &l) != NULL)
     {
         void *node_info = rxFindHashKey(0, node);
         rxString port = rxGetHashField2(node_info, PORT_FIELD);
         rxString address = rxGetHashField2(node_info, ADDRESS_FIELD);
-        printf(".... stopping node:%s %s:%s\n", node, address, port);
+        rxServerLog(rxLL_WARNING, ".... stopping node:%s %s:%s\n", node, address, port);
 
-        rxString startup_command = rxStringFormat("%s/src/redis-cli -h %s -p %s SHUTDOWN", cwd, address, port);
+        rxString startup_command = rxStringFormat("%s/src/redis-cli -h %s -p %s SHUTDOWN", (const char *)cwd, (const char *)address, (const char *)port);
         string out = exec(startup_command);
-        printf("%s\n%s\n", startup_command, out.c_str());
+        rxServerLog(rxLL_WARNING, "%s\n%s\n", (const char *)startup_command, (const char *)out.c_str());
         rxStringFree(startup_command);
         rxStringFree(port);
         rxStringFree(address);

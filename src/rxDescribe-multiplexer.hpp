@@ -21,6 +21,12 @@ extern "C"
 }
 #endif
 
+
+static void FreeRxDescribeObject(void *o)
+{
+    rxMemFree(o);
+}
+
 class RxDescribeMultiplexer : public Multiplexer
 {
 public:
@@ -45,11 +51,22 @@ public:
     ~RxDescribeMultiplexer()
     {
         dictReleaseIterator(this->di);
-        raxFree(this->bucket);
+        raxFreeWithCallback(this->bucket, FreeRxDescribeObject);
         rxStringFree(this->attribute);
         rxStringFree(this->attribute_value);
     }
 
+    /*
+        Hits are stashed in a single allocated block of memory.
+
+        struct{
+            char *value = &value_bucket;
+            char *attribute = &attribute_bucket;
+
+            char value_bucket[*];
+            char attribute_bucket[*];
+        }
+    */
     int Execute()
     {
         dictEntry *de;
@@ -60,18 +77,33 @@ public:
         void *value = dictGetVal(de);
         if (rxGetObjectType(value) == rxOBJ_ZSET)
         {
-            int segments = 0;
-            rxString *parts = rxStringSplitLen(key, strlen(key), ":", 1, &segments);
-            if (rxStringMatchLen(this->attribute_value, this->attribute_value_len, parts[1], strlen(parts[1]), 1) && rxStringMatchLen(this->attribute, this->attribute_len, parts[2], strlen(parts[2]), 1))
+            char *colon1 = strstr((char *)key, ":");
+            char *colon2 = strstr(colon1 + 1, ":");
+            if (   rxStringMatchLen(this->attribute_value, this->attribute_value_len, colon1 + 1, colon2 - colon1 - 1, 1) 
+                && rxStringMatchLen(this->attribute, this->attribute_len, colon2 + 1, strlen( colon2 + 1), 1))
             {
+
+            int sz = (2 * sizeof(char *) + strlen(key) + 1);
+            void *mem = rxMemAlloc(sz);
+            memset(mem, 0x00, sz);
+            char *v = (char *)(mem + 2 * sizeof(char *));
+            ((char **)mem)[0] = v;
+            strcpy(v, colon1 + 1);
+            colon2 = strstr(v, ":");
+            ((char **)mem)[1] = colon2 + 1;
+            *colon2 = 0x0;
+            char *end = strchr(colon2 + 1, 0x00);
+            // int segments = 0;
+            // rxString *parts = rxStringSplitLen(key, strlen(key), ":", 1, &segments);
                 this->hits++;
-                rxString avkey = rxStringFormat("%s:%s", parts[1], parts[2]);
-                raxInsert(this->bucket, (UCHAR *)avkey, strlen(avkey), NULL, NULL);
-                rxStringFree(avkey);
+                // rxString avkey = rxStringFormat("%s:%s", parts[1], parts[2]);
+                // raxInsert(this->bucket, (UCHAR *)avkey, strlen(avkey), NULL, NULL);
+                // rxStringFree(avkey);
+                raxInsert(this->bucket, (UCHAR *)v, end - v, mem, NULL);
             }
             else
                 this->misses++;
-            rxStringFreeSplitRes(parts, segments);
+            // rxStringFreeSplitRes(parts, segments);
         }
         else
             this->ignored++;
@@ -87,10 +119,11 @@ public:
         raxSeek(&resultsIterator, "^", NULL, 0);
         while (raxNext(&resultsIterator))
         {
-            char *colon = strchr((char *)resultsIterator.key, ':');
             RedisModule_ReplyWithArray(ctx, 2);
-            RedisModule_ReplyWithStringBuffer(ctx, (char *)resultsIterator.key, colon - (char *)resultsIterator.key);
-            RedisModule_ReplyWithStringBuffer(ctx, (char *)colon + 1, strlen(colon + 1) - 1);
+            char *v = ((char **)resultsIterator.data)[0];
+            char *a = ((char **)resultsIterator.data)[1];
+            RedisModule_ReplyWithStringBuffer(ctx, v, strlen(v));
+            RedisModule_ReplyWithStringBuffer(ctx, a, strlen(a));
         }
         raxStop(&resultsIterator);
         return 1;

@@ -64,8 +64,8 @@ public:
 
     void *Dequeue()
     {
-        if (this->fifo.size_approx() == 0)
-            return NULL;
+        // if (this->fifo.size_approx() == 0)
+        //     return NULL;
         void *item;
         bool found = this->fifo.try_dequeue(item);
         if (found)

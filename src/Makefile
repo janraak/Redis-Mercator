@@ -125,7 +125,7 @@ rxIndexer.so: ../../src/redismodule.h rxIndexer.cpp rxIndexer.hpp rule.hpp  rxSu
 rxQuery.so: ../../src/redismodule.h rxQuery.cpp rxQuery.hpp rule.hpp  rxSuite.xo  rxSuiteHelpers.xo  sjiboleth.so  sdsWrapper.xo
 	g++ -o rxQuery.so -shared -g -ggdb  $(SHOBJ_CFLAGS)   $(INCLUDE_PATHS)  -fPIC rxQuery.cpp rxSuiteHelpers.xo rxSuite.xo sjiboleth.so   sdsWrapper.xo
 
-rxIndexStore.so: ../../src/redismodule.h rxIndexStore.cpp rxIndexStore.hpp command-multiplexer.hpp  rxFetch-multiplexer.hpp  rxIndex.hpp rxSuiteHelpers.xo   sdsWrapper.xo
+rxIndexStore.so: ../../src/redismodule.h rxIndexStore.cpp rxIndexStore.hpp command-multiplexer.hpp  rxFetch-multiplexer.hpp rxDescribe-multiplexer.hpp rxIndex.hpp rxSuiteHelpers.xo   sdsWrapper.xo
 	g++ -o rxIndexStore.so -shared -g -ggdb  $(SHOBJ_CFLAGS)   $(INCLUDE_PATHS)  -fPIC rxIndexStore.cpp rxSuiteHelpers.xo   rxSuite.xo   sdsWrapper.xo
 
 rxMercator.so: ../../src/redismodule.h rxMercator.cpp rxMercator.hpp  rxSuiteHelpers.xo   client-pool.hpp client-pool.cpp sdsWrapper.xo

@@ -220,7 +220,7 @@ std::vector<rxIndexEntry *> FilterAndSortResults(rax *result, bool ranked, doubl
     raxIterator resultsIterator;
     raxStart(&resultsIterator, result);
     raxSeek(&resultsIterator, "^", NULL, 0);
-    int tally = 0;
+
     while (raxNext(&resultsIterator))
     {
         void *o = resultsIterator.data;
@@ -251,7 +251,7 @@ std::vector<rxIndexEntry *> FilterAndSortResults(rax *result, bool ranked, doubl
     return vec;
 }
 
-int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *target_setname, bool ranked, double ranked_lower_bound, double ranked_upper_bound)
+int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *, bool ranked, double ranked_lower_bound, double ranked_upper_bound)
 {
     auto resultsFilteredAndSort = FilterAndSortResults(result, ranked, ranked_lower_bound, ranked_upper_bound);
     RedisModule_ReplyWithArray(ctx, resultsFilteredAndSort.size());
