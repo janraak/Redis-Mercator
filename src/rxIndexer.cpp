@@ -344,28 +344,6 @@ void freeCompletedRedisRequests()
     }
 }
 
-int indexerInfo(RedisModuleCtx *ctx, RedisModuleString **, int)
-{
-    rxString response = rxStringFormat("Number of SET commands intercepts:         %d\n", index_info.set_tally);
-    response = rxStringFormat("%sNumber of HSET commands intercepts:        %d\n", response, index_info.hset_tally);
-    response = rxStringFormat("%sNumber of indexing queued requests:        %d\n", response, index_info.key_indexing_request_queue->QueueLength());
-    response = rxStringFormat("%sNumber of queued redis requests:           %d\n", response, index_info.index_update_request_queue->QueueLength());
-    response = rxStringFormat("%sNumber of RXBEGIN commands:                %d\n", response, index_info.rxbegin_tally);
-    response = rxStringFormat("%sNumber of RXADD commands:                  %d\n", response, index_info.rxadd_tally);
-    response = rxStringFormat("%sNumber of RXCOMMIT commands:               %d\n", response, index_info.rxcommit_tally);
-    response = rxStringFormat("%sNumber of completed requests:              %d\n", response, index_info.key_indexing_respone_queue->QueueLength());
-    response = rxStringFormat("%sNumber of key_indexing_enqueues:           %d\n", response, index_info.key_indexing_respone_queue->enqueue_fifo_tally.load());
-     response = rxStringFormat("%sNumber of key_indexing_dequeues:           %d\n", response, index_info.key_indexing_respone_queue->dequeue_fifo_tally.load());
-    response = rxStringFormat("%sNumber of completed Redis requests:        %d\n", response, index_info.index_update_request_queue->QueueLength());
-    response = rxStringFormat("%sNumber of redis_enqueues:                  %d\n", response, index_info.index_update_request_queue->enqueue_fifo_tally.load());
-    response = rxStringFormat("%sNumber of redis_dequeues:                  %d\n", response, index_info.index_update_request_queue->dequeue_fifo_tally.load());
-    // response = rxStringFormat("%sNumber of REDIS commands:                  %d\n", response, dictSize(server.commands));
-    // response = rxStringFormat("%sNumber of REDIS commands:                  %d, intercepts: %d\n", response, dictSize(server.commands), sizeof(interceptorCommandTable) / sizeof(struct redisCommand));
-    response = rxStringFormat("%sNumber of Field index comm                 %d\n", response, index_info.field_index_tally);
-
-    return RedisModule_ReplyWithSimpleString(ctx, response);
-}
-
 static char indexer_state = 0;
 long long reindex_helper_cron = -1;
 int reindex_cron_slot_time = 100;
@@ -380,6 +358,30 @@ long long reindex_throttleded_no_mem = 0;
 long long reindex_no_of_slots = 0;
 long long reindex_starttime = 0;
 long long reindex_latency = 0;
+
+int indexerInfo(RedisModuleCtx *ctx, RedisModuleString **, int)
+{
+    rxString response = rxStringFormat("%sIndexer is:                       %s\n", response, indexer_state ? "Active" : "Not Active");
+    response = rxStringFormat("%sReIndexing is:                             %s\n", response, reindex_iterator ? "Active" : "Not Active");
+    response = rxStringFormat("%sNumber of SET commands intercepts:         %d\n", response, index_info.set_tally);
+    response = rxStringFormat("%sNumber of HSET commands intercepts:        %d\n", response, index_info.hset_tally);
+    response = rxStringFormat("%sNumber of indexing queued requests:        %d\n", response, index_info.key_indexing_request_queue->QueueLength());
+    response = rxStringFormat("%sNumber of queued redis requests:           %d\n", response, index_info.index_update_request_queue->QueueLength());
+    response = rxStringFormat("%sNumber of RXBEGIN commands:                %d\n", response, index_info.rxbegin_tally);
+    response = rxStringFormat("%sNumber of RXADD commands:                  %d\n", response, index_info.rxadd_tally);
+    response = rxStringFormat("%sNumber of RXCOMMIT commands:               %d\n", response, index_info.rxcommit_tally);
+    response = rxStringFormat("%sNumber of completed requests:              %d\n", response, index_info.key_indexing_respone_queue->QueueLength());
+    response = rxStringFormat("%sNumber of key_indexing_enqueues:           %d\n", response, index_info.key_indexing_respone_queue->enqueue_fifo_tally.load());
+    response = rxStringFormat("%sNumber of key_indexing_dequeues:           %d\n", response, index_info.key_indexing_respone_queue->dequeue_fifo_tally.load());
+    response = rxStringFormat("%sNumber of completed Redis requests:        %d\n", response, index_info.index_update_request_queue->QueueLength());
+    response = rxStringFormat("%sNumber of redis_enqueues:                  %d\n", response, index_info.index_update_request_queue->enqueue_fifo_tally.load());
+    response = rxStringFormat("%sNumber of redis_dequeues:                  %d\n", response, index_info.index_update_request_queue->dequeue_fifo_tally.load());
+    // response = rxStringFormat("%sNumber of REDIS commands:                  %d\n", response, dictSize(server.commands));
+    // response = rxStringFormat("%sNumber of REDIS commands:                  %d, intercepts: %d\n", response, dictSize(server.commands), sizeof(interceptorCommandTable) / sizeof(struct redisCommand));
+    response = rxStringFormat("%sNumber of Field index comm                 %d\n", response, index_info.field_index_tally);
+
+    return RedisModule_ReplyWithSimpleString(ctx, response);
+}
 
 int rx_wait_indexing_complete(struct RedisModuleCtx *ctx)
 {
@@ -413,11 +415,16 @@ int indexerControl(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
             uninstallIndexerInterceptors();
             indexer_state = 0;
         }
+        else if (rxStringMatch(arg, "STATUS", 1))
+        {
+            return indexerInfo(ctx, argv, argc);
+        }
         else
         {
             return RedisModule_ReplyWithSimpleString(ctx, "Invalid argument, must be ON or OFF.");
         }
-    }
+    }else
+        return indexerInfo(ctx, argv, argc);
     return RedisModule_ReplyWithSimpleString(ctx, "OK");
 }
 
@@ -778,13 +785,6 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     }
 
     rxRegisterConfig((void **)argv, argc);
-
-    if (RedisModule_CreateCommand(ctx, "rxIndexer.info",
-                                  indexerInfo, "readonly", 0, 0, 0) == REDISMODULE_ERR)
-        return REDISMODULE_ERR;
-    if (RedisModule_CreateCommand(ctx, "rx.info",
-                                  indexerInfo, "readonly", 0, 0, 0) == REDISMODULE_ERR)
-        return REDISMODULE_ERR;
 
     if (RedisModule_CreateCommand(ctx, "rxIndex",
                                   indexerControl, "readonly", 0, 0, 0) == REDISMODULE_ERR)
