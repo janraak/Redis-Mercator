@@ -323,7 +323,7 @@ bool HasParkedToken(CParsedExpression *pO, const char *token)
 CParserToken *CopyParserToken(CParserToken *tO)
 {
     ParserToken *t = (ParserToken *)tO;
-    return t->Copy();
+    return t->Copy(2069722764000001);
 }
 
 void SetParserTokenType(ParserToken *tO, eTokenType tt)

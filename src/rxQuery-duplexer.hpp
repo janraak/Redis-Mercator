@@ -75,8 +75,8 @@ int Execute_Command_Cron(struct aeEventLoop *, long long, void */*clientData*/)
 
 static void *execQueryThread(void *ptr)
 {
-    SimpleQueue *command_reponse_queue = new SimpleQueue();
-    SimpleQueue *command_request_queue = new SimpleQueue(command_reponse_queue);
+    SimpleQueue *command_reponse_queue = new SimpleQueue("execQueryThreadRESP");
+    SimpleQueue *command_request_queue = new SimpleQueue("execQueryThreadREQ", command_reponse_queue);
     execute_command_cron_id = rxCreateTimeEvent(1, (aeTimeProc *)Execute_Command_Cron, command_request_queue, NULL);
     SimpleQueue *control_query_request_queue = (SimpleQueue *)ptr;
     // indexer_set_thread_title("rxQuery async loader");
@@ -125,7 +125,7 @@ static void *execQueryThread(void *ptr)
         sds *stash = command_reponse_queue->Dequeue();
         while (stash != NULL)
         {
-            rxMemFree(stash);
+            FreeStash(stash);
             stash = command_reponse_queue->Dequeue();
         }
 
@@ -162,8 +162,8 @@ public:
     RxQueryDuplexer(sds command, sds query)
         : Duplexer()
     {
-        this->control_q_response = new SimpleQueue();
-        this->control_q_request = new SimpleQueue((void *)execQueryThread, 1, this->control_q_response);
+        this->control_q_response = new SimpleQueue("RxQueryDuplexerREQP");
+        this->control_q_request = new SimpleQueue("RxQueryDuplexerREQ", (void *)execQueryThread, 1, this->control_q_response);
         sds *load_entry = new sds[3];
         load_entry[0] = command;
         load_entry[1] = query;

@@ -43,6 +43,7 @@ extern "C"
 #include "../../src/adlist.h"
 #include "../../src/dict.h"
 #include "../../src/rax.h"
+    void raxRecursiveFree(rax *rax, raxNode *n, void (*free_callback)(void *));
 
 #include "rxSuiteHelpers.h"
 
@@ -175,7 +176,7 @@ RedisClientPool<redisContext>::Release(index_node);
 raxFree(collector);
 executor->Forget("@@TEXT_PARSER@@");
 executor->Forget("@@collector@@");
-//TODO: executor->Reset();
+// TODO: executor->Reset();
 
 END_COMMAND_INTERCEPTOR(indexingHandlerXaddCommand)
 
@@ -201,8 +202,8 @@ extern "C"
 }
 #endif
 
-int rxrule_helper_interval = 100;
-long long rxrule_helper_cron = -1;
+int client_health_interval = 100;
+long long client_health_cron = -1;
 struct client *rxrule_fakeClient = NULL;
 struct redisCommand *rule_apply_cmd;
 void *rxruleApply = NULL;
@@ -219,11 +220,13 @@ int rxrule_timer_handler(struct aeEventLoop *, long long int, void *)
     void *index_request = index_info.index_rxRuleApply_request_queue->Dequeue();
     while (index_request != NULL)
     {
+        // rxServerLogHexDump(rxLL_NOTICE, index_request, 128/*rxMemAllocSize(index_request)*/, "rxrule_timer_handler %s %p DEQUEUE", index_info.index_rxRuleApply_request_queue->name, index_request);
+
         ExecuteRedisCommand(index_info.index_rxRuleApply_respone_queue, index_request, index_config->host_reference);
         index_request = index_info.index_rxRuleApply_request_queue->Dequeue();
     }
 
-    return rxrule_helper_interval;
+    return client_health_interval;
 }
 
 static int indexingHandler(int, void *stash, redisNodeInfo *index_config, SilNikParowy_Kontekst *executor)
@@ -285,7 +288,7 @@ static int indexingHandler(int, void *stash, redisNodeInfo *index_config, SilNik
             auto *sub = parsed_text;
             while (sub)
             {
-                    sub->Show(v);
+                sub->Show(v);
                 SilNikParowy::Execute(sub, executor);
                 sub = sub->Next();
             }
@@ -293,14 +296,11 @@ static int indexingHandler(int, void *stash, redisNodeInfo *index_config, SilNik
             executor->Forget("@@field@@");
         }
     }
-    if (!index_node)
-        index_node = RedisClientPool<redisContext>::Acquire(index_config->host_reference);
     if (raxSize(collector) > 0)
         TextDialect::FlushIndexables(collector, key, key_type, index_info.index_update_request_queue, use_bracket);
-    RedisClientPool<redisContext>::Release(index_node);
     raxFree(collector);
     collector = NULL;
-    //TODO: executor->Reset();
+    // TODO: executor->Reset();
 
     rxStashCommand(index_info.index_update_request_queue, "RXTRIGGER", 1, key);
     return C_OK;
@@ -315,7 +315,10 @@ void freeCompletedRedisRequests()
     index_request = index_info.index_update_respone_queue->Dequeue();
     while (index_request != NULL)
     {
+        // rxServerLogHexDump(rxLL_NOTICE, index_request, 128/*rxMemAllocSize(index_request)*/, "freeCompletedRedisRequests %s %p DEQUEUE", index_info.index_update_respone_queue->name, index_request);
+
         GET_ARGUMENTS_FROM_STASH(index_request);
+        rxUNUSED(argv);
         if (argc > 1)
         {
             auto *sdsv = (void **)(index_request + (argc + 3) * sizeof(void *));
@@ -323,7 +326,8 @@ void freeCompletedRedisRequests()
             sdsv = sdsv + 16;
             // rxString key = (rxString)rxGetContainedObject(argv[1]);
             char *key = (char *)sdsv;
-            if(freeCompletedRedisRequests_last_key == NULL || strcmp(freeCompletedRedisRequests_last_key, key) != 0){
+            if (freeCompletedRedisRequests_last_key == NULL || strcmp(freeCompletedRedisRequests_last_key, key) != 0)
+            {
                 auto *stash = rxStashCommand(index_info.index_rxRuleApply_request_queue, "RULE.APPLY", 1, key);
                 ExecuteRedisCommand(NULL, stash, rxDataNode()->host_reference);
                 freeCompletedRedisRequests_last_key = key;
@@ -338,6 +342,7 @@ void freeCompletedRedisRequests()
         index_request = index_info.index_rxRuleApply_respone_queue->Dequeue();
         while (index_request != NULL)
         {
+            // rxServerLogHexDump(rxLL_NOTICE, index_request, 128/*rxMemAllocSize(index_request)*/, "freeCompletedRedisRequests %s %p DEQUEUE", index_info.index_rxRuleApply_respone_queue->name, index_request);
             // FreeStash(index_request);
             index_request = index_info.index_rxRuleApply_respone_queue->Dequeue();
         }
@@ -361,7 +366,7 @@ long long reindex_latency = 0;
 
 int indexerInfo(RedisModuleCtx *ctx, RedisModuleString **, int)
 {
-    rxString response = rxStringFormat("%sIndexer is:                       %s\n", response, indexer_state ? "Active" : "Not Active");
+    rxString response = rxStringFormat("Indexer is:                       %s\n", indexer_state ? "Active" : "Not Active");
     response = rxStringFormat("%sReIndexing is:                             %s\n", response, reindex_iterator ? "Active" : "Not Active");
     response = rxStringFormat("%sNumber of SET commands intercepts:         %d\n", response, index_info.set_tally);
     response = rxStringFormat("%sNumber of HSET commands intercepts:        %d\n", response, index_info.hset_tally);
@@ -373,7 +378,7 @@ int indexerInfo(RedisModuleCtx *ctx, RedisModuleString **, int)
     response = rxStringFormat("%sNumber of completed requests:              %d\n", response, index_info.key_indexing_respone_queue->QueueLength());
     response = rxStringFormat("%sNumber of key_indexing_enqueues:           %d\n", response, index_info.key_indexing_respone_queue->enqueue_fifo_tally.load());
     response = rxStringFormat("%sNumber of key_indexing_dequeues:           %d\n", response, index_info.key_indexing_respone_queue->dequeue_fifo_tally.load());
-    response = rxStringFormat("%sNumber of completed Redis requests:        %d\n", response, index_info.index_update_request_queue->QueueLength());
+    response = rxStringFormat("%sNumber of completed Redis requests:        %d\n", response, index_info.index_update_respone_queue->QueueLength());
     response = rxStringFormat("%sNumber of redis_enqueues:                  %d\n", response, index_info.index_update_request_queue->enqueue_fifo_tally.load());
     response = rxStringFormat("%sNumber of redis_dequeues:                  %d\n", response, index_info.index_update_request_queue->dequeue_fifo_tally.load());
     // response = rxStringFormat("%sNumber of REDIS commands:                  %d\n", response, dictSize(server.commands));
@@ -397,7 +402,7 @@ int indexerControl(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         size_t arg_len;
         rxString arg = rxStringNew((char *)RedisModule_StringPtrLen(argv[1], &arg_len));
         rxStringToUpper(arg);
-        if (rxStringMatch(arg, "WAIT", 1)) 
+        if (rxStringMatch(arg, "WAIT", 1))
         {
             return rx_wait_indexing_complete(ctx);
         }
@@ -423,7 +428,8 @@ int indexerControl(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         {
             return RedisModule_ReplyWithSimpleString(ctx, "Invalid argument, must be ON or OFF.");
         }
-    }else
+    }
+    else
         return indexerInfo(ctx, argv, argc);
     return RedisModule_ReplyWithSimpleString(ctx, "OK");
 }
@@ -434,7 +440,6 @@ int reindex_cron(struct aeEventLoop *, long long, void *clientData)
 {
     if (must_stop == 1)
         return -1;
-    redisNodeInfo *index_config = rxIndexNode();
 
     auto *engine = (SilNikParowy_Kontekst *)clientData;
 
@@ -518,10 +523,8 @@ int reindex_cron(struct aeEventLoop *, long long, void *clientData)
             rxServerLog(LL_NOTICE, "ReIndexing unexpected type");
             break;
         }
-        auto *index_node = RedisClientPool<redisContext>::Acquire(index_config->host_reference);
-        TextDialect::FlushIndexables(collector, key, key_type, index_node, true);
-        RedisClientPool<redisContext>::Release(index_node);
-        //TODO: engine->Reset();
+        TextDialect::FlushIndexables(collector, key, key_type, index_info.index_update_request_queue, true);
+        // TODO: engine->Reset();
         raxFree(collector);
         engine->Forget("@@collector@@");
 
@@ -648,6 +651,8 @@ static void *execIndexerThread(void *ptr)
         void *index_request = indexing_queue->Dequeue();
         while (index_request != NULL)
         {
+            // rxServerLogHexDump(rxLL_NOTICE, index_request, 128/*rxMemAllocSize(index_request)*/, "execIndexerThread %s %p DEQUEUE", indexing_queue->name, index_request);
+
             indexingHandler(tally, index_request, index_config, executor);
             index_info.key_indexing_respone_queue->Enqueue(index_request);
             index_request = indexing_queue->Dequeue();
@@ -655,7 +660,7 @@ static void *execIndexerThread(void *ptr)
         freeCompletedRedisRequests();
         sched_yield();
     }
-    rxrule_helper_interval = 0;
+    client_health_interval = 0;
     indexing_queue->Stopped();
     return NULL;
 }
@@ -711,9 +716,18 @@ static void *execUpdateRedisThread(void *ptr)
             index_info.start_batch_ms = mstime();
             while (index_request != NULL)
             {
-                void **argv = (void **)(index_request + sizeof(void *));
+                // rxServerLogHexDump(rxLL_NOTICE, index_request, 128/*rxMemAllocSize(index_request)*/, "execUpdateRedisThread %s %p DEQUEUE", redis_queue->name, index_request);
+
+                GET_ARGUMENTS_FROM_STASH(index_request);
+                if (argc < 1)
+                {
+                    rxServerLog(rxLL_NOTICE, "Invalid request from queue %p argc=%d", index_request, argc);
+                    FreeStash(index_request);
+                    continue;
+                }
+
                 rxString cmd = (rxString)rxGetContainedObject(argv[0]);
-                if (strncmp("RXTRIGGER", cmd, 9) != 0)
+                if (!rxStringMatch(cmd, "RXTRIGGER", 1))
                 {
                     ExecuteRedisCommandRemote(NULL, index_request, index_config->host_reference);
                 }
@@ -739,17 +753,17 @@ static void startIndexerThreads()
 {
     indexerThread *t = &index_info;
 
-    t->key_indexing_respone_queue = new SimpleQueue();
-    t->index_update_respone_queue = new SimpleQueue();
-    t->index_rxRuleApply_respone_queue = new SimpleQueue();
-    t->index_rxRuleApply_request_queue = new SimpleQueue(t->index_rxRuleApply_respone_queue);
-    t->key_indexing_request_queue = new SimpleQueue((void *)execIndexerThread, 1, t->key_indexing_respone_queue);
-    t->index_update_request_queue = new SimpleQueue((void *)execUpdateRedisThread, 1, t->index_update_respone_queue);
+    t->key_indexing_respone_queue = new SimpleQueue("STRESP");
+    t->index_update_respone_queue = new SimpleQueue("IXRESP");
+    t->index_rxRuleApply_respone_queue = new SimpleQueue("RLRESP");
+    t->index_rxRuleApply_request_queue = new SimpleQueue("RLREQ", t->index_rxRuleApply_respone_queue);
+    t->key_indexing_request_queue = new SimpleQueue("IXREQ", (void *)execIndexerThread, 1, t->key_indexing_respone_queue);
+    t->index_update_request_queue = new SimpleQueue("STREQ", (void *)execUpdateRedisThread, 1, t->index_update_respone_queue);
 
-    rxrule_helper_interval = 100;
-    rxrule_helper_cron = rxCreateTimeEvent(1, (aeTimeProc *)rxrule_timer_handler, NULL, NULL);
+    client_health_interval = 100;
+    client_health_cron = rxCreateTimeEvent(1, (aeTimeProc *)rxrule_timer_handler, NULL, NULL);
     int i = rxrule_timer_handler(NULL, 0, NULL);
-    rxServerLog(LL_NOTICE, "RX Rule cron started: %lld interval=%d", rxrule_helper_cron, i);
+    rxServerLog(LL_NOTICE, "RX Rule cron started: %lld interval=%d", client_health_cron, i);
 }
 
 static void stopIndexerThreads()
@@ -758,7 +772,7 @@ static void stopIndexerThreads()
     must_stop = 1;
 
     rxDeleteTimeEvent(reindex_helper_cron);
-    rxDeleteTimeEvent(rxrule_helper_cron);
+    rxDeleteTimeEvent(client_health_cron);
     t->key_indexing_request_queue->Release();
     t->key_indexing_respone_queue->Release();
     t->index_update_request_queue->Release();

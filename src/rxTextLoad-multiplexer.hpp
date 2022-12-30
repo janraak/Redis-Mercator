@@ -147,7 +147,7 @@ static void *extractRowAsJson(SimpleQueue *req_q, char *row_start, char *row_end
     if (value != NULL)
     {
         void *args[] = {(void *)key, (void *)value};
-        rxStashCommand2(req_q, WREDIS_CMD_SET, /*string_args*/ 1, 2, args);
+        rxStashCommand2(req_q, WREDIS_CMD_SET, STASH_STRING, 2, args);
         rxStringFree(value);
     }
     rxStringFree(key);
@@ -201,7 +201,7 @@ static void *extractRowAsHash(SimpleQueue *req_q, char *row_start, char *row_end
         if (strlen(v) > 0)
         {
             void *args[] = {(void *)key, (void *)f, (void *)v};
-            rxStashCommand2(req_q, WREDIS_CMD_HSET, /*string_args*/ 1, 3, args);
+            rxStashCommand2(req_q, WREDIS_CMD_HSET, STASH_STRING, 3, args);
         }
 
         rxStringFree(f);
@@ -233,7 +233,7 @@ static void *extractRowAsText(SimpleQueue *req_q, char *row_start, char *row_end
     if (value != NULL)
     {
         void *args[] = {(void *)key, (void *)value};
-        rxStashCommand2(req_q, WREDIS_CMD_SET, /*string_args*/ 1, 2, args);
+        rxStashCommand2(req_q, WREDIS_CMD_SET, STASH_STRING, 2, args);
         rxStringFree(value);
     }
     rxStringFree(key);
@@ -256,7 +256,7 @@ static void *extractRowAsString(SimpleQueue *req_q, char *row_start, char *row_e
     if (value != NULL)
     {
         void *args[] = {(void *)key, (void *)value};
-        rxStashCommand2(req_q, WREDIS_CMD_SET, /*string_args*/ 1, 2, args);
+        rxStashCommand2(req_q, WREDIS_CMD_SET, STASH_STRING, 2, args);
         rxStringFree(value);
     }
     rxStringFree(key);
@@ -265,8 +265,8 @@ static void *extractRowAsString(SimpleQueue *req_q, char *row_start, char *row_e
 
 static void *execTextLoadThread(void *ptr)
 {
-    SimpleQueue *command_reponse_queue = new SimpleQueue();
-    SimpleQueue *command_request_queue = new SimpleQueue(command_reponse_queue);
+    SimpleQueue *command_reponse_queue = new SimpleQueue("execTextLoadThreadRESP");
+    SimpleQueue *command_request_queue = new SimpleQueue("execTextLoadThreadREQ", command_reponse_queue);
     execute_textload_command_cron_id = rxCreateTimeEvent(1, (aeTimeProc *)Execute_Command_Cron, command_request_queue, NULL);
 
     // // TODO: Fix potential memory release problem!
@@ -377,8 +377,8 @@ public:
     RxTextLoadMultiplexer(RedisModuleString **argv, int argc)
         : Multiplexer()
     {
-        this->response = new SimpleQueue();
-        this->request = new SimpleQueue((void *)execTextLoadThread, 1, this->response);
+        this->response = new SimpleQueue("RxTextLoadMultiplexerRESP");
+        this->request = new SimpleQueue("RxTextLoadMultiplexerREQ", (void *)execTextLoadThread, 1, this->response);
         rxStashCommand2(this->request, "", 2, argc, (void **)argv);
     }
 

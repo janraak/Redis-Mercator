@@ -389,8 +389,9 @@ void FreeFaBlok(void *o)
 
 void FaBlok::DeleteAllTempDescriptors()
 {
-    raxFreeWithCallback(FaBlok::Get_FaBlok_Registry(), FreeFaBlok);
-    FaBlok::Free_Thread_Registry();
+    FaBlok::ClearCache();
+    // raxFreeWithCallback(FaBlok::Get_FaBlok_Registry(), FreeFaBlok);
+    // FaBlok::Free_Thread_Registry();
 }
 
 void FreeFaBlokConditionally(void *o)

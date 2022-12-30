@@ -47,8 +47,9 @@ int rxStringMatch(const char *p, const char *s, int nocase);
 void rxServerLogRaw(int level, const char *msg);
 void rxServerAssert(const char *estr, const char *file, int line);
 void rxServerLog(int level, const char *fmt, ...);
-
+void rxServerLogHexDump(int level, void *value, size_t len, const char *fmt, ...);
 void *rxMemAlloc(size_t size);
 void rxMemFree(void *ptr);
+size_t rxMemAllocSize(void *ptr);
 
 #endif

@@ -61,6 +61,10 @@ struct client *graphStackEntry_fakeClient = NULL;
 void ExecuteRedisCommand(SimpleQueue *ctx, void *stash, const char *host_reference)
 {
     int argc = *((int *)stash);
+    if(argc <= 0){
+        rxServerLog(rxLL_WARNING, "Odd request %p,  arg count: %d", stash, argc);
+        return;
+    }
     void **argv = (void **)(stash + sizeof(void *));
     auto *c = (struct client *)RedisClientPool<struct client>::Acquire(host_reference);
     rxAllocateClientArgs(c, argv, argc);
@@ -92,7 +96,6 @@ void ExecuteRedisCommandRemote(SimpleQueue *ctx, void *stash, const char *host_r
         // TODO: refactor
         sp = sp + 16;
     }
-    size_t argv_len = 0;
     if(saved_redisClient == NULL)
         saved_redisClient = RedisClientPool<redisContext>::Acquire(host_reference);
 
@@ -112,6 +115,7 @@ void ExecuteRedisCommandRemote(SimpleQueue *ctx, void *stash, const char *host_r
 
 void FreeStash(void *stash)
 {
+    // rxServerLogHexDump(rxLL_NOTICE, stash, 128/*rxMemAllocSize(stash)*/, "stash %p DEQUEUE", stash);
     rxMemFree(stash);
 }
 

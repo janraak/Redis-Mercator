@@ -223,7 +223,7 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(TextCommaScopeCheck)
 		referal = rxStringFormat("%s%s", referal, ((ParserToken *)t)->TokenAsSds());
 		t = lookupToken(pO, referal);
 		if (t != NULL)
-			t = (CParserToken *)((ParserToken *)t)->Copy();
+			t = (CParserToken *)((ParserToken *)t)->Copy(2069722764000002);
 		rxStringFree(referal);
 	}
 }
@@ -248,7 +248,7 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(TextColonScopeCheck)
 				referal = rxStringFormat("%s%s", referal, ((ParserToken *)t)->TokenAsSds());
 				t = lookupToken(pO, referal);
 				if (t != NULL)
-					t = (CParserToken *)((ParserToken *)t)->Copy();
+					t = (CParserToken *)((ParserToken *)t)->Copy(2069722764000003);
 				rxStringFree(referal);
 			}
 			break;
@@ -260,7 +260,7 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(TextColonScopeCheck)
 			referal = rxStringFormat("%s%s", referal, ((ParserToken *)t)->TokenAsSds());
 			t = lookupToken(pO, referal);
 			if (t != NULL)
-				t = (CParserToken *)((ParserToken *)t)->Copy();
+				t = (CParserToken *)((ParserToken *)t)->Copy(2069722764000004);
 			rxStringFree(referal);
 			break;
 		}
@@ -280,7 +280,7 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(TextBulletScopeCheck)
 	referal = rxStringFormat("%s%s", referal, ((ParserToken *)t)->TokenAsSds());
 	t = lookupToken(pO, referal);
 	if (t != NULL)
-		t = (CParserToken *)((ParserToken *)t)->Copy();
+		t = (CParserToken *)((ParserToken *)t)->Copy(2069722764000001);
 	rxStringFree(referal);
 }
 END_SJIBOLETH_PARSER_CONTEXT_CHECKER(TextBulletScopeCheck)
@@ -296,7 +296,7 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(TextDashScopeCheck)
 		referal = rxStringFormat("%s%s", referal, ((ParserToken *)t)->TokenAsSds());
 		t = lookupToken(pO, referal);
 		if (t != NULL)
-			t = (CParserToken *)((ParserToken *)t)->Copy();
+			t = (CParserToken *)((ParserToken *)t)->Copy(2069722774000040);
 		rxStringFree(referal);
 	}
 }
@@ -345,5 +345,5 @@ TextDialect::TextDialect()
 	: Sjiboleth()
 {
 	this->default_operator = rxStringEmpty();
-	this->RegisterDefaultSyntax();
+        this->RegisterDefaultSyntax();
 }

@@ -72,8 +72,8 @@ int Execute_Command_Cron(struct aeEventLoop *, long long, void * /*clientData*/)
 static void *execQueryThread(void *ptr)
 {
     redisNodeInfo *index_config = rxIndexNode();
-    SimpleQueue *command_reponse_queue = new SimpleQueue();
-    SimpleQueue *command_request_queue = new SimpleQueue(command_reponse_queue);
+    SimpleQueue *command_reponse_queue = new SimpleQueue("execQueryThreadRESP");
+    SimpleQueue *command_request_queue = new SimpleQueue("execQueryThreadREQ", command_reponse_queue);
     execute_command_cron_id = rxCreateTimeEvent(1, (aeTimeProc *)Execute_Command_Cron, command_request_queue, NULL);
     SimpleQueue *control_query_request_queue = (SimpleQueue *)ptr;
     // indexer_set_thread_title("rxQuery async loader");
@@ -146,7 +146,8 @@ static void *execQueryThread(void *ptr)
         void *stash = command_reponse_queue->Dequeue();
         while (stash != NULL)
         {
-            rxMemFree(stash);
+            rxServerLogHexDump(rxLL_NOTICE, stash, 128/*rxMemAllocSize(stash)*/, "execQueryThread %s %p DEQUEUE", command_reponse_queue->name, stash);
+            FreeStash(stash);
             stash = command_reponse_queue->Dequeue();
         }
 
@@ -184,8 +185,8 @@ public:
     RxQueryMultiplexer(void * query, redisNodeInfo *index_config)
         : Multiplexer()
     {
-        this->control_q_response = new SimpleQueue();
-        this->control_q_request = new SimpleQueue((void *)execQueryThread, 1, this->control_q_response);
+        this->control_q_response = new SimpleQueue("RxQueryMultiplexerRESP");
+        this->control_q_request = new SimpleQueue("RxQueryMultiplexerREQ", (void *)execQueryThread, 1, this->control_q_response);
         this->index_config = index_config;
         this->control_q_request->Enqueue(query);
     }

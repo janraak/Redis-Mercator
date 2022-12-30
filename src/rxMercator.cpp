@@ -65,6 +65,8 @@ extern "C"
 #undef RXSUITE_SIMPLE
 #include "rxSuite.h"
 #include "rxSuiteHelpers.h"
+#include "sdsWrapper.h"
+
 #include "sha1.h"
 
     int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc);
@@ -427,7 +429,7 @@ int start_redis(rxString command)
             kill(child_pid, SIGKILL);
             return result;
         }
-    }while(true);
+    } while (true);
     return 0;
 }
 
@@ -703,7 +705,7 @@ int rx_info_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
     return RedisModule_ReplyWithSimpleString(ctx, info);
 }
 
-int rx_info_config(RedisModuleCtx *ctx, RedisModuleString **argv, int)
+int rx_info_config(RedisModuleCtx *ctx, RedisModuleString **, int)
 {
     rxSuiteShared *config = getRxSuite();
 
@@ -796,6 +798,56 @@ int rx_add_server(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     return RedisModule_ReplyWithSimpleString(ctx, HELP_STRING);
 }
 
+int client_health_interval = 15000;
+long long client_health_cron = -1;
+int client_health_must_stop = 0;
+/* This cron will display every 15 seconds the number of client connections
+ */
+int client_health_cron_handler(struct aeEventLoop *, long long int, void *)
+{
+    if (client_health_must_stop == 1)
+        return -1;
+
+    rxClientInfo info = rxGetClientInfo();
+    rxServerLog(rxLL_NOTICE, "# Clients\r\n"
+                             "connected:%lu "
+                             "cluster_connections:%lu "
+                             "maxclients:%u\r\n"
+                             "client_recent_max input_buffer:%zu "
+                             "output_buffer:%zu\r\n"
+                             "blocked_clients:%d\r\n"
+                             "tracking_clients:%d\r\n"
+                             "clients_in_timeout_table:%llu\r\n"
+                             "# Memory\r\n"
+                             "used_memory:%zu\r\n"
+                             "used_memory_rss:%zu\r\n"
+                             "used_memory_peak:%zu\r\n"
+                             "used_memory_peak_perc:%.2f%%\r\n"
+                             "used_memory_overhead:%zu\r\n"
+                             "used_memory_startup:%zu\r\n"
+                             "used_memory_dataset:%zu\r\n"
+                             "used_memory_dataset_perc:%.2f%%\r\n"
+                             "maxmemory:%lld\r\n",
+                info.connected_clients,
+                info.cluster_connections,
+                info.maxclients,
+                info.client_recent_max_input_buffer,
+                info.client_recent_max_output_buffer,
+                info.blocked_clients,
+                info.tracking_clients,
+                info.clients_in_timeout_table,
+                info.used_memory,
+                info.used_memory_rss,
+                info.used_memory_peak,
+                info.used_memory_peak_perc,
+                info.used_memory_overhead,
+                info.used_memory_startup,
+                info.used_memory_dataset,
+                info.used_memory_dataset_perc,
+                info.maxmemory);
+    return client_health_interval;
+}
+
 /* This function must be present on each Redis module. It is used in order to
  * register the commands into the Redis server. */
 int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
@@ -820,44 +872,52 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         RedisModule_CreateCommand(ctx, "mercator.healthcheck", rx_healthcheck, "admin write", 1, 1, 0);
         libpath = getenv("LD_LIBRARY_PATH");
         rxServerLog(rxLL_NOTICE, "3) rxMercator LD_LIBRARY_PATH=%s", libpath);
-        return REDISMODULE_OK;
     }
-    if (RedisModule_CreateCommand(ctx, "mercator.create.cluster", rx_create_cluster, "admin write", 1, 1, 0) == REDISMODULE_ERR)
-        return REDISMODULE_ERR;
+    else
+    {
+        if (RedisModule_CreateCommand(ctx, "mercator.create.cluster", rx_create_cluster, "admin write", 1, 1, 0) == REDISMODULE_ERR)
+            return REDISMODULE_ERR;
 
-    if (RedisModule_CreateCommand(ctx, "mercator.destroy.cluster", rx_destroy_cluster, "admin write", 1, 1, 0) == REDISMODULE_ERR)
-        return REDISMODULE_ERR;
+        if (RedisModule_CreateCommand(ctx, "mercator.destroy.cluster", rx_destroy_cluster, "admin write", 1, 1, 0) == REDISMODULE_ERR)
+            return REDISMODULE_ERR;
 
-    if (RedisModule_CreateCommand(ctx, "mercator.start.cluster", rx_start_cluster, "admin write", 1, 1, 0) == REDISMODULE_ERR)
-        return REDISMODULE_ERR;
+        if (RedisModule_CreateCommand(ctx, "mercator.start.cluster", rx_start_cluster, "admin write", 1, 1, 0) == REDISMODULE_ERR)
+            return REDISMODULE_ERR;
 
-    if (RedisModule_CreateCommand(ctx, "mercator.stop.cluster", rx_stop_cluster, "admin write", 1, 1, 0) == REDISMODULE_ERR)
-        return REDISMODULE_ERR;
+        if (RedisModule_CreateCommand(ctx, "mercator.stop.cluster", rx_stop_cluster, "admin write", 1, 1, 0) == REDISMODULE_ERR)
+            return REDISMODULE_ERR;
 
-    if (RedisModule_CreateCommand(ctx, "mercator.kill.cluster", rx_kill_cluster, "admin write", 1, 1, 0) == REDISMODULE_ERR)
-        return REDISMODULE_ERR;
+        if (RedisModule_CreateCommand(ctx, "mercator.kill.cluster", rx_kill_cluster, "admin write", 1, 1, 0) == REDISMODULE_ERR)
+            return REDISMODULE_ERR;
 
-    if (RedisModule_CreateCommand(ctx, "mercator.snapshot.cluster", rx_snapshot_cluster, "readonly", 1, 1, 0) == REDISMODULE_ERR)
-        return REDISMODULE_ERR;
+        if (RedisModule_CreateCommand(ctx, "mercator.snapshot.cluster", rx_snapshot_cluster, "readonly", 1, 1, 0) == REDISMODULE_ERR)
+            return REDISMODULE_ERR;
 
-    if (RedisModule_CreateCommand(ctx, "mercator.info.cluster", rx_info_cluster, "admin write", 1, 1, 0) == REDISMODULE_ERR)
-        return REDISMODULE_ERR;
+        if (RedisModule_CreateCommand(ctx, "mercator.info.cluster", rx_info_cluster, "admin write", 1, 1, 0) == REDISMODULE_ERR)
+            return REDISMODULE_ERR;
 
-    if (RedisModule_CreateCommand(ctx, "mercator.flush.cluster", rx_flush_cluster, "admin write", 1, 1, 0) == REDISMODULE_ERR)
-        return REDISMODULE_ERR;
+        if (RedisModule_CreateCommand(ctx, "mercator.flush.cluster", rx_flush_cluster, "admin write", 1, 1, 0) == REDISMODULE_ERR)
+            return REDISMODULE_ERR;
 
-    if (RedisModule_CreateCommand(ctx, "mercator.add.server", rx_add_server, "admin write", 1, 1, 0) == REDISMODULE_ERR)
-        return REDISMODULE_ERR;
+        if (RedisModule_CreateCommand(ctx, "mercator.add.server", rx_add_server, "admin write", 1, 1, 0) == REDISMODULE_ERR)
+            return REDISMODULE_ERR;
 
-    if (RedisModule_CreateCommand(ctx, "mercator.help", rx_help, "readonly", 1, 1, 0) == REDISMODULE_ERR)
-        return REDISMODULE_ERR;
+        if (RedisModule_CreateCommand(ctx, "mercator.help", rx_help, "readonly", 1, 1, 0) == REDISMODULE_ERR)
+            return REDISMODULE_ERR;
 
-    libpath = getenv("LD_LIBRARY_PATH");
-    rxServerLog(rxLL_NOTICE, "2) rxMercator LD_LIBRARY_PATH=%s", libpath);
+        libpath = getenv("LD_LIBRARY_PATH");
+        rxServerLog(rxLL_NOTICE, "2) rxMercator LD_LIBRARY_PATH=%s", libpath);
+    }
+    client_health_cron = rxCreateTimeEvent(1, (aeTimeProc *)client_health_cron_handler, NULL, NULL);
+    client_health_cron_handler(NULL, 0, NULL);
+
+    rxServerLog(rxLL_NOTICE, "9) rxMercator client health cron started");
+
     return REDISMODULE_OK;
 }
 
 int RedisModule_OnUnload(RedisModuleCtx *)
 {
+    client_health_must_stop = 1;
     return REDISMODULE_OK;
 }

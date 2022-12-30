@@ -1404,8 +1404,8 @@ GremlinDialect::GremlinDialect()
     : Sjiboleth()
 {
     this->default_operator = rxStringEmpty();
-    this->RegisterDefaultSyntax();
-}
+        this->RegisterDefaultSyntax();
+    }
 
 /*
  * GremlinScopeCheck
@@ -1421,7 +1421,7 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(GremlinScopeCheck)
     if (HasParkedToken(expression, "by"))
     {
         ParserToken *to_cpy = (ParserToken *)t;
-        ParserToken *new_cpy = to_cpy->Copy();
+        ParserToken *new_cpy = to_cpy->Copy(2069722764000040);
         new_cpy->TokenType(_literal);
         new_cpy->Priority(100);
         t = (CParserToken *)new_cpy;

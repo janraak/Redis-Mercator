@@ -104,8 +104,10 @@ void *rxStashCommand(SimpleQueue *ctx, const char *command, int argc, ...)
 
     va_end(args);
 
-    if(ctx)
-        enqueueSimpleQueue(ctx, stash);
+    if(ctx != NULL){
+        //  rxServerLogHexDump(rxLL_NOTICE, stash, total_stash_size, "rxStashCommand %s %p ENQUEUE", getQueueName(ctx), stash);
+        enqueueSimpleQueue(ctx, (char **)stash);
+    }
     return stash;
 }
 
@@ -123,7 +125,7 @@ void *rxStashCommand2(SimpleQueue *ctx, const char *command, int argt, int argc,
     size_t total_pointer_size = (argc + 3) * sizeof(void *);
     size_t total_robj_size = (argc + 1) * rxSizeofRobj();
     size_t total_sds_size = (argc + 1) * preamble_len;
-    size_t total_stash_size = (argc + 2) * sizeof(void *) 
+    size_t total_stash_size = (argc + 2 + 2) * sizeof(void *) 
                             + total_pointer_size 
                             + total_robj_size 
                             + total_sds_size 
@@ -168,8 +170,10 @@ void *rxStashCommand2(SimpleQueue *ctx, const char *command, int argt, int argc,
     }
     argv[j - k + 1] = NULL;
 
-    if(ctx != NULL)
+    if(ctx != NULL){
+        // rxServerLogHexDump(rxLL_NOTICE, stash, total_stash_size, "rxStashCommand2 %s %p ENQUEUE", getQueueName(ctx), stash);
         enqueueSimpleQueue(ctx, (char **)stash);
+    }
     return stash;
 }
 

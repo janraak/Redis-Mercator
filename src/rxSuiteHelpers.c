@@ -28,12 +28,12 @@ long long rust_helper_cron = -1;
 
 extern rxString hashTypeGetFromHashTable(robj *o, rxString field);
 extern int hashTypeGetValue(robj *o, rxString field, unsigned char **vstr, POINTER *vlen, long long *vll);
-#if REDIS_VERSION_NUM >=  0x00070000
-    #define HASTYPEGETFROMPACKED hashTypeGetFromListpack
-    #define HASHTYPE_PACKED OBJ_ENCODING_LISTPACK
+#if REDIS_VERSION_NUM >= 0x00070000
+#define HASTYPEGETFROMPACKED hashTypeGetFromListpack
+#define HASHTYPE_PACKED OBJ_ENCODING_LISTPACK
 #else
-    #define HASTYPEGETFROMPACKED hashTypeGetFromZiplist
-    #define HASHTYPE_PACKED OBJ_ENCODING_ZIPLIST
+#define HASTYPEGETFROMPACKED hashTypeGetFromZiplist
+#define HASHTYPE_PACKED OBJ_ENCODING_ZIPLIST
 #endif
 extern int HASTYPEGETFROMPACKED(robj *o, rxString field,
                                 unsigned char **vstr,
@@ -62,7 +62,7 @@ void installInterceptors(interceptRule *commandTable, int no_of_commands, timePr
     if (rust_helper_cron == -1)
     {
         rust_helper_cron = aeCreateTimeEvent(server.el, 1, (aeTimeProc *)cron_proc, NULL, NULL);
-        int i = cron_proc(NULL, 0, NULL);
+        cron_proc(NULL, 0, NULL);
     }
 }
 
@@ -874,15 +874,54 @@ rxComparisonProc *rxFindComparisonProc(const char *op)
     return compare;
 }
 
-
 // rxMercator overrides for embededded rax object
 /* Free a whole radix tree, calling the specified callback in order to
  * free the auxiliary data. */
-void rxRaxFreeWithCallback(rax *rax, void (*free_callback)(void*)) {
-    raxRecursiveFree(rax,rax->head,free_callback);
+void rxRaxFreeWithCallback(rax *rax, void (*free_callback)(void *))
+{
+    raxRecursiveFree(rax, rax->head, free_callback);
 }
 
 /* Free a whole radix tree. */
-void rxRaxFree(rax *rax) {
-    rxRaxFreeWithCallback(rax,NULL);
+void rxRaxFree(rax *rax)
+{
+    rxRaxFreeWithCallback(rax, NULL);
+}
+
+rxClientInfo rxGetClientInfo()
+{
+    size_t maxin, maxout;
+    getExpansiveClientsInfo(&maxin, &maxout);
+    size_t zmalloc_used = zmalloc_used_memory();
+    size_t total_system_mem = server.system_memory_size;
+    struct redisMemOverhead *mh = getMemoryOverheadData();
+
+    /* Peak memory is updated from time to time by serverCron() so it
+     * may happen that the instantaneous value is slightly bigger than
+     * the peak value. This may confuse users, so we update the peak
+     * if found smaller than the current memory usage. */
+    if (zmalloc_used > server.stat_peak_memory)
+        server.stat_peak_memory = zmalloc_used;
+
+    rxClientInfo info;
+    info.used_memory = zmalloc_used;
+    info.used_memory_rss = mh->allocator_rss;
+    info.used_memory_peak= server.stat_peak_memory;
+    info.used_memory_peak_perc = mh->peak_perc;
+    info.used_memory_overhead = mh->overhead_total;
+    info.used_memory_startup = mh->startup_allocated;
+    info.used_memory_dataset = mh->dataset;
+    info.used_memory_dataset_perc = mh->dataset_perc;
+    info.maxmemory = (unsigned long)total_system_mem;
+
+    info.connected_clients = listLength(server.clients) - listLength(server.slaves);
+    info.maxclients = server.maxclients;
+    info.cluster_connections = getClusterConnectionsCount();
+    info.client_recent_max_input_buffer = maxin;
+    info.client_recent_max_output_buffer = maxout;
+    info.blocked_clients = server.blocked_clients;
+    info.tracking_clients = server.tracking_clients;
+    info.clients_in_timeout_table = (unsigned long long)raxSize(server.clients_timeout_table);
+
+    return info;
 }

@@ -191,8 +191,8 @@ int Execute_Command_Cron(struct aeEventLoop *, long long, void *clientData)
 
 static void *execLoadThread(void *ptr)
 {
-    SimpleQueue *command_reponse_queue =  new SimpleQueue();
-    SimpleQueue *command_request_queue =  new SimpleQueue(command_reponse_queue);
+    SimpleQueue *command_reponse_queue =  new SimpleQueue("GraphParserexecLoadThreadRESP");
+    SimpleQueue *command_request_queue =  new SimpleQueue("GraphParserexecLoadThreadREQ", command_reponse_queue);
     execute_command_cron_id =  rxCreateTimeEvent(1, (aeTimeProc *)Execute_Command_Cron, command_request_queue, NULL);
     SimpleQueue *loader_queue = (SimpleQueue *)ptr;
     rxServerLog(rxLL_NOTICE, "rxGraphDb async loader started\n");
@@ -210,6 +210,9 @@ static void *execLoadThread(void *ptr)
     {
         // TODO
         GET_ARGUMENTS_FROM_STASH(load_entry);
+        if(argc < 1){
+            rxServerLogHexDump(rxLL_NOTICE, load_entry, 128/*rxMemAllocSize(load_entry)*/, "GRAPHLOAD execLoadThread invalid no of args %d in %p", argc, load_entry);
+        }
         auto *parser = new GraphParser();
         auto *parsed_json = parser->Parse((rxString)rxGetContainedObject(argv[1]));
         auto *sub = parsed_json;
@@ -264,8 +267,8 @@ public:
     RxGraphLoadMultiplexer(RedisModuleString **argv, int argc)
         : Multiplexer()
     {
-        this->response = new SimpleQueue();
-        this->request = new SimpleQueue((void *)execLoadThread, 1, this->response);
+        this->response = new SimpleQueue("RxGraphLoadMultiplexerRESP");
+        this->request = new SimpleQueue("RxGraphLoadMultiplexerREQ", (void *)execLoadThread, 1, this->response);
         size_t len;
         const char *argS = RedisModule_StringPtrLen(argv[1], &len);
         rxString arg = rxStringNew(argS);

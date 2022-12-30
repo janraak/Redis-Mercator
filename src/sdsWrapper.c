@@ -12,6 +12,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <zmalloc.h>
+#include <rax.h>
 
 #include "sdsWrapper.h"
 
@@ -162,6 +163,7 @@ void serverLog(int level, const char *fmt, ...)
 
     serverLogRaw(level, msg);
 }
+
 void rxServerLog(int level, const char *fmt, ...)
 {
     va_list ap;
@@ -174,12 +176,73 @@ void rxServerLog(int level, const char *fmt, ...)
     serverLogRaw(level, msg);
 }
 
+void rxServerLogHexDump(int level, void *value, size_t len, const char *fmt, ...)
+{
+    va_list ap;
+    char msg[2048];
+
+    va_start(ap, fmt);
+    vsnprintf(msg, sizeof(msg), fmt, ap);
+    va_end(ap);
+
+    serverLogHexDump(level, msg, value, len);
+}
+static rax *debugAllocated = NULL;
+static rax *debugReleased = NULL;
+
 void *rxMemAlloc(size_t size)
 {
-    return zmalloc(size);
+#ifdef RXDEBUG
+    if (!debugAllocated)
+    {
+        debugAllocated = raxNew();
+        debugReleased = raxNew();
+    }
+#endif
+    void *ptr = zmalloc(size);
+#ifdef RXDEBUG
+    raxInsert(debugAllocated, (unsigned char *)&ptr, sizeof(void *), size, NULL);
+#endif
+    return ptr;
 }
 
 void rxMemFree(void *ptr)
 {
+#ifdef RXDEBUG
+    void *sz = raxFind(debugAllocated, (unsigned char *)&ptr, sizeof(void *));
+    if (sz == raxNotFound)
+    {
+        rxServerLogHexDump(rxLL_NOTICE, ptr, 64, "rxMemFree NOT FOUND %p", ptr);
+    }
+    else
+    {
+        sz = raxFind(debugReleased, (unsigned char *)&ptr, sizeof(void *));
+        if (sz != raxNotFound)
+        {
+            rxServerLogHexDump(rxLL_NOTICE, ptr, 64, "rxMemFree DOUBLE FREE %p", ptr);
+        }
+        else
+        {
+            raxRemove(debugAllocated, (unsigned char *)&ptr, sizeof(void *), NULL);
+            raxInsert(debugReleased, (unsigned char *)&ptr, sizeof(void *), sz, NULL);
+        }
+    }
+#endif
     zfree(ptr);
+}
+size_t rxMemAllocSize(void *ptr)
+{
+#ifdef RXDEBUG
+    void *sz = raxFind(debugAllocated, (unsigned char *)&ptr, sizeof(void *));
+    if (sz == raxNotFound)
+    {
+        rxServerLogHexDump(rxLL_NOTICE, ptr, 64, "rxMemAllocSize NOT FOUND %p", ptr);
+        sz = raxFind(debugReleased, (unsigned char *)&ptr, sizeof(void *));
+        if (sz != raxNotFound)
+        {
+            rxServerLogHexDump(rxLL_NOTICE, ptr, 64, "rxMemAllocSize FREED %p", ptr);
+        }
+    }
+#endif
+    return zmalloc_size(ptr);
 }

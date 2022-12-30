@@ -25,6 +25,8 @@ protected:
     short no_of_stack_entries_produced;
     operationProc *opf;
     parserContextProc *pcf;
+    ParserToken *copy_of;
+    long reference;
 
     // longjmp/setjmp control
     static int ExecuteExceptionReturn;
@@ -47,10 +49,10 @@ public:
                             operationProc *opf);
     static ParserToken *New(const char *op, short token_priority, operationProc *opf);
     ParserToken *Init(eTokenType token_type, const char *op, int op_len);
-    static ParserToken *Copy(ParserToken *base);
+    static ParserToken *Copy(ParserToken *base, long reference);
     ~ParserToken();
     static void Purge(ParserToken *token);
-    ParserToken *Copy();
+    ParserToken *Copy(long reference);
 
     void ParserContextProc(parserContextProc *pcf);
     bool HasParserContextProc();
@@ -73,7 +75,7 @@ public:
     bool IsVolatile();
     bool HasExecutor();
     operationProc *Executor();
-    int Execute(CParserToken *tO, CStack *stackO);
+    int Execute(CStack *stackO);
 };
 
 class Sjiboleth
@@ -106,7 +108,7 @@ protected:
     ParserToken *ScanBracket(char *head, char **tail);
     ParserToken *ScanNumber(char *head, char **tail);
 
-    virtual bool RegisterDefaultSyntax();
+    virtual bool RegisterDefaultSyntax(rax *registry);
     bool ResetSyntax();
 
     DECLARE_SJIBOLETH_HANDLER(executePlusMinus);

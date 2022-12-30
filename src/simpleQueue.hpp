@@ -15,6 +15,7 @@
 class SimpleQueue
 {
 public:
+    const char *name;
     moodycamel::ConcurrentQueue<void *> fifo;
 
     std::atomic<int> enqueue_fifo_tally;
@@ -22,27 +23,28 @@ public:
     std::atomic<bool> must_stop;
     std::atomic<int> thread_count;
     SimpleQueue *response_queue;
-    SimpleQueue()
+    SimpleQueue(const char *name)
     {
         this->dequeue_fifo_tally.store(0);
         this->enqueue_fifo_tally.store(0);
         this->must_stop.store(false);
         this->thread_count.store(0);
         this->response_queue = NULL;
+        this->name = name;
     }
-    SimpleQueue(SimpleQueue *response_queue)
-    :SimpleQueue()
+    SimpleQueue(const char *name, SimpleQueue *response_queue)
+    :SimpleQueue(name)
     {
         this->response_queue = response_queue;
     }
 
-    SimpleQueue(void *handler, int nThreads)
-        : SimpleQueue(handler, nThreads, NULL)
+    SimpleQueue(const char *name, void *handler, int nThreads)
+        : SimpleQueue(name, handler, nThreads, NULL)
     {
     }
 
-    SimpleQueue(void *handler, int nThreads, SimpleQueue *response_queue)
-        : SimpleQueue(response_queue)
+    SimpleQueue(const char *name, void *handler, int nThreads, SimpleQueue *response_queue)
+        : SimpleQueue(name, response_queue)
     {
         pthread_t fifo_thread;
         while (nThreads > 0)
@@ -105,6 +107,12 @@ public:
 #ifdef __cplusplus
 extern "C" {
 #endif
+const char *getQueueName(void *qO)
+{
+    SimpleQueue *q = (SimpleQueue *) qO;
+    return q->name;
+}
+
 void enqueueSimpleQueue(void *qO, void *o)
 {
     SimpleQueue *q = (SimpleQueue *) qO;
@@ -131,6 +139,7 @@ typedef void SimpleQueue;
 #ifdef __cplusplus
 extern "C" {
 #endif
+extern const char *getQueueName(void *qO);
 extern void enqueueSimpleQueue(SimpleQueue *q, void *o);
 extern void *dequeueSimpleQueue(SimpleQueue *q);
     int canDequeueSimpleQueue(SimpleQueue *qO);

@@ -116,14 +116,14 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(JsonCommaScopeCheck)
     {
         rxString referal = rxStringNew("{{{");
         referal = rxStringFormat("%s%s", referal, ((ParserToken *)t)->TokenAsSds());
-        t = ParserToken::Copy((ParserToken*)lookupToken(pO, referal));
+        t = ParserToken::Copy((ParserToken*)lookupToken(pO, referal), 2069722764000011);
         rxStringFree(referal);
     }
     else if (!HasParkedToken(expression, "["))
     {
         rxString referal = rxStringNew("!!!");
         referal = rxStringFormat("%s%s", referal, ((ParserToken *)t)->TokenAsSds());
-        t = ParserToken::Copy((ParserToken*)lookupToken(pO, referal));
+        t = ParserToken::Copy((ParserToken*)lookupToken(pO, referal), 2069722764000010);
         rxStringFree(referal);
     }
 }
@@ -158,6 +158,6 @@ JsonDialect::JsonDialect()
     : Sjiboleth()
 {
     this->default_operator = rxStringEmpty();
-    this->RegisterDefaultSyntax();
+        this->RegisterDefaultSyntax();
     // this->object_and_array_controls = true;
 }

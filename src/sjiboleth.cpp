@@ -30,6 +30,8 @@ ParserToken *ParserToken::Init(eTokenType token_type,
     this->token_priority = priImmediate;
     this->pcf = NULL;
     this->is_volatile = false;
+    this->copy_of = NULL;
+    this->reference = 2069722765000000;
 
     this->op = op;
     this->op_len = op_len;
@@ -65,7 +67,7 @@ ParserToken *ParserToken::New(const char *aOp,
     return token;
 }
 
-ParserToken *ParserToken::Copy(ParserToken *base)
+ParserToken *ParserToken::Copy(ParserToken *base, long reference)
 {
     auto *token = ParserToken::New(base->token_type, base->op, base->op_len);
     token->token_priority = base->token_priority;
@@ -75,12 +77,18 @@ ParserToken *ParserToken::Copy(ParserToken *base)
     token->pcf= base->pcf;
     token->is_volatile = true;
     token->crlftab_as_operator= base->crlftab_as_operator;
+    token->copy_of = base;
+    token->reference = reference;
     return token;
 }
 
-ParserToken *ParserToken::Copy()
+ParserToken *ParserToken::Copy(long reference)
 {
     ParserToken *out = ParserToken::New(this->Token(), this->TokenType(), this->Priority(), this->no_of_stack_entries_consumed, this->no_of_stack_entries_produced);
+    out->opf= this->opf;
+    out->pcf=this->pcf;
+    out->copy_of = this;
+    out->reference = reference;
     return out;
 }
 
@@ -97,7 +105,24 @@ ParserToken *ParserToken::New(const char *op,
 }
 
 void ParserToken::Purge(ParserToken *token){
-    if((void *)(token->op) == (void *)token + sizeof(ParserToken))
+    auto *t = token;
+    if (t->copy_of)
+    {
+        auto *c = t->copy_of;
+        if (t->opf != c->opf)
+        {
+            rxServerLog(rxLL_NOTICE, "Base Token %p %s opf:%p copy_of:%p reference:%ld", c, c->TokenAsSds(), c->opf, c->copy_of, c->reference);
+            rxServerLog(rxLL_NOTICE, "opf mismatch Token %p::%p %s opf:%p::%p", t, c, t->TokenAsSds(), t->opf, c->opf);
+        }
+        if (c->copy_of)
+        {
+            rxServerLog(rxLL_NOTICE, "Base Token %p %s opf:%p copy_of:%p reference:%ld", c, c->TokenAsSds(), c->opf, c->copy_of, c->reference);
+            rxServerLog(rxLL_NOTICE, "copy of link corrupt Token  %p %s opf:%p copy_of:%p", c, c->TokenAsSds(), c->opf, c->copy_of);
+        }
+    }
+
+    if(t->copy_of != NULL)
+    // if((void *)(token->op) == (void *)token + sizeof(ParserToken))
         rxMemFree(token);    
 }
 void ParserToken::ParserContextProc(parserContextProc *pcf)
@@ -180,7 +205,7 @@ void fphandler(int sig)
     longjmp(ExecuteExceptionReturnMark, -1);
 }
 
-int ParserToken::Execute(CParserToken *tO, CStack *stackO)
+int ParserToken::Execute(CStack *stackO)
 {
     int rc = -1;
     // signal(SIGFPE, (void (*)(int))fphandler);
@@ -193,18 +218,34 @@ int ParserToken::Execute(CParserToken *tO, CStack *stackO)
     // if (ParserToken::ExecuteExceptionReturn == 0)
     // {
     //     ParserToken::ExecuteExceptionReturn = 0;
-        rc = this->opf(tO, stackO);
-//         goto done;
-//     }
-//     else
-//     {
-//         printf("Captured signal\n");
-//         rc = -1;
-//     }
-// done:
-//     signal(SIGFPE, SIG_DFL);
-//     signal(SIGILL, SIG_DFL);
-//     signal(SIGSEGV, SIG_DFL);
+    auto *t = this;
+    // rxServerLog(rxLL_NOTICE, "Token %p %s opf:%p copy_of:%p reference:%ld", t, t->TokenAsSds(), t->opf, t->copy_of, t->reference );
+    if(t->copy_of){
+        auto *c = t->copy_of;
+        if (t->opf != c->opf)
+        {
+            rxServerLog(rxLL_NOTICE, "Base Token %p %s opf:%p copy_of:%p reference:%ld", c, c->TokenAsSds(), c->opf, c->copy_of, c->reference);
+            rxServerLog(rxLL_NOTICE, "opf mismatch Token %p::%p %s opf:%p::%p", t, c, t->TokenAsSds(), t->opf, c->opf);
+        }
+        if (c->copy_of)
+        {
+            rxServerLog(rxLL_NOTICE, "Base Token %p %s opf:%p copy_of:%p reference:%ld", c, c->TokenAsSds(), c->opf, c->copy_of, c->reference);
+            rxServerLog(rxLL_NOTICE, "copy of link corrupt Token  %p %s opf:%p copy_of:%p", c, c->TokenAsSds(), c->opf, c->copy_of);
+        }
+        t = c;
+    }
+    rc = t->opf(this, stackO);
+    //         goto done;
+    //     }
+    //     else
+    //     {
+    //         printf("Captured signal\n");
+    //         rc = -1;
+    //     }
+    // done:
+    //     signal(SIGFPE, SIG_DFL);
+    //     signal(SIGILL, SIG_DFL);
+    //     signal(SIGSEGV, SIG_DFL);
     return rc;
 }
 
@@ -299,7 +340,7 @@ ParserToken *Sjiboleth::LookupToken(rxString token){
 Sjiboleth::Sjiboleth()
 {
     this->default_operator = rxStringNew("|");
-    this->registry = raxNew();
+        this->registry = raxNew();
     this->RegisterDefaultSyntax();
     this->object_and_array_controls = false;
     this->crlftab_as_operator = false;
@@ -309,8 +350,6 @@ Sjiboleth::Sjiboleth(const char *default_operator)
     : Sjiboleth()
 {
     this->default_operator = rxStringNew(default_operator);
-    this->registry = raxNew();
-    this->RegisterDefaultSyntax();
 }
 
 Sjiboleth::~Sjiboleth()

@@ -31,9 +31,9 @@ unsigned long dequeueSimpleQueueLength(SimpleQueue *q)
   return q->enqueue_fifo_tally - q->dequeue_fifo_tally;
 }
 
-SimpleQueue *newSimpleQueue()
+SimpleQueue *newSimpleQueue(const char *name)
 {
-  SimpleQueue *q = new SimpleQueue();
+  SimpleQueue *q = new SimpleQueue(name);
   return q;
 }
 

@@ -86,7 +86,7 @@ rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack)
         case _operator:
             if (t->HasExecutor())
             {
-                if (t->Execute(t, stack) == C_ERR)
+                if (t->Execute(stack) == C_ERR)
                 {
                     goto end_of_loop;
                 }
