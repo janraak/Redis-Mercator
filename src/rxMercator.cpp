@@ -258,11 +258,11 @@ int rx_create_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     for (int j = 1; j < argc; ++j)
     {
         char *q = (char *)RedisModule_StringPtrLen(argv[j], &arg_len);
-        if (rxStringMatch(q, REPLICATION_ARG, 1) && strlen(q) == strlen(REPLICATION_ARG))
+        if (rxStringMatch(q, REPLICATION_ARG, MATCH_IGNORE_CASE) && strlen(q) == strlen(REPLICATION_ARG))
             replication_requested = 1;
-        else if (rxStringMatch(q, CLUSTERING_ARG, 1) && strlen(q) == strlen(CLUSTERING_ARG))
+        else if (rxStringMatch(q, CLUSTERING_ARG, MATCH_IGNORE_CASE) && strlen(q) == strlen(CLUSTERING_ARG))
             clustering_requested = 2;
-        else if (rxStringMatch(q, START_ARG, 1) && strlen(q) == strlen(START_ARG))
+        else if (rxStringMatch(q, START_ARG, MATCH_IGNORE_CASE) && strlen(q) == strlen(START_ARG))
             start_requested = 4;
         else
             c_ip = rxStringNew(q);

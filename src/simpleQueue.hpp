@@ -16,7 +16,7 @@ class SimpleQueue
 {
 public:
     const char *name;
-    moodycamel::ConcurrentQueue<void *> fifo;
+    moodycamel::BlockingConcurrentQueue<void *> fifo;
 
     std::atomic<int> enqueue_fifo_tally;
     std::atomic<int> dequeue_fifo_tally;

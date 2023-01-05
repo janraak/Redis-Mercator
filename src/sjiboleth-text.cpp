@@ -41,8 +41,6 @@ bool TextDialect::FlushIndexables(rax *collector, rxString key, int key_type, CS
 		rxString *parts = rxStringSplitLen(avp, indexablesIterator.key_len, "/", 1, &segments);
 		auto *indexable = (Indexable *)indexablesIterator.data;
 		rxString score = rxStringFormat("%f", indexable->sum_w / (indexable->tally * indexable->tally));
-		// memset(score, 0x0, sizeof(sizeof(score)));
-		// snprintf(score, sizeof(score),"%f\000\000",indexable->sum_w / (indexable->tally * indexable->tally));
 	    void *add_args[] = {(void *)key, (void *)KEYTYPE_TAGS[key_type], (void *)parts[0], (void *)parts[1], (void *)score, (void *)"0"};
         rxStashCommand2(persist_q, "RXADD", STASH_STRING, 6, add_args);
 		rxStringFreeSplitRes(parts, segments);
@@ -55,6 +53,8 @@ bool TextDialect::FlushIndexables(rax *collector, rxString key, int key_type, CS
         rxStashCommand2(persist_q, "RXCOMMIT", STASH_STRING, 1, args);
 	}
     rxStashCommand2(persist_q, "EXEC", STASH_STRING, 0, NULL);
+
+
 	return true;
 }
 

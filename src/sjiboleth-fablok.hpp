@@ -202,6 +202,7 @@ protected:
 
 };
 
+//TODO: Atomic!
 class SilNikParowy
 {
     /*

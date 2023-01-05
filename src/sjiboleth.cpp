@@ -323,8 +323,10 @@ bool Sjiboleth::DeregisterSyntax(const char *op)
     void *old = NULL;
     raxRemove(this->registry, (UCHAR *)op, strlen(op), &old);
 
-    if(old != NULL)
-        FreeSyntax(old);
+    //TODO: have a global syntax registry per dialect 
+    //TODO: deregister safely for used tokens
+    // if(old != NULL)
+    //     FreeSyntax(old);
     return true;
 }
 

@@ -13,6 +13,9 @@
 #define rxLL_NOTICE 2
 #define rxLL_WARNING 3
 
+#define MATCH_IGNORE_CASE 1
+#define MATCH_USER_CASE 0
+
 typedef const char *rxString;
 
 rxString rxStringNew(const char *s);

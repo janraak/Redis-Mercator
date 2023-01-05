@@ -108,7 +108,7 @@ protected:
     ParserToken *ScanBracket(char *head, char **tail);
     ParserToken *ScanNumber(char *head, char **tail);
 
-    virtual bool RegisterDefaultSyntax(rax *registry);
+    virtual bool RegisterDefaultSyntax();
     bool ResetSyntax();
 
     DECLARE_SJIBOLETH_HANDLER(executePlusMinus);

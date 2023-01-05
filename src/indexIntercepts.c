@@ -176,15 +176,15 @@ void hsetCommandIntercept(client *c)
 
 void setnxCommandIntercept(client *c)
 {
-    rxServerLog(LL_NOTICE, "SETNX_INTERCEPT");
     redisCommandProc *standard_command_proc = standard_command_procs[SETNX_INTERCEPT];
+    enqueueWriteCommand(c);
     standard_command_proc(c);
 }
 
 void setexCommandIntercept(client *c)
 {
-    rxServerLog(LL_NOTICE, "SETEX_INTERCEPT");
     redisCommandProc *standard_command_proc = standard_command_procs[SETEX_INTERCEPT];
+    enqueueWriteCommand(c);
     standard_command_proc(c);
 }
 
@@ -192,13 +192,14 @@ void psetexCommandIntercept(client *c)
 {
     rxServerLog(LL_NOTICE, "PSETEX_INTERCEPT");
     redisCommandProc *standard_command_proc = standard_command_procs[PSETEX_INTERCEPT];
+    enqueueWriteCommand(c);
     standard_command_proc(c);
 }
 
 void appendCommandIntercept(client *c)
 {
-    rxServerLog(LL_NOTICE, "APPEND_INTERCEPT");
     redisCommandProc *standard_command_proc = standard_command_procs[APPEND_INTERCEPT];
+    enqueueWriteCommand(c);
     standard_command_proc(c);
 }
 
@@ -211,22 +212,22 @@ void delCommandIntercept(client *c)
 
 void hsetnxCommandIntercept(client *c)
 {
-    rxServerLog(LL_NOTICE, "HSETNX_INTERCEPT");
     redisCommandProc *standard_command_proc = standard_command_procs[HSETNX_INTERCEPT];
+    enqueueWriteCommand(c);
     standard_command_proc(c);
 }
 
 void hdelCommandIntercept(client *c)
 {
-    rxServerLog(LL_NOTICE, "HDEL_INTERCEPT");
     redisCommandProc *standard_command_proc = standard_command_procs[HDEL_INTERCEPT];
+    enqueueWriteCommand(c);
     standard_command_proc(c);
 }
 
 void getsetCommandIntercept(client *c)
 {
-    rxServerLog(LL_NOTICE, "GETSET_INTERCEPT");
     redisCommandProc *standard_command_proc = standard_command_procs[GETSET_INTERCEPT];
+    enqueueWriteCommand(c);
     standard_command_proc(c);
 }
 
@@ -234,6 +235,7 @@ void msetCommandIntercept(client *c)
 {
     rxServerLog(LL_NOTICE, "MSET_INTERCEPT");
     redisCommandProc *standard_command_proc = standard_command_procs[MSET_INTERCEPT];
+    enqueueWriteCommand(c);
     standard_command_proc(c);
 }
 
@@ -241,6 +243,7 @@ void msetnxCommandIntercept(client *c)
 {
     rxServerLog(LL_NOTICE, "MSETNX_INTERCEPT");
     redisCommandProc *standard_command_proc = standard_command_procs[MSETNX_INTERCEPT];
+    enqueueWriteCommand(c);
     standard_command_proc(c);
 }
 

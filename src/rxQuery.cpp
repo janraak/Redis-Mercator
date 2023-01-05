@@ -249,22 +249,22 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
             q = (char *)RedisModule_StringPtrLen(argv[j], &arg_len);
             target_setname = q;
         }
-        else if (rxStringMatch(q, RESET_ARG, 1) )
+        else if (rxStringMatch(q, RESET_ARG, MATCH_IGNORE_CASE))
         {
             FaBlok::ClearCache();
         }
-        else if (rxStringMatch(q, RANKED_ARG, 1) )
+        else if (rxStringMatch(q, RANKED_ARG, MATCH_IGNORE_CASE))
         {
             ranked = true;
         }
-        else if (rxStringMatch(q, OVER_ARG, 1) )
+        else if (rxStringMatch(q, OVER_ARG, MATCH_IGNORE_CASE))
         {
             ++j;
             q = (char *)RedisModule_StringPtrLen(argv[j], &arg_len);
             ranked_lower_bound = atof(q);
             ranked_upper_bound = std::numeric_limits<double>::max();
         }
-        else if (rxStringMatch(q, BELOW_ARG, 1) )
+        else if (rxStringMatch(q, BELOW_ARG, MATCH_IGNORE_CASE))
         {
             ++j;
             q = (char *)RedisModule_StringPtrLen(argv[j], &arg_len);

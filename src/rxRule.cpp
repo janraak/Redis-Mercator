@@ -165,11 +165,10 @@ int rxApply(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     rxUNUSED(ctx);
     rxUNUSED(argc);
     rxString key = (char *)rxGetContainedObject(argv[1]);
-    rxServerLogRaw(rxLL_DEBUG,
-                   rxStringFormat("Applying all rules to: %s\n", key));
+    rxServerLog(rxLL_DEBUG,"Applying all rules to: %s\n", key);
     rxString response = BusinessRule::ApplyAll(key);
     RedisModule_ReplyWithSimpleString(ctx, response);
-    rxServerLogRaw(rxLL_DEBUG, rxStringFormat("Applied all rules to: %s\n", key));
+    rxServerLog(rxLL_DEBUG, "Applied all rules to: %s\n", key);
     rxStringFree(response);
     return REDISMODULE_OK;
 }
@@ -191,10 +190,10 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     redisNodeInfo *index_config = rxIndexNode();
     redisNodeInfo *data_config = rxDataNode();
 
-    rxServerLogRaw(rxLL_WARNING, rxStringFormat("\nrxRule loaded, is local:%d index: %s data: %s \n\n",
+    rxServerLog(rxLL_WARNING, "\nrxRule loaded, is local:%d index: %s data: %s \n\n",
                                                 index_config->is_local,
                                                 index_config->host_reference,
-                                                data_config->host_reference));
+                                                data_config->host_reference);
     if (RedisModule_CreateCommand(ctx, "RULE.SET",
                                   rxRuleSet, "admin write", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;

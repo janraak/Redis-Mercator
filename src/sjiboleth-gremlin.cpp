@@ -1077,7 +1077,7 @@ SJIBOLETH_HANDLER(executeGremlinAddEdge)
     {
         is_link_from_property = (strcmp(et->parameter_list->Peek()->setname, asterisk) == 0);
     }
-    rxServerLog(rxLL_DEBUG, "executeGremlinAddEdge %s=%d %d parameters %d parameters", asterisk, is_link_from_property, et->parameter_list->Size(), stack->Size());
+    rxServerLog(rxLL_DEBUG, "executeGremlinAddEdge %s=%d %d parameters %d parameters", asterisk, is_link_from_property, et->parameter_list?et->parameter_list->Size():0, stack->Size());
     rxStringFree(asterisk);
     if (et->IsParameterList() && no_vertex_parms >= 3 && is_link_from_property == 1)
     {

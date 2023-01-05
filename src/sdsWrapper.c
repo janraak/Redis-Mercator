@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <zmalloc.h>
 #include <rax.h>
+extern void serverLogHexDump(int level, char *descr, void *value, size_t len);
 
 #include "sdsWrapper.h"
 
@@ -187,8 +188,11 @@ void rxServerLogHexDump(int level, void *value, size_t len, const char *fmt, ...
 
     serverLogHexDump(level, msg, value, len);
 }
+
+#ifdef RXDEBUG
 static rax *debugAllocated = NULL;
 static rax *debugReleased = NULL;
+#endif
 
 void *rxMemAlloc(size_t size)
 {

@@ -114,6 +114,11 @@ for (int k = 2; k < argc; k++)
 }
 END_COMMAND_INTERCEPTOR(indexingHandlerXDelCommand)
 
+void freeIndexableObject(void *o)
+{
+    rxMemFree(o);
+}
+
 BEGIN_COMMAND_INTERCEPTOR(indexingHandlerXaddCommand)
 rxUNUSED(executor);
 rxString okey = (rxString)rxGetContainedObject(argv[1]);
@@ -173,7 +178,7 @@ while (j < argc)
 
 // TextDialect::FlushIndexables(collector, okey, key_type, index_node, bool use_bracket);
 RedisClientPool<redisContext>::Release(index_node);
-raxFree(collector);
+rxRaxFreeWithCallback(collector, freeIndexableObject);
 executor->Forget("@@TEXT_PARSER@@");
 executor->Forget("@@collector@@");
 // TODO: executor->Reset();
@@ -235,12 +240,17 @@ static int indexingHandler(int, void *stash, redisNodeInfo *index_config, SilNik
     void **argv = (void **)(stash + sizeof(void *));
 
     rxString command = (rxString)rxGetContainedObject(argv[0]);
+    if (command == NULL)
+    {
+        // rxServerLogHexDump(rxLL_NOTICE, index_request, 128/*rxMemAllocSize(index_request)*/, "freeCompletedRedisRequests %s %p DEQUEUE", index_info.index_update_respone_queue->name, index_request);
+        return C_ERR;
+    }
     rxString key = (rxString)rxGetContainedObject(argv[1]);
-    if (rxStringMatch(command, "DEL", 1) == 1)
+    if (rxStringMatch(command, "DEL", MATCH_IGNORE_CASE))
         return indexingHandlerDelCommand(stash, index_config, executor);
-    else if (rxStringMatch(command, "XDEL", 1) == 1)
+    else if (rxStringMatch(command, "XDEL", MATCH_IGNORE_CASE))
         return indexingHandlerXDelCommand(stash, index_config, executor);
-    else if (rxStringMatch(command, "XADD", 1) == 1)
+    else if (rxStringMatch(command, "XADD", MATCH_IGNORE_CASE))
         return indexingHandlerXaddCommand(stash, index_config, executor);
 
     auto *collector = raxNew();
@@ -402,25 +412,27 @@ int indexerControl(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         size_t arg_len;
         rxString arg = rxStringNew((char *)RedisModule_StringPtrLen(argv[1], &arg_len));
         rxStringToUpper(arg);
-        if (rxStringMatch(arg, "WAIT", 1))
+        if (rxStringMatch(arg, "WAIT", MATCH_IGNORE_CASE))
         {
             return rx_wait_indexing_complete(ctx);
         }
-        else if (rxStringMatch(arg, "ON", 1))
+        else if (rxStringMatch(arg, "ON", MATCH_IGNORE_CASE))
         {
             if (indexer_state)
                 return RedisModule_ReplyWithSimpleString(ctx, "Indexer already active.");
             installIndexerInterceptors();
             indexer_state = 1;
+            rxServerLog(rxLL_NOTICE, "Indexing turned on!");
         }
-        else if (rxStringMatch(arg, "OFF", 1))
+        else if (rxStringMatch(arg, "OFF", MATCH_IGNORE_CASE))
         {
             if (!indexer_state)
                 return RedisModule_ReplyWithSimpleString(ctx, "Indexer already inactive.");
             uninstallIndexerInterceptors();
             indexer_state = 0;
+            rxServerLog(rxLL_NOTICE, "Indexing turned off!");
         }
-        else if (rxStringMatch(arg, "STATUS", 1))
+        else if (rxStringMatch(arg, "STATUS", MATCH_IGNORE_CASE))
         {
             return indexerInfo(ctx, argv, argc);
         }
@@ -472,33 +484,37 @@ int reindex_cron(struct aeEventLoop *, long long, void *clientData)
         engine->Memoize("@@collector@@", (void *)collector);
 
         ParsedExpression *parsed_text;
-        int key_type = rxGetObjectType(dictGetVal(de));
+        void *value_for_key = dictGetVal(de);
+        int key_type = rxGetObjectType(value_for_key);
 
-        switch (rxGetObjectType(dictGetVal(de)))
+        switch (key_type)
         {
         case rxOBJ_STRING:
         {
-            rxString value = (rxString)rxGetContainedObject(dictGetVal(de));
-            rxString f = rxStringNew("*");
-            engine->Memoize("@@field@@", (void *)f);
-            parsed_text = (ParsedExpression *)parseQ((value[0] == '{') ? json_parser : text_parser, value);
-            auto *sub = parsed_text;
-            while (sub)
+            rxString value = (rxString)rxGetContainedObject(value_for_key);
+            if (value != NULL)
             {
-                engine->Execute(sub);
-                sub = sub->Next();
+                rxString f = rxStringNew("*");
+                engine->Memoize("@@field@@", (void *)f);
+                parsed_text = (ParsedExpression *)parseQ((value[0] == '{') ? json_parser : text_parser, value);
+                auto *sub = parsed_text;
+                while (sub)
+                {
+                    engine->Execute(sub);
+                    sub = sub->Next();
+                }
+                delete parsed_text;
+                engine->Forget("@@field@@");
+                rxStringFree(f);
             }
-            delete parsed_text;
-            engine->Forget("@@field@@");
-            rxStringFree(f);
         }
         break;
         case rxOBJ_LIST:
-            rxServerLog(LL_NOTICE, "ReIndexing unexpected type");
+            rxServerLog(LL_NOTICE, "ReIndexing unexpected type: rxOBJ_LIST");
             break;
         case rxOBJ_HASH:
         {
-            struct rxHashTypeIterator *hi = rxHashTypeInitIterator(dictGetVal(de));
+            struct rxHashTypeIterator *hi = rxHashTypeInitIterator(value_for_key);
             int j = 0;
             while (rxHashTypeNext(hi) != C_ERR)
             {
@@ -554,6 +570,31 @@ int reindex_cron(struct aeEventLoop *, long long, void *clientData)
     //     rxServerLog(LL_NOTICE, "Indexing restored");
     // }
 
+    // check database!
+    reindex_iterator = rxGetDatabaseIterator(0);
+    while ((de = dictNext(reindex_iterator)) != NULL)
+    {
+        rxString key = (rxString)dictGetKey(de);
+        if (*key == '^')
+        {
+            continue;
+        }
+        void *value_for_key = dictGetVal(de);
+        if(value_for_key == NULL){
+            rxServerLog(rxLL_NOTICE, "after reindex check %s null value", key);        
+        }
+        void *check_value = rxFindKey(0,key);
+        if(check_value == NULL){
+            rxServerLog(rxLL_NOTICE, "after reindex check %s no value from rxFindKey", key);        
+        }
+        if(check_value != value_for_key){
+            rxServerLog(rxLL_NOTICE, "after reindex check %s %p mismatched values to %p from rxFindKey", key, value_for_key, check_value);        
+        }
+
+    }
+    dictReleaseIterator(reindex_iterator);
+    reindex_iterator = NULL;
+
     return -1;
 }
 
@@ -568,7 +609,7 @@ int reindex(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         size_t arg_len;
         rxString arg = rxStringNew((char *)RedisModule_StringPtrLen(argv[1], &arg_len));
         rxStringToUpper(arg);
-        if (strcmp(arg, "STATUS") == 0)
+        if (rxStringMatch(arg, "STATUS", 1))
         {
             response = rxStringFormat("%sIndexer is:                 %s\n", response, indexer_state ? "Active" : "Not Active");
             response = rxStringFormat("%sReIndexing is:              %s\n", response, reindex_iterator ? "Active" : "Not Active");
@@ -585,19 +626,19 @@ int reindex(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
             response = rxStringFormat("%sTotal no of no memory throttles:%d\n", response, reindex_throttleded_no_mem);
             return RedisModule_ReplyWithStringBuffer(ctx, response, strlen(response));
         }
+        return RedisModule_ReplyWithSimpleString(ctx, "Invalid option");
     }
 
-    REDISMODULE_NOT_USED(argv);
-    if (!indexer_state)
-        return RedisModule_ReplyWithSimpleString(ctx, "Indexer NOT active.");
+    // if (!indexer_state)
+    //     return RedisModule_ReplyWithSimpleString(ctx, "Indexer NOT active.");
 
     if (reindex_iterator)
         return RedisModule_ReplyWithSimpleString(ctx, "ReIndexing already started.");
 
     rxStashCommand(index_info.index_update_request_queue, "FLUSHDB", 0);
 
-    uninstallIndexerInterceptors();
-    indexer_state = 0;
+    // uninstallIndexerInterceptors();
+    // indexer_state = 0;
 
     reindex_iterator = rxGetDatabaseIterator(0);
     reindex_total_no_of_keys = rxDatabaseSize(0);
@@ -727,7 +768,7 @@ static void *execUpdateRedisThread(void *ptr)
                 }
 
                 rxString cmd = (rxString)rxGetContainedObject(argv[0]);
-                if (!rxStringMatch(cmd, "RXTRIGGER", 1))
+                if (!rxStringMatch(cmd, "RXTRIGGER", MATCH_IGNORE_CASE))
                 {
                     ExecuteRedisCommandRemote(NULL, index_request, index_config->host_reference);
                 }

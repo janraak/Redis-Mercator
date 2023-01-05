@@ -584,21 +584,24 @@ void *rxCommitKeyRetainValue(int dbNo, const char *key, void *old_state)
         if (new_members == NULL || raxFind(new_members, (unsigned char *)old_member, strlen(old_member)) == raxNotFound)
         {
             robj *index_entry = rxFindSortedSetKey(dbNo, old_member);
-            rxString hkey = rxStringFormat("%s\tH", key);
-            if (zsetDel(index_entry, (sds)hkey) == 0)
+            if (index_entry != NULL)
             {
-                rxString skey = rxStringFormat("%s\ts", key);
-                if (zsetDel(index_entry, (sds)skey) == 0)
+                rxString hkey = rxStringFormat("%s\tH", key);
+                if (zsetDel(index_entry, (sds)hkey) == 0)
                 {
+                    rxString skey = rxStringFormat("%s\ts", key);
+                    if (zsetDel(index_entry, (sds)skey) == 0)
+                    {
+                    };
+                    rxStringFree(skey);
                 };
-                rxStringFree(skey);
-            };
-            rxStringFree(hkey);
-            if (zsetLength(index_entry) == 0)
-            {
-                robj *k = createStringObject(old_member, strlen(old_member));
-                dbDelete((&server.db[dbNo]), k);
-                freeStringObject(k);
+                rxStringFree(hkey);
+                if (zsetLength(index_entry) == 0)
+                {
+                    robj *k = createStringObject(old_member, strlen(old_member));
+                    dbDelete((&server.db[dbNo]), k);
+                    freeStringObject(k);
+                }
             }
         }
     }

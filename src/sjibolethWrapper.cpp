@@ -208,7 +208,7 @@ int CopyNotIn(CFaBlok *outO, CFaBlok *leftO, CFaBlok *rightO)
 // define the function:
 bool score_comparator(const rxIndexEntry *lhs, const rxIndexEntry *rhs)
 {
-    if (lhs->key_score < rhs->key_score)
+    if (lhs->key_score == rhs->key_score)
         return lhs->key < rhs->key;
     // hi-lo sort
     return lhs->key_score > rhs->key_score;
@@ -267,29 +267,42 @@ int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *,
             r->Write(ctx);
         else
         {
-            RedisModule_ReplyWithArray(ctx, 6);
-            RedisModule_ReplyWithStringBuffer(ctx, "key", 3);
-            RedisModule_ReplyWithStringBuffer(ctx, (char *)r->key, strlen(r->key));
-            RedisModule_ReplyWithStringBuffer(ctx, "score", 5);
-            RedisModule_ReplyWithDouble(ctx, r->key_score);
-            rxString e;
-            switch (r->key_type)
-            {
-            case HASHTYPE:
-                reply = RedisModule_Call(ctx, REDIS_CMD_HGETALL, "c", (char *)r->key);
-                break;
-            case STRINGTYPE:
-                reply = RedisModule_Call(ctx, REDIS_CMD_GET, "c", (char *)r->key);
-                break;
-            default:
-                e = rxStringFormat("%c: Unsupported key type found: %s!", r->key_type, r->key);
-                RedisModule_ReplyWithStringBuffer(ctx, e, strlen(e));
-                // return RedisModule_ReplyWithError(ctx, "Unsupported key type found!");
+            rxString k = rxString(r->key);
+
+            r->obj = rxFindKey(0, k);
+            rxStringFree(k);
+            if(r->obj == NULL){
+                RedisModule_ReplyWithArray(ctx, 4);
+                RedisModule_ReplyWithSimpleString(ctx, "key");
+                RedisModule_ReplyWithSimpleString(ctx, r->key);
+                RedisModule_ReplyWithSimpleString(ctx, "status");
+                RedisModule_ReplyWithSimpleString(ctx, "Missing/Deleted");
+            }else{
+                RedisModule_ReplyWithArray(ctx, 6);
+                RedisModule_ReplyWithSimpleString(ctx, "key");
+                RedisModule_ReplyWithSimpleString(ctx, r->key);
+                RedisModule_ReplyWithSimpleString(ctx, "score");
+                RedisModule_ReplyWithDouble(ctx, r->key_score);
+                rxString e;
+                switch (r->key_type)
+                {
+                case HASHTYPE:
+                    reply = RedisModule_Call(ctx, REDIS_CMD_HGETALL, "c", (char *)r->key);
+                    break;
+                case STRINGTYPE:
+                    reply = RedisModule_Call(ctx, REDIS_CMD_GET, "c", (char *)r->key);
+                    break;
+                default:
+                    e = rxStringFormat("%c: Unsupported key type found: %s!", r->key_type, r->key);
+                    RedisModule_ReplyWithSimpleString(ctx, e);
+                    rxStringFree(e);
+                    // return RedisModule_ReplyWithError(ctx, "Unsupported key type found!");
+                }
+                RedisModule_ReplyWithSimpleString(ctx, "value");
+                RedisModule_ReplyWithCallReply(ctx, reply);
+                if (reply)
+                    RedisModule_FreeCallReply(reply);
             }
-            RedisModule_ReplyWithStringBuffer(ctx, "value", 5);
-            RedisModule_ReplyWithCallReply(ctx, reply);
-            if (reply)
-                RedisModule_FreeCallReply(reply);
         }
     }
     return 0;

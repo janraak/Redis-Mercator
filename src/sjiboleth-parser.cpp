@@ -679,6 +679,10 @@ ParsedExpression::~ParsedExpression()
     if(this->errors)
         listRelease(this->errors);
 
+    if(this->next != NULL){
+        delete this->next;
+    }
+
     while(this->expression->HasEntries()){
         auto *t = this->expression->Pop();
         ParserToken::Purge(t);

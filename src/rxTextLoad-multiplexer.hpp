@@ -113,7 +113,12 @@ static rxString extractRowForStringKey(char *row_start, char *row_end, char *hdr
             done = true;
         }
         rxString f = (hdr_start != NULL) ? rxStringNewLen(hdr_start, f_tab - hdr_start) : rxStringEmpty();
-        rxString v = rxStringNewLen(row_start, v_tab - row_start);
+        int enclosure = 0;
+        if(*row_start == '"' && *(v_tab - 1) == '"'){
+            enclosure = 1;
+
+        }
+        rxString v = rxStringNewLen(row_start + enclosure, (v_tab - enclosure) - (row_start+enclosure));
 
         if (hdr_start == NULL)
             value = rxStringFormat(format, value, v);
@@ -147,7 +152,7 @@ static void *extractRowAsJson(SimpleQueue *req_q, char *row_start, char *row_end
     if (value != NULL)
     {
         void *args[] = {(void *)key, (void *)value};
-        rxStashCommand2(req_q, WREDIS_CMD_SET, STASH_STRING, 2, args);
+        rxStashCommand2(req_q, "SETNX", STASH_STRING, 2, args);
         rxStringFree(value);
     }
     rxStringFree(key);
@@ -193,7 +198,12 @@ static void *extractRowAsHash(SimpleQueue *req_q, char *row_start, char *row_end
             done = true;
         }
         rxString f = rxStringNewLen(hdr_start, f_tab - hdr_start);
-        rxString v = rxStringNewLen(row_start, v_tab - row_start);
+        int enclosure = 0;
+        if(*row_start == '"' && *(v_tab - 1) == '"'){
+            enclosure = 1;
+
+        }
+        rxString v = rxStringNewLen(row_start + enclosure, (v_tab - enclosure) - (row_start+enclosure));
 
         if (strlen(f) == 0)
             f = rxStringNew("any");
@@ -233,7 +243,7 @@ static void *extractRowAsText(SimpleQueue *req_q, char *row_start, char *row_end
     if (value != NULL)
     {
         void *args[] = {(void *)key, (void *)value};
-        rxStashCommand2(req_q, WREDIS_CMD_SET, STASH_STRING, 2, args);
+        rxStashCommand2(req_q, "SETNX", STASH_STRING, 2, args);
         rxStringFree(value);
     }
     rxStringFree(key);
@@ -256,7 +266,7 @@ static void *extractRowAsString(SimpleQueue *req_q, char *row_start, char *row_e
     if (value != NULL)
     {
         void *args[] = {(void *)key, (void *)value};
-        rxStashCommand2(req_q, WREDIS_CMD_SET, STASH_STRING, 2, args);
+        rxStashCommand2(req_q, "SETNX", STASH_STRING, 2, args);
         rxStringFree(value);
     }
     rxStringFree(key);
@@ -298,23 +308,23 @@ static void *execTextLoadThread(void *ptr)
         for (int a = 1; a < argc; ++a)
         {
             const char *argS = (const char *)rxGetContainedObject(argv[a]);
-            if (rxStringMatch(argS, TAB_SEPAPERATED, 1) == 1)
+            if (rxStringMatch(argS, TAB_SEPAPERATED, MATCH_IGNORE_CASE))
                 column_separator = (char *)"\t";
-            else if (rxStringMatch(argS, COMMA_SEPARATED, 1) == 1)
+            else if (rxStringMatch(argS, COMMA_SEPARATED, MATCH_IGNORE_CASE))
                 column_separator = (char *)",";
-            else if (rxStringMatch(argS, SEMICOLON_SEPARATED, 1) == 1)
+            else if (rxStringMatch(argS, SEMICOLON_SEPARATED, MATCH_IGNORE_CASE))
                 column_separator = (char *)";";
-            else if (rxStringMatch(argS, AS_JSON, 1) == 1)
+            else if (rxStringMatch(argS, AS_JSON, MATCH_IGNORE_CASE))
                 rowExtractor = (rowExtractionProc *)extractRowAsJson;
-            else if (rxStringMatch(argS, AS_HASH, 1) == 1)
+            else if (rxStringMatch(argS, AS_HASH, MATCH_IGNORE_CASE))
                 rowExtractor = (rowExtractionProc *)extractRowAsHash;
-            else if (rxStringMatch(argS, AS_TEXT, 1) == 1)
+            else if (rxStringMatch(argS, AS_TEXT, MATCH_IGNORE_CASE))
                 rowExtractor = (rowExtractionProc *)extractRowAsText;
-            else if (rxStringMatch(argS, AS_STRING, 1) == 1)
+            else if (rxStringMatch(argS, AS_STRING, MATCH_IGNORE_CASE))
                 rowExtractor = (rowExtractionProc *)extractRowAsString;
-            else if (rxStringMatch(argS, USE_CRLF, 1) == 1)
+            else if (rxStringMatch(argS, USE_CRLF, MATCH_IGNORE_CASE))
                 row_separator = (char *)"\r\n";
-            else if (rxStringMatch(argS, USE_BAR, 1) == 1)
+            else if (rxStringMatch(argS, USE_BAR, MATCH_IGNORE_CASE))
                 row_separator = (char *)"|";
             else
                 tlob = (char *)argS;
