@@ -8,19 +8,32 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifndef WRAPPER 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+extern int pthread_kill (pthread_t __threadid, int __signo) __THROW;
+
+#include "rxSuiteHelpers.h"
+#ifdef __cplusplus
+}
+#endif
+
+#ifndef WRAPPER
 // #include "../deps/concurrentqueue/concurrentqueue.h"
-   #include "../deps/concurrentqueue/blockingconcurrentqueue.h"
+#include "../deps/concurrentqueue/blockingconcurrentqueue.h"
 
 class SimpleQueue
 {
 public:
     const char *name;
     moodycamel::BlockingConcurrentQueue<void *> fifo;
+    pthread_t *fifo_thread;
 
     std::atomic<int> enqueue_fifo_tally;
     std::atomic<int> dequeue_fifo_tally;
     std::atomic<bool> must_stop;
+    int thread_count_requested;
     std::atomic<int> thread_count;
     SimpleQueue *response_queue;
     SimpleQueue(const char *name)
@@ -28,12 +41,14 @@ public:
         this->dequeue_fifo_tally.store(0);
         this->enqueue_fifo_tally.store(0);
         this->must_stop.store(false);
+        this->thread_count_requested = 0;
         this->thread_count.store(0);
         this->response_queue = NULL;
         this->name = name;
+        this->fifo_thread = NULL;
     }
     SimpleQueue(const char *name, SimpleQueue *response_queue)
-    :SimpleQueue(name)
+        : SimpleQueue(name)
     {
         this->response_queue = response_queue;
     }
@@ -46,15 +61,21 @@ public:
     SimpleQueue(const char *name, void *handler, int nThreads, SimpleQueue *response_queue)
         : SimpleQueue(name, response_queue)
     {
-        pthread_t fifo_thread;
-        while (nThreads > 0)
+        this->thread_count_requested = nThreads;
+        if (nThreads > 0)
         {
-            if (pthread_create(&fifo_thread, NULL, (void* (*)(void*))handler, this))
+            this->fifo_thread = (pthread_t*)rxMemAlloc(this->thread_count_requested * sizeof(pthread_t));
+            while (nThreads > 0)
             {
-                fprintf(stderr, "FATAL: Failed to start indexer thread\n");
-                exit(1);
+                nThreads--;
+                if (pthread_create(&this->fifo_thread[nThreads], NULL, (void *(*)(void *))handler, this))
+                {
+                    fprintf(stderr, "FATAL: Failed to start indexer thread\n");
+                    exit(1);
+                }
+                pthread_setname_np(this->fifo_thread[nThreads], name);
+                rxServerLog(rxLL_NOTICE, "Read thread started %p for %s", this->fifo_thread[nThreads], name);
             }
-            nThreads--;
         }
     }
 
@@ -100,36 +121,56 @@ public:
 
     void Release()
     {
+        void *status = NULL;
         this->must_stop.store(true);
+        if (this->thread_count_requested > 0)
+        {
+            for (; this->thread_count_requested > 0; this->thread_count_requested--)
+            {
+                pthread_join(this->fifo_thread[this->thread_count_requested - 1], &status);
+                pthread_kill(this->fifo_thread[this->thread_count_requested - 1], 1);
+            }
+            rxMemFree(this->fifo_thread);
+        }
+    }
+
+    static SimpleQueue *Release(SimpleQueue *q)
+    {
+        if(q == NULL)
+            return NULL;
+        q->Release();
+        delete q;
+        return NULL;
     }
 };
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
-const char *getQueueName(void *qO)
-{
-    SimpleQueue *q = (SimpleQueue *) qO;
-    return q->name;
-}
+    const char *getQueueName(void *qO)
+    {
+        SimpleQueue *q = (SimpleQueue *)qO;
+        return q->name;
+    }
 
-void enqueueSimpleQueue(void *qO, void *o)
-{
-    SimpleQueue *q = (SimpleQueue *) qO;
-    q->Enqueue((void *)o);
-}
+    void enqueueSimpleQueue(void *qO, void *o)
+    {
+        SimpleQueue *q = (SimpleQueue *)qO;
+        q->Enqueue((void *)o);
+    }
 
-void *dequeueSimpleQueue(void *qO)
-{
-    SimpleQueue *q = (SimpleQueue *) qO;
-    return q->Dequeue();
-}
+    void *dequeueSimpleQueue(void *qO)
+    {
+        SimpleQueue *q = (SimpleQueue *)qO;
+        return q->Dequeue();
+    }
 
-int canDequeueSimpleQueue(SimpleQueue *qO)
-{
-    SimpleQueue *q = (SimpleQueue *) qO;
-    return q->Dequeue() ? 1 : 0;
-}
+    int canDequeueSimpleQueue(SimpleQueue *qO)
+    {
+        SimpleQueue *q = (SimpleQueue *)qO;
+        return q->Dequeue() ? 1 : 0;
+    }
 #ifdef __cplusplus
 }
 #endif
@@ -137,11 +178,12 @@ int canDequeueSimpleQueue(SimpleQueue *qO)
 typedef void SimpleQueue;
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
-extern const char *getQueueName(void *qO);
-extern void enqueueSimpleQueue(SimpleQueue *q, void *o);
-extern void *dequeueSimpleQueue(SimpleQueue *q);
+    extern const char *getQueueName(void *qO);
+    extern void enqueueSimpleQueue(SimpleQueue *q, void *o);
+    extern void *dequeueSimpleQueue(SimpleQueue *q);
     int canDequeueSimpleQueue(SimpleQueue *qO);
 #ifdef __cplusplus
 }

@@ -11,3 +11,6 @@ graph/nwtsty-en.graph2.json
 graph/nwtsty-en.json
 __zset_test.sh
 deps/concurrentqueue
+sys_test/data/dataset1.txt
+sys_tests/curses.py
+sys_tests/curses.pyc

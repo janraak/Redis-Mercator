@@ -103,7 +103,7 @@ rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack)
         }
     }
 end_of_loop:
-    printf("\n");
+    // rxServerLog(rxLL_NOTICE, "\n");
     rxString error;
     rax *rx = NULL;
     if (listLength(e->errors) > 0)
@@ -115,8 +115,8 @@ end_of_loop:
         {
             if (strlen((char *)ln->value) > 0)
             {
-                printf("ERROR: %s\n", e->ToString());
-                printf("ERROR: %s\n", (char *)ln->value);
+                rxServerLog(rxLL_NOTICE, "ERROR: %s\n", e->ToString());
+                rxServerLog(rxLL_NOTICE, "ERROR: %s\n", (char *)ln->value);
                 error = rxStringFormat("%s%s", error, (char *)ln->value);
                 error = rxStringFormat("%s%s", error, "\n");
             }

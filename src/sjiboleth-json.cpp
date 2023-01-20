@@ -13,7 +13,7 @@ static void Index_Text(FaBlok *v, SilNikParowy_Kontekst *text_kontekst, Sjibolet
     auto *sub = t;
     while (sub)
     {
-        // printf("GNIRTS J: %s\n", sub->ToString());
+        // rxServerLog(rxLL_NOTICE, "GNIRTS J: %s\n", sub->ToString());
         text_kontekst->Execute(sub);
         sub = sub->Next();
     }
@@ -116,14 +116,14 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(JsonCommaScopeCheck)
     {
         rxString referal = rxStringNew("{{{");
         referal = rxStringFormat("%s%s", referal, ((ParserToken *)t)->TokenAsSds());
-        t = ParserToken::Copy((ParserToken*)lookupToken(pO, referal), 2069722764000011);
+        t = ParserToken::Copy((ParserToken*)lookupToken(pO, referal), 722764011);
         rxStringFree(referal);
     }
     else if (!HasParkedToken(expression, "["))
     {
         rxString referal = rxStringNew("!!!");
         referal = rxStringFormat("%s%s", referal, ((ParserToken *)t)->TokenAsSds());
-        t = ParserToken::Copy((ParserToken*)lookupToken(pO, referal), 2069722764000010);
+        t = ParserToken::Copy((ParserToken*)lookupToken(pO, referal), 722764010);
         rxStringFree(referal);
     }
 }

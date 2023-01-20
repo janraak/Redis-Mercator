@@ -66,7 +66,7 @@ void ExecuteRedisCommand(SimpleQueue *ctx, void *stash, const char *host_referen
         return;
     }
     void **argv = (void **)(stash + sizeof(void *));
-    auto *c = (struct client *)RedisClientPool<struct client>::Acquire(host_reference);
+    auto *c = (struct client *)RedisClientPool<struct client>::Acquire(host_reference, "_FAKE", "ExecuteRedisCommand");
     rxAllocateClientArgs(c, argv, argc);
     rxString commandName = (rxString)rxGetContainedObject(argv[0]);
     void *command_definition = rxLookupCommand((rxString)commandName);
@@ -74,7 +74,7 @@ void ExecuteRedisCommand(SimpleQueue *ctx, void *stash, const char *host_referen
         rxClientExecute(c, command_definition);
     else
         rxServerLog(rxLL_WARNING, "Unknown command %s,  arg count: %d", commandName, argc);
-    RedisClientPool<struct client>::Release(c);
+    RedisClientPool<struct client>::Release(c, "ExecuteRedisCommand");
     if(ctx)
         enqueueSimpleQueue(ctx, stash);
 }
@@ -83,24 +83,37 @@ redisContext *saved_redisClient = NULL;
 void ExecuteRedisCommandRemote(SimpleQueue *ctx, void *stash, const char *host_reference)
 {
     int argc = *((int *)stash);
-    // use the sds pointers as arguments!
-    // auto *argv = (const char **)(stash + sizeof(void *));
-    auto *sdsv = (void **)(stash + (argc + 3) * sizeof(void *));
-    void *sp = (void *)sdsv; 
-    // char *cp = NULL;
-    rxString cmd = rxStringEmpty();
+    void **argv = (void **)(stash + sizeof(void *));
+    int commandline_length = 1;
     for(int n = 0 ; n < argc; ++n ){
-        // cp = *((char **)sp);        
-        cmd = rxStringFormat((n < 1000000 ?  "%s%s " : "%s\"%s\" "), cmd, *((char **)sp));
-        // cp += sizeof(char *);
-        // TODO: refactor
-        sp = sp + 16;
+        auto *s = (const char*)rxGetContainedObject(argv[n]);
+        commandline_length += 3 + strlen(s);
+    }
+
+    char *cmd = (char*)rxMemAlloc(commandline_length);
+    memset(cmd, 0x00, commandline_length);
+    auto *s = (const char*)rxGetContainedObject(argv[0]);
+    strcpy(cmd, s);
+    for (int n = 1; n < argc; ++n)
+    {
+        auto *s = (const char *)rxGetContainedObject(argv[n]);
+        if (strchr(s, ' ')||strchr(s, '%'))
+        {
+            strcat(cmd, " \"");
+            strcat(cmd, s);
+            strcat(cmd, "\"");
+        }
+        else
+        {
+            strcat(cmd, " ");
+            strcat(cmd, s);
+        }
     }
     if(saved_redisClient == NULL)
-        saved_redisClient = RedisClientPool<redisContext>::Acquire(host_reference);
+        saved_redisClient = RedisClientPool<redisContext>::Acquire(host_reference, "_CLIENT", "ExecuteRedisCommandRemote");
 
     // auto *rcc = (redisReply *)redisCommandArgv(saved_redisClient, argc, argv, &argv_len);
-    auto *rcc = (redisReply *)redisCommand(saved_redisClient, cmd, "");
+    auto *rcc = (redisReply *)redisCommand(saved_redisClient, cmd, NULL);
     if(rcc != NULL){
         freeReplyObject(rcc);
     }
@@ -108,7 +121,7 @@ void ExecuteRedisCommandRemote(SimpleQueue *ctx, void *stash, const char *host_r
         rxServerLog(rxLL_WARNING, "Execution error %s for %s", saved_redisClient->errstr, cmd);
         // RedisClientPool<redisContext>::Release(saved_redisClient);
     }
-    rxStringFree(cmd);
+    rxMemFree(cmd);
     if(ctx)
         enqueueSimpleQueue(ctx, stash);
 }
@@ -388,7 +401,7 @@ public:
             ctx = this->ctx;
         if (this->token_key == NULL)
         {
-            printf("Missing key\n");
+            rxServerLog(rxLL_NOTICE, "Missing key\n");
             return;
         }
         if (strcmp(this->token_key, TERTIARY) == 0)
@@ -417,9 +430,9 @@ public:
             this->token_key = GetFromParent(PREDICATE);
             if (!this->token_key)
             {
-                // printf("#110# Persist # %s\n", this->token_key);
+                // rxServerLog(rxLL_NOTICE, "#110# Persist # %s\n", this->token_key);
                 this->token_key = GetFromParent(IRI);
-                // printf("#115# Persist # %s\n", this->token_key);
+                // rxServerLog(rxLL_NOTICE, "#115# Persist # %s\n", this->token_key);
             }
             this->inverse_token_key = GetFromParent("inverse");
             /* const char * */ rxString weight = GetFromParent(WEIGHT);
@@ -452,7 +465,7 @@ public:
             }
         }
 
-        // printf("#200# Persist # %s\n", this->token_key);
+        // rxServerLog(rxLL_NOTICE, "#200# Persist # %s\n", this->token_key);
         this->entity->StartIterator();
         char *key;
         size_t keylen;
@@ -486,7 +499,7 @@ public:
             if (strncmp(OBJECT, (/* const char * */ rxString)key, keylen) == 0)
                 continue;
             rxString k = rxStringNewLen(key, keylen);
-            // printf("#500# Persist # %p %s\n", iri, iri);
+            // rxServerLog(rxLL_NOTICE, "#500# Persist # %p %s\n", iri, iri);
             rxStashCommand(this->ctx, WREDIS_CMD_HSET, 3, iri, k, value);
             rxStringFree(k);
         }
@@ -506,12 +519,12 @@ public:
         int depth = 0;
         while (e)
         {
-            printf("++++++++++++++++++ DUMP ++++ %d ++ %s ++++++++++++++++\n", depth, label);
-            printf("token_key:    %s\n", e->token_key);
-            printf("inv_token_key:%s\n", e->inverse_token_key);
-            printf("token_value:  %s\n", e->token_key);
-            printf("token_type:   %s\n", e->token_type);
-            printf("weight:       %0.0f\n", e->weight);
+            rxServerLog(rxLL_NOTICE, "++++++++++++++++++ DUMP ++++ %d ++ %s ++++++++++++++++\n", depth, label);
+            rxServerLog(rxLL_NOTICE, "token_key:    %s\n", e->token_key);
+            rxServerLog(rxLL_NOTICE, "inv_token_key:%s\n", e->inverse_token_key);
+            rxServerLog(rxLL_NOTICE, "token_value:  %s\n", e->token_key);
+            rxServerLog(rxLL_NOTICE, "token_type:   %s\n", e->token_type);
+            rxServerLog(rxLL_NOTICE, "weight:       %0.0f\n", e->weight);
             if (e->entity)
             {
                 e->entity->StartIterator();
@@ -521,10 +534,10 @@ public:
                 while ((key = e->entity->Next(&keylen, &value)) != NULL)
                 {
                     rxString k = rxStringNewLen(key, keylen);
-                    printf("...%s=         %s\n", k, (char *)value);
+                    rxServerLog(rxLL_NOTICE, "...%s=         %s\n", k, (char *)value);
                 }
                 e->entity->StopIterator();
-                printf("++++++++++++++++++ DUMP END+ %d ++ %s ++++++++++++++++\n", depth, label);
+                rxServerLog(rxLL_NOTICE, "++++++++++++++++++ DUMP END+ %d ++ %s ++++++++++++++++\n", depth, label);
             }
             --depth;
             e = e->parent;

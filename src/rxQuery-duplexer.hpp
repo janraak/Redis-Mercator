@@ -80,7 +80,7 @@ static void *execQueryThread(void *ptr)
     execute_command_cron_id = rxCreateTimeEvent(1, (aeTimeProc *)Execute_Command_Cron, command_request_queue, NULL);
     SimpleQueue *control_query_request_queue = (SimpleQueue *)ptr;
     // indexer_set_thread_title("rxQuery async loader");
-    printf("rxQuery async loader started\n");
+    rxServerLog(rxLL_NOTICE, "rxQuery async loader started\n");
     control_query_request_queue->Started();
 
     // long long start = ustime();
@@ -138,7 +138,7 @@ static void *execQueryThread(void *ptr)
     //     break;
     // }
     control_query_request_queue->Stopped();
-    printf("rxQuery async loader stopped\n");
+    rxServerLog(rxLL_NOTICE, "rxQuery async loader stopped\n");
     while ((command_reponse_queue->QueueLength() + command_request_queue->QueueLength()) > 0)
     {
         // free stashed redis command on same thread as allocated
@@ -149,7 +149,7 @@ static void *execQueryThread(void *ptr)
             stash2 = command_reponse_queue->Dequeue();
         }
     }
-    printf("rxQuery async redis commands stopped\n");
+    rxServerLog(rxLL_NOTICE, "rxQuery async redis commands stopped\n");
     return NULL;
 }
 

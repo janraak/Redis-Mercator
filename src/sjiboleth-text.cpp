@@ -1,15 +1,14 @@
 #include <cstring>
 
 #include "client-pool.hpp"
+#include "graphstackentry_abbreviated.hpp"
 #include "sjiboleth-fablok.hpp"
 #include "sjiboleth-graph.hpp"
 #include "sjiboleth.h"
 #include "sjiboleth.hpp"
-#include "graphstackentry_abbreviated.hpp"
 
 #define STASH_STRING 1
 #define STASH_ROBJ 2
-
 
 // extern void *rxStashCommand(SimpleQueue *ctx, const char *command, int argc, ...);
 // extern void *rxStashCommand2(SimpleQueue *ctx, const char *command, int argt, int argc, void **args);
@@ -24,15 +23,25 @@ char *KEYTYPE_TAGS[] = {"S", "L", "C", "Z", "H", "M", "X"};
 
 bool TextDialect::FlushIndexables(rax *collector, rxString key, int key_type, CSimpleQueue *oPersist_q, bool use_bracket)
 {
-	SimpleQueue *persist_q = (SimpleQueue *)oPersist_q;
+	redisNodeInfo *index_config = rxIndexNode();
+	auto *client = RedisClientPool<redisContext>::Acquire(index_config->host_reference, "_CLIENT", "TextDialect::FlushIndexables");
+
+	// SimpleQueue *persist_q = (SimpleQueue *)oPersist_q;
 	raxIterator indexablesIterator;
 	raxStart(&indexablesIterator, collector);
 	raxSeek(&indexablesIterator, "^", NULL, 0);
-    void *args[] = {(void *)key};
-    rxStashCommand2(persist_q, "MULTI", STASH_STRING, 0, NULL);
+	// void *args[] = {(void *)key};
+	// rxStashCommand2(persist_q, "MULTI", STASH_STRING, 0, NULL);
+	auto *rcc = (redisReply *)redisCommand(client, "MULTI", NULL);
+	if (rcc != NULL)
+		freeReplyObject(rcc);
 
-	if(use_bracket){
-        rxStashCommand2(persist_q, "RXBEGIN", STASH_STRING, 1, args);
+	if (use_bracket)
+	{
+		// rxStashCommand2(persist_q, "RXBEGIN", STASH_STRING, 1, args);
+		rcc = (redisReply *)redisCommand(client, "RXBEGIN %s", key);
+		if (rcc != NULL)
+			freeReplyObject(rcc);
 	}
 	while (raxNext(&indexablesIterator))
 	{
@@ -41,19 +50,29 @@ bool TextDialect::FlushIndexables(rax *collector, rxString key, int key_type, CS
 		rxString *parts = rxStringSplitLen(avp, indexablesIterator.key_len, "/", 1, &segments);
 		auto *indexable = (Indexable *)indexablesIterator.data;
 		rxString score = rxStringFormat("%f", indexable->sum_w / (indexable->tally * indexable->tally));
-	    void *add_args[] = {(void *)key, (void *)KEYTYPE_TAGS[key_type], (void *)parts[0], (void *)parts[1], (void *)score, (void *)"0"};
-        rxStashCommand2(persist_q, "RXADD", STASH_STRING, 6, add_args);
+		// void *add_args[] = {(void *)key, (void *)KEYTYPE_TAGS[key_type], (void *)parts[0], (void *)parts[1], (void *)score, (void *)"0"};
+		// rxStashCommand2(persist_q, "RXADD", STASH_STRING, 6, add_args);
+		rcc = (redisReply *)redisCommand(client, "RXADD %s %s %s %s %s %s", key, KEYTYPE_TAGS[key_type], parts[0], parts[1], score, "0");
+		if (rcc != NULL)
+			freeReplyObject(rcc);
 		rxStringFreeSplitRes(parts, segments);
 		rxStringFree(avp);
 		rxStringFree(score);
 	}
 	raxStop(&indexablesIterator);
 
-	if(use_bracket){
-        rxStashCommand2(persist_q, "RXCOMMIT", STASH_STRING, 1, args);
+	if (use_bracket)
+	{
+		// rxStashCommand2(persist_q, "RXCOMMIT", STASH_STRING, 1, args);
+		rcc = (redisReply *)redisCommand(client, "RXCOMMIT %s", key);
+		if (rcc != NULL)
+			freeReplyObject(rcc);
 	}
-    rxStashCommand2(persist_q, "EXEC", STASH_STRING, 0, NULL);
-
+	// rxStashCommand2(persist_q, "EXEC", STASH_STRING, 0, NULL);
+	rcc = (redisReply *)redisCommand(client, "EXEC", NULL);
+	if (rcc != NULL)
+		freeReplyObject(rcc);
+	RedisClientPool<redisContext>::Release(client, "TextDialect::FlushIndexables");
 
 	return true;
 }
@@ -101,7 +120,7 @@ bool isPointerBad(void *p)
 
 	if (-1 == fh && e == EFAULT)
 	{
-		printf("bad pointer: %p\n", p);
+		rxServerLog(rxLL_NOTICE, "bad pointer: %p\n", p);
 		return true;
 	}
 	else if (fh != -1)
@@ -109,7 +128,7 @@ bool isPointerBad(void *p)
 		close(fh);
 	}
 
-	//    printf( "good pointer: %p\n", p );
+	//    rxServerLog(rxLL_NOTICE,  "good pointer: %p\n", p );
 	return false;
 }
 
@@ -123,7 +142,8 @@ int IndexText(CParserToken *tO, CSilNikParowy_Kontekst *stackO)
 	{
 		auto *collector = (rax *)stack->Recall("@@collector@@");
 		rxString field_name;
-		if (strncmp(":", (const char *)t->TokenAsSds(), 1) == 0)
+		if (strncmp(":", (const char *)t->TokenAsSds(), 1) == 0
+		|| strncmp("=", (const char *)t->TokenAsSds(), 1) == 0)
 		{
 			FaBlok *p = stack->Pop_Last();
 			field_name = rxStringNew(p->setname);
@@ -143,12 +163,8 @@ int IndexText(CParserToken *tO, CSilNikParowy_Kontekst *stackO)
 			FaBlok *p = stack->Pop();
 			if (isPointerBad(p->parameter_list))
 			{
-				printf("%s\n", stack->expression->ToString());
+				rxServerLog(rxLL_NOTICE, "%s\n", stack->expression->ToString());
 			}
-			// else if (p->parameter_list == 0x1)
-			// {
-			// 	p->parameter_list == = NULL;
-			// }
 			else if (p->IsParameterList())
 			{
 				w = 1.0 / p->parameter_list->Size();
@@ -156,17 +172,20 @@ int IndexText(CParserToken *tO, CSilNikParowy_Kontekst *stackO)
 				{
 					FaBlok *v = p->parameter_list->Pop();
 					CollectIndexables(collector, field_name, v->setname, w);
+					rxRaxFree(v->keyset);
+					FaBlok::Delete(v);
 				}
 			}
 			else
 			{
 				if (p->setname == NULL)
 				{
-					printf("%s\n", stack->expression->ToString());
+					rxServerLog(rxLL_NOTICE, "%s\n", stack->expression->ToString());
 				}
 				else
 					CollectIndexables(collector, field_name, p->setname, w);
 			}
+			FaBlok::Delete(p);
 		}
 		rxStringFree(field_name);
 	}
@@ -223,7 +242,7 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(TextCommaScopeCheck)
 		referal = rxStringFormat("%s%s", referal, ((ParserToken *)t)->TokenAsSds());
 		t = lookupToken(pO, referal);
 		if (t != NULL)
-			t = (CParserToken *)((ParserToken *)t)->Copy(2069722764000002);
+			t = (CParserToken *)((ParserToken *)t)->Copy(722764002);
 		rxStringFree(referal);
 	}
 }
@@ -234,7 +253,7 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(TextColonScopeCheck)
 	rxUNUSED(head);
 	rxUNUSED(expression);
 	// auto *e = (ParsedExpression *)expression;
-	// printf(":check: %s\n", e->ToString());
+	// rxServerLog(rxLL_NOTICE, ":check: %s\n", e->ToString());
 	char *s = head + 1;
 	char *es = s + 8;
 	while (s <= es)
@@ -248,7 +267,7 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(TextColonScopeCheck)
 				referal = rxStringFormat("%s%s", referal, ((ParserToken *)t)->TokenAsSds());
 				t = lookupToken(pO, referal);
 				if (t != NULL)
-					t = (CParserToken *)((ParserToken *)t)->Copy(2069722764000003);
+					t = (CParserToken *)((ParserToken *)t)->Copy(722764003);
 				rxStringFree(referal);
 			}
 			break;
@@ -260,7 +279,7 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(TextColonScopeCheck)
 			referal = rxStringFormat("%s%s", referal, ((ParserToken *)t)->TokenAsSds());
 			t = lookupToken(pO, referal);
 			if (t != NULL)
-				t = (CParserToken *)((ParserToken *)t)->Copy(2069722764000004);
+				t = (CParserToken *)((ParserToken *)t)->Copy(722764004);
 			rxStringFree(referal);
 			break;
 		}
@@ -280,7 +299,7 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(TextBulletScopeCheck)
 	referal = rxStringFormat("%s%s", referal, ((ParserToken *)t)->TokenAsSds());
 	t = lookupToken(pO, referal);
 	if (t != NULL)
-		t = (CParserToken *)((ParserToken *)t)->Copy(2069722764000001);
+		t = (CParserToken *)((ParserToken *)t)->Copy(722764001);
 	rxStringFree(referal);
 }
 END_SJIBOLETH_PARSER_CONTEXT_CHECKER(TextBulletScopeCheck)
@@ -296,7 +315,7 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(TextDashScopeCheck)
 		referal = rxStringFormat("%s%s", referal, ((ParserToken *)t)->TokenAsSds());
 		t = lookupToken(pO, referal);
 		if (t != NULL)
-			t = (CParserToken *)((ParserToken *)t)->Copy(2069722774000040);
+			t = (CParserToken *)((ParserToken *)t)->Copy(722774040);
 		rxStringFree(referal);
 	}
 }
@@ -320,11 +339,11 @@ bool TextDialect::RegisterDefaultSyntax()
 	this->DeregisterSyntax("NOT");
 	this->DeregisterSyntax("!");
 	// Sjiboleth::RegisterDefaultSyntax();
-	this->RegisterSyntax("=", 10, 0, 0, NULL);
+	this->RegisterSyntax("=", 10, 0, 0, IndexText);
 	// this->RegisterSyntax("-", 10, 0, 0, NULL, TextDashScopeCheck);
 	// this->RegisterSyntax("!!!-", priIgnore, 0, 0, NULL);
 	this->RegisterSyntax(".", priBreak, 0, 0, IndexText);
-	this->RegisterSyntax("@", -1, 0, 0, IndexText);
+	this->RegisterSyntax("@", priIgnore, 0, 0, IndexText);
 	this->RegisterSyntax(",", 15, 0, 0, executeTextParameters, TextCommaScopeCheck);
 	this->RegisterSyntax("!!!,", priBreak, 0, 0, IndexText);
 	this->RegisterSyntax("*", 10, 0, 0, NULL, TextBulletScopeCheck);
@@ -345,5 +364,5 @@ TextDialect::TextDialect()
 	: Sjiboleth()
 {
 	this->default_operator = rxStringEmpty();
-        this->RegisterDefaultSyntax();
+	this->RegisterDefaultSyntax();
 }

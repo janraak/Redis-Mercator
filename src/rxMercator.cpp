@@ -451,7 +451,7 @@ int rx_start_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
     void *si = NULL;
     rxString node;
     int64_t l;
-    rxServerLogRaw(rxLL_WARNING, rxStringFormat("Starting cluster:%s\n", sha1));
+    rxServerLog(rxLL_WARNING, "Starting cluster:%s\n", sha1);
     while (rxScanSetMembers(nodes, &si, (char **)&node, &l) != NULL)
     {
         void *node_info = rxFindHashKey(0, node);
@@ -500,12 +500,12 @@ int rx_start_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
         {
             char controller[24];
             snprintf(controller, sizeof(controller), "%s:%s", address, port);
-            auto *redis_node = RedisClientPool<redisContext>::Acquire(controller);
+            auto *redis_node = RedisClientPool<redisContext>::Acquire(controller, "_CLIENT", "rx_start_cluster");
             if (redis_node != NULL)
             {
                 rxServerLog(rxLL_WARNING, " start check: CONNECTED\n");
-                RedisClientPool<redisContext>::Release(redis_node);
-                tally = 2069722764;
+                RedisClientPool<redisContext>::Release(redis_node, "rx_start_cluster");
+                tally = 722764;
                 break;
             }
             rxServerLog(rxLL_WARNING, " start check: CONNECTion failed\n");
@@ -514,7 +514,7 @@ int rx_start_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
         } while (tally < 5 && stop - start <= 5 * 1000);
         rxServerLog(rxLL_WARNING, " start check tally %d timing %lld :: %lld == %lld  \n", tally, stop, start, stop - start);
 
-        if (tally != 2069722764)
+        if (tally != 722764)
         {
             rxServerLog(rxLL_WARNING, " start check: START LOCAL\n");
             start_redis(startup_command);
@@ -607,7 +607,7 @@ int rx_snapshot_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
 
         rxString startup_command = rxStringFormat("%s/src/redis-cli -h %s -p %s BGSAVE", cwd, address, port);
         string out = exec(startup_command);
-        rxServerLogRaw(rxLL_WARNING, rxStringFormat("%s\n%s\n", startup_command, out.c_str()));
+        rxServerLog(rxLL_WARNING, "%s\n%s\n", startup_command, out.c_str());
         rxStringFree(startup_command);
         rxStringFree(port);
         rxStringFree(address);
@@ -637,19 +637,19 @@ int rx_flush_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
         char controller[24];
         snprintf(controller, sizeof(controller), "%s:%s", address, port);
 
-        auto *redis_node = RedisClientPool<redisContext>::Acquire(controller);
+        auto *redis_node = RedisClientPool<redisContext>::Acquire(controller, "_CLIENT", "rx_flush_cluster");
         if (redis_node != NULL)
         {
-            redisReply *rcc = (redisReply *)redisCommand(redis_node, "AUTH", "%s %s", "admin", "admin");
-            rxServerLogRaw(rxLL_WARNING, rxStringFormat(" AUTH:  %s\n", rcc ? rcc->str : NULL));
+            redisReply *rcc = (redisReply *)redisCommand(redis_node, "%s %s %s", "AUTH", "admin", "admin");
+            rxServerLog(rxLL_WARNING, " AUTH:  %s\n", rcc ? rcc->str : NULL);
             freeReplyObject(rcc);
-            rcc = (redisReply *)redisCommand(redis_node, "FLUSHALL");
-            rxServerLogRaw(rxLL_WARNING, rxStringFormat(" flush: %s:%s --> %s\n", address, port, rcc ? rcc->str : NULL));
+            rcc = (redisReply *)redisCommand(redis_node, "%s %s", "FLUSHALL", "SYNC");
+            rxServerLog(rxLL_WARNING, " flush: %s:%s --> %s\n", address, port, rcc ? rcc->str : NULL);
             freeReplyObject(rcc);
-            rcc = (redisReply *)redisCommand(redis_node, "RULE.DEL", "*", "");
-            rxServerLogRaw(rxLL_WARNING, rxStringFormat(" RULE.DEL *: %s:%s --> %s\n", address, port, rcc ? rcc->str : NULL));
+            rcc = (redisReply *)redisCommand(redis_node, "%s %s", "RULE.DEL", "*");
+            rxServerLog(rxLL_WARNING, " RULE.DEL *: %s:%s --> %s\n", address, port, rcc ? rcc->str : NULL);
             freeReplyObject(rcc);
-            RedisClientPool<redisContext>::Release(redis_node);
+            RedisClientPool<redisContext>::Release(redis_node, "rx_flush_cluster");
         }
         rxStringFree(port);
         rxStringFree(address);
@@ -678,7 +678,7 @@ int rx_info_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
     void *si = NULL;
     rxString node;
     int64_t l;
-    rxServerLogRaw(rxLL_WARNING, rxStringFormat("Starting cluster:%s\n", sha1));
+    rxServerLog(rxLL_WARNING, "Starting cluster:%s\n", sha1);
     char sep[3] = {' ', 0x00, 0x00};
     while (rxScanSetMembers(nodes, &si, (char **)&node, &l) != NULL)
     {
@@ -702,7 +702,7 @@ int rx_info_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
 
     rxStringFree(cluster_key);
     info = rxStringFormat("%s%s", info, "]}");
-    return RedisModule_ReplyWithSimpleString(ctx, info);
+    return RedisModule_ReplyWithStringBuffer(ctx, info, strlen(info));
 }
 
 int rx_info_config(RedisModuleCtx *ctx, RedisModuleString **, int)
@@ -787,15 +787,13 @@ int rx_add_server(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         RedisModule_FreeCallReply(
             RedisModule_Call(ctx, "SADD", "cc", (char *)"__MERCATOR__SERVERS__", key));
         int nr_of_ports = atoi(node_ports);
-        for (long long int p = 6400; nr_of_ports >= 0; --nr_of_ports)
+        for (long long int p = 6400 + nr_of_ports - 1; p >= 6400; --p)
         {
-            char port_no[128];
-            snprintf(port_no, sizeof(port_no), "%lli", p + nr_of_ports);
             RedisModule_FreeCallReply(
-                RedisModule_Call(ctx, "SADD", "cl", (char *)key2, p + nr_of_ports));
+                RedisModule_Call(ctx, "SADD", "cl", (char *)key2, p));
         }
     }
-    return RedisModule_ReplyWithSimpleString(ctx, HELP_STRING);
+    return RedisModule_ReplyWithSimpleString(ctx, "OK"/*HELP_STRING*/);
 }
 
 int client_health_interval = 15000;
@@ -805,6 +803,7 @@ int client_health_must_stop = 0;
  */
 int client_health_cron_handler(struct aeEventLoop *, long long int, void *)
 {
+    return -2;
     if (client_health_must_stop == 1)
         return -1;
 
@@ -819,15 +818,17 @@ int client_health_cron_handler(struct aeEventLoop *, long long int, void *)
                              "tracking_clients:%d\r\n"
                              "clients_in_timeout_table:%llu\r\n"
                              "# Memory\r\n"
+                             "maxmemory:%lld\r\n"
                              "used_memory:%zu\r\n"
-                             "used_memory_rss:%zu\r\n"
                              "used_memory_peak:%zu\r\n"
                              "used_memory_peak_perc:%.2f%%\r\n"
                              "used_memory_overhead:%zu\r\n"
                              "used_memory_startup:%zu\r\n"
+                             "# KeySpace\r\n"
                              "used_memory_dataset:%zu\r\n"
-                             "used_memory_dataset_perc:%.2f%%\r\n"
-                             "maxmemory:%lld\r\n",
+                             "total_keys:%zu\r\n"
+                             "bytes_per_key:%zu\r\n"
+                             "used_memory_dataset_perc:%.2f%%\r\n",
                 info.connected_clients,
                 info.cluster_connections,
                 info.maxclients,
@@ -836,16 +837,42 @@ int client_health_cron_handler(struct aeEventLoop *, long long int, void *)
                 info.blocked_clients,
                 info.tracking_clients,
                 info.clients_in_timeout_table,
+                info.maxmemory,
                 info.used_memory,
-                info.used_memory_rss,
                 info.used_memory_peak,
-                info.used_memory_peak_perc,
+                info.peak_perc,
                 info.used_memory_overhead,
                 info.used_memory_startup,
                 info.used_memory_dataset,
-                info.used_memory_dataset_perc,
-                info.maxmemory);
+                info.total_keys,
+                info.bytes_per_key,
+                info.dataset_perc);
     return client_health_interval;
+}
+
+int dumpert(RedisModuleCtx *ctx, RedisModuleString **argv, int)
+{
+
+    size_t arg_len;
+    rxString remark = rxStringNew((char *)RedisModule_StringPtrLen(argv[1], &arg_len));
+    rxServerLog(rxLL_NOTICE, "dumpert %s", remark);
+    // Verify db0
+    dictEntry *de;
+    dictIterator *checker = rxGetDatabaseIterator(0);
+    while ((de = dictNext(checker)) != NULL)
+    {
+        rxString key = (rxString)dictGetKey(de);
+        void *value_for_key = dictGetVal(de);
+        short ot = rxGetObjectType(value_for_key);
+        auto *string_for_key = (ot == rxOBJ_HASH) ? rxHashAsJson(key, value_for_key) : (rxString)rxGetContainedObject(value_for_key);
+        if (((long)string_for_key) < 64 * 1024)
+            string_for_key = "INVALID POINTER";
+        rxServerLog(rxLL_NOTICE, "dumpert %s key=%s object_type=%d refcnt=%d value=%p %s", remark, key, ot, rxGetRefcount(value_for_key), value_for_key, string_for_key);
+        if (ot == rxOBJ_HASH)
+            rxStringFree(string_for_key);
+    }
+    dictReleaseIterator(checker);
+    return RedisModule_ReplyWithSimpleString(ctx, "OK");
 }
 
 /* This function must be present on each Redis module. It is used in order to
@@ -863,6 +890,10 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     rxRegisterConfig((void **)argv, argc);
 
     if (RedisModule_CreateCommand(ctx, "mercator.info.config", rx_info_config, "admin write", 1, 1, 0) == REDISMODULE_ERR)
+        return REDISMODULE_ERR;
+
+    if (RedisModule_CreateCommand(ctx, "dumpert",
+                                  dumpert, "readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     if (argc == 1 && strcmp((char *)rxGetContainedObject(argv[0]), "CLIENT") == 0)

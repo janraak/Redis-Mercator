@@ -173,7 +173,6 @@ void rxServerLog(int level, const char *fmt, ...)
     va_start(ap, fmt);
     vsnprintf(msg, sizeof(msg), fmt, ap);
     va_end(ap);
-
     serverLogRaw(level, msg);
 }
 

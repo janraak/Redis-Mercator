@@ -358,10 +358,11 @@ SJIBOLETH_HANDLER(GremlinDialect::executeAllVertices)
         }
         else
         {
+            redisNodeInfo *index_config = rxIndexNode();
             auto *key_entry = rxFindKey(0, kd->setname);
             if (key_entry != NULL)
                 kd->LoadKey(0, kd->setname);
-            else
+            else if(kd->FetchKeySet(index_config, kd->setname) == C_ERR)
                 kd = getAllKeysByType(0, "[A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*", NO_MATCH_PATTERN, kd->AsSds());
         }
     }
@@ -405,7 +406,9 @@ SJIBOLETH_HANDLER(executeAllEdges)
         }
         else
         {
-            kd = getAllKeysByType(0, "[A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*", MATCH_PATTERN, kd->AsSds());
+            redisNodeInfo *index_config = rxIndexNode();
+            if(kd->FetchKeySet(index_config, kd->setname) == C_ERR)            
+                kd = getAllKeysByType(0, "[A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*", MATCH_PATTERN, kd->AsSds());
         }
     }
     else
@@ -808,7 +811,8 @@ SJIBOLETH_HANDLER(executeGremlinGroupby)
                 break;
                 default:
                     ERROR("Unsupported object type, only hash keys or rx triplets are supported.");
-                    return C_ERR;
+                    // return C_ERR;
+                break;
                 }
             }
         }
@@ -1421,7 +1425,7 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(GremlinScopeCheck)
     if (HasParkedToken(expression, "by"))
     {
         ParserToken *to_cpy = (ParserToken *)t;
-        ParserToken *new_cpy = to_cpy->Copy(2069722764000040);
+        ParserToken *new_cpy = to_cpy->Copy(722764040);
         new_cpy->TokenType(_literal);
         new_cpy->Priority(100);
         t = (CParserToken *)new_cpy;

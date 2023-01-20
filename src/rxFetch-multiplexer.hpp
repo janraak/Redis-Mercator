@@ -89,15 +89,15 @@ public:
     {
         if (this->dup_di != this->di)
         {
-            printf("corrupted di\n");
+            rxServerLog(rxLL_NOTICE, "corrupted di\n");
         }
         if (this->dup_bucket != this->bucket)
         {
-            printf("corrupted bucket\n");
+            rxServerLog(rxLL_NOTICE, "corrupted bucket\n");
         }
         if (this->dup_matchOperation != this->matchOperation)
         {
-            printf("corrupted matchOperation\n");
+            rxServerLog(rxLL_NOTICE, "corrupted matchOperation\n");
         }
     }
 

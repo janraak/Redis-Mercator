@@ -31,7 +31,7 @@ ParserToken *ParserToken::Init(eTokenType token_type,
     this->pcf = NULL;
     this->is_volatile = false;
     this->copy_of = NULL;
-    this->reference = 2069722765000000;
+    this->reference = 722765000;
 
     this->op = op;
     this->op_len = op_len;
@@ -239,7 +239,7 @@ int ParserToken::Execute(CStack *stackO)
     //     }
     //     else
     //     {
-    //         printf("Captured signal\n");
+    //         rxServerLog(rxLL_NOTICE, "Captured signal\n");
     //         rc = -1;
     //     }
     // done:
@@ -356,25 +356,28 @@ Sjiboleth::Sjiboleth(const char *default_operator)
 
 Sjiboleth::~Sjiboleth()
 {
+    //TODO: Separate syntax rules as globals!
     if(this->registry == NULL)
         return;
-    if (raxSize(this->registry) > 0)
-    {
-        raxIterator ri;
-        raxStart(&ri, this->registry);
-        raxSeek(&ri, "$", NULL, 0);
-        while (raxPrev(&ri))
-        {
-            void *old = NULL;
-            raxRemove(FaBlok::Get_FaBlok_Registry(), ri.key, ri.key_len, (void **)&old);
-            auto *t = (ParserToken *)ri.data;
-            if(t->Token() == ri.data + sizeof(ParserToken))
-                rxMemFree(ri.data);
-        }
-        raxStop(&ri);
-    }
-    raxFree(this->registry);
-    this->registry = NULL;
+    // if (raxSize(this->registry) > 0)
+    // {
+    //     raxShow(this->registry);
+    //     raxShow(FaBlok::Get_FaBlok_Registry());
+    //     raxIterator ri;
+    //     raxStart(&ri, this->registry);
+    //     raxSeek(&ri, "$", NULL, 0);
+    //     while (raxPrev(&ri))
+    //     {
+    //         void *old = NULL;
+    //         raxRemove(this->registry, ri.key, ri.key_len, (void **)&old);
+    //         auto *t = (ParserToken *)ri.data;
+    //         if(t->Token() == ri.data + sizeof(ParserToken))
+    //             rxMemFree(ri.data);
+    //     }
+    //     raxStop(&ri);
+    // }
+    // raxFree(this->registry);
+    // this->registry = NULL;
 }
 
 bool Sjiboleth::hasDefaultOperator()

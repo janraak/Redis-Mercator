@@ -97,10 +97,8 @@ public:
 
     static void ForgetAll()
     {
-        rxServerLogRaw(rxLL_WARNING, rxStringFormat("# ForgetAll # 000 #"));
         if (BusinessRule::RuleRegistry == NULL)
             return;
-        rxServerLogRaw(rxLL_WARNING, rxStringFormat("# ForgetAll # 010 #"));
         raxIterator ri;
         raxStart(&ri, BusinessRule::RuleRegistry);
         raxSeek(&ri, "^", NULL, 0);
@@ -121,11 +119,10 @@ public:
 
     static int WriteList(RedisModuleCtx *ctx)
     {
-        RedisModule_ReplyWithArray(ctx, raxSize(BusinessRule::RuleRegistry));
-        raxIterator ri;
-
         if (BusinessRule::RuleRegistry != NULL)
         {
+            RedisModule_ReplyWithArray(ctx, raxSize(BusinessRule::RuleRegistry));
+            raxIterator ri;
             BusinessRule::RegistryLock = true;
 
             raxStart(&ri, BusinessRule::RuleRegistry);
@@ -286,7 +283,7 @@ public:
             }
             else
             {
-                auto *redis_node = RedisClientPool<redisContext>::Acquire(index_config->host_reference);
+                auto *redis_node = RedisClientPool<redisContext>::Acquire(index_config->host_reference, "_CLIENT", "RULE::Apply");
                 if (redis_node != NULL)
                 {
                     rxString cmd = rxStringFormat("RXADD %s %s RULE %s 1", key, objT, this->setName);
@@ -294,7 +291,7 @@ public:
                     rxServerLogRaw(rxLL_WARNING, rxStringFormat( " %s: %s --> %s\n", cmd, index_config->host_reference, rcc->str));
                     freeReplyObject(rcc);
                     rxStringFree(cmd);
-                    RedisClientPool<redisContext>::Release(redis_node);
+                    RedisClientPool<redisContext>::Release(redis_node, "RULE::Apply");
                 }
             }
             return true;
@@ -314,7 +311,7 @@ public:
         }
         else
         {
-            auto *redis_node = RedisClientPool<redisContext>::Acquire(index_config->host_reference);
+            auto *redis_node = RedisClientPool<redisContext>::Acquire(index_config->host_reference, "_CLIENT", "RULE::Apply");
             if (redis_node != NULL)
             {
                 rxString cmd = rxStringFormat("RXDEL %s %s RULE %s", key, objT, this->setName);
@@ -322,7 +319,7 @@ public:
                 rxServerLogRaw(rxLL_WARNING, rxStringFormat( " %s: %s --> %s\n", cmd, index_config->host_reference, rcc->str));
                 freeReplyObject(rcc);
                 rxStringFree(cmd);
-                RedisClientPool<redisContext>::Release(redis_node);
+                RedisClientPool<redisContext>::Release(redis_node, "RULE::Apply");
             }
         }
         return false;

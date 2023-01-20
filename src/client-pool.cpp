@@ -1,6 +1,7 @@
 /*
  * See: Template specialization [https://en.cppreference.com/w/cpp/language/template_specialization]
  */ 
+#include <typeinfo>
 #include "client-pool.hpp"
 #ifdef __cplusplus
 extern "C"
@@ -13,22 +14,20 @@ extern "C"
 #ifdef __cplusplus
 }
 #endif
+#include "tls.hpp"
 
 struct client;
+thread_local  rax *RedisClientPoolRegistry = NULL;
+
+void *_allocateRax(){
+    return raxNew();
+}
 
 template <typename T>
 rax *RedisClientPool<T>::Get_ClientPool_Registry()
 {
-    pthread_t tid = pthread_self();
-    char id[64];
-    snprintf(id, sizeof(id), "cp:%lx", tid);
-    rax *local_registry = (rax *)raxFind(RedisClientPool<T>::HostRegistry, (UCHAR *)&id, sizeof(id));
-    if (local_registry == raxNotFound)
-    {
-        local_registry = raxNew();
-        raxInsert(RedisClientPool<T>::HostRegistry, (UCHAR *)&id, sizeof(id), local_registry, NULL);
-    }
-    return local_registry;
+    rax *registry = tls_get<rax *>((const char*)"RedisClientPool", _allocateRax);
+    return registry;
 }
 
 template <typename T>
@@ -43,6 +42,7 @@ RedisClientPool<T>::RedisClientPool()
 template <typename T>
 void RedisClientPool<T>::Init(const char *host_reference, const char *host, int port, int initial_number_of_connections, int extra_number_of_connections)
 {
+    // char *cname = typeid(his).name();
     this->free.Init();
     this->in_use.Init();
     this->host_reference = host_reference;
@@ -124,24 +124,30 @@ int RedisClientPool<T>::Grow()
         auto *client = this->NewInstance();
         if (client == NULL)
         {
+            rxServerLog(rxLL_NOTICE, "::Grow %s free:%d inuse:%ld UNABLE TO GROW", this->host_reference, this->free.Size(), raxSize(Get_ClientPool_Registry()));
             return tally_acquired;
         }
         this->free.Push((T *)client);
         tally_acquired++;
     }
+    if((this->free.Size(), raxSize(Get_ClientPool_Registry())) > 64)
+        rxServerLog(rxLL_NOTICE, "::Grow %s free:%d inuse:%ld TOO BIG", this->host_reference, this->free.Size(), raxSize(Get_ClientPool_Registry()));
+    //rxServerLog(rxLL_NOTICE, "::Grow %s free:%d inuse:%ld", this->host_reference, this->free.Size(), raxSize(Get_ClientPool_Registry()));
     return tally_acquired;
 }
 
 template <typename T>
-T *RedisClientPool<T>::Acquire(const char *address)
+T *RedisClientPool<T>::Acquire(const char *address, const char *suffix, const char */*caller*/)
 {
-    rax * host_pool = RedisClientPool<T>::Get_ClientPool_Registry();
-    auto *pool = (RedisClientPool *)raxFind(host_pool, (UCHAR *)address, strlen(address));
+    char reference[256];
+    strcpy(reference,address);
+    strcat(reference, suffix);
+    auto *pool = (RedisClientPool *)raxFind(Get_ClientPool_Registry(), (UCHAR *)reference, strlen(reference));
     if (pool == raxNotFound)
     {
-        pool = RedisClientPool::New(address, 4, 4);
+        pool = RedisClientPool::New(reference, 4, 4);
         void *old;
-        raxInsert(RedisClientPool<T>::Get_ClientPool_Registry(), (UCHAR *)address, strlen(address), pool, &old);
+        raxInsert(Get_ClientPool_Registry(), (UCHAR *)reference, strlen(reference), pool, &old);
     }
     if (!pool->free.HasEntries())
     {
@@ -150,22 +156,30 @@ T *RedisClientPool<T>::Acquire(const char *address)
     if (!pool->free.HasEntries())
         return NULL;
     auto *client = pool->free.Pop();
-    pool->in_use.Push(client);
+    // pool->in_use.Push(client);
     void *old;
-    raxInsert(RedisClientPool<T>::Lookup, (UCHAR *)client, sizeof(client), pool, &old);
+    raxInsert(Get_ClientPool_Registry(), (UCHAR *)client, sizeof(client), pool, &old);
+    //rxServerLog(rxLL_NOTICE, "::Acquire %s->%p free:%d inuse:%ld by:%s", reference, client, pool->free.Size(), raxSize(Get_ClientPool_Registry()), caller);
     return client;
 }
 
 template <typename T>
-void RedisClientPool<T>::Release(T *client)
+void RedisClientPool<T>::Release(T *client, const char */*caller*/)
 {
-    auto *pool = (RedisClientPool<T> *)raxFind(RedisClientPool::Lookup, (UCHAR *)client, sizeof(client));
+    auto *pool = (RedisClientPool<T> *)raxFind(Get_ClientPool_Registry(), (UCHAR *)client, sizeof(client));
     if (pool == raxNotFound)
     {
-        printf("RedisClientPool unregisted redis client\n");
+        rxServerLog(rxLL_NOTICE, "RedisClientPool unregisted redis client\n");
     }
-    pool->in_use.Remove(client);
-    pool->free.Push(client);
+    else
+    {
+        // rxServerLog(rxLL_NOTICE, "::Release %s<-%p free:%d inuse:%d B by:%s", pool->host_reference, client, pool->free.Size(), raxSize(Get_ClientPool_Registry()), caller);
+
+        // pool->in_use.Remove(client);
+        pool->free.Push(client);
+    }
+    raxRemove(Get_ClientPool_Registry(), (UCHAR *)client, sizeof(client), NULL);
+    // rxServerLog(rxLL_NOTICE, "::Release %s<-%p free:%d inuse:%ld A by:%s", pool->host_reference, client, pool->free.Size(), raxSize(Get_ClientPool_Registry()), caller);
 }
 
 template <typename T>
@@ -176,3 +190,4 @@ rax *RedisClientPool<T>::Lookup = raxNew();
 template class RedisClientPool<redisContext>;
 // template class RedisClientPool<void>;
 template class RedisClientPool<struct client>;
+

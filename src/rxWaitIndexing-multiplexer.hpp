@@ -42,6 +42,9 @@ public:
 
     int Execute()
     {
+        if(this->queue == NULL)
+            return -1;
+            
         if (this->reindex_iterator == NULL)
             return -1;
 

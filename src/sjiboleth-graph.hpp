@@ -155,9 +155,9 @@ public:
         listNode *ln;
         while ((ln = listNext(li)) != NULL)
         {
-            printf(" => %s", (char *)ln->value);
+            rxServerLog(rxLL_NOTICE, " => %s", (char *)ln->value);
         }
-        printf("\n");
+        rxServerLog(rxLL_NOTICE, "\n");
         listReleaseIterator(li);
     }
 
@@ -435,8 +435,8 @@ public:
     void Show()
     {
         return;
-        printf("== Triplet ==\n");
-        printf(" %s length=%f\n", this->subject_key, this->length);
+        rxServerLog(rxLL_NOTICE, "== Triplet ==\n");
+        rxServerLog(rxLL_NOTICE, " %s length=%f\n", this->subject_key, this->length);
 
         
         if (this->containers.HasEntries())
@@ -445,11 +445,11 @@ public:
             FaBlok *e;
             while ((e = this->containers.Next()) != NULL)
             {
-                printf("--> %s\n", e->AsSds());
+                rxServerLog(rxLL_NOTICE, "--> %s\n", e->AsSds());
             }
             this->containers.Stop();
         }else
-                printf("roving\n");
+                rxServerLog(rxLL_NOTICE, "roving\n");
         
         if (this->edges.HasEntries())
         {
@@ -461,7 +461,7 @@ public:
             }
             this->edges.Stop();
         }
-        printf("== End of Triplet ==\n");
+        rxServerLog(rxLL_NOTICE, "== End of Triplet ==\n");
     }
 
     rxString Json(rxString key)

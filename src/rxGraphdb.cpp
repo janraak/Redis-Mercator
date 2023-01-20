@@ -100,7 +100,7 @@ char *consume_element(char *start, char *boundary, char **end, size_t *len, char
 {
     *end = strstr(start, CRLF);
     if (!end)
-        printf("odd!\n");
+        rxServerLog(rxLL_NOTICE, "odd!\n");
     *len = *end - start;
     *next = *end + strlen(CRLF);
     if (*next >= boundary)
@@ -227,7 +227,7 @@ public:
                     char *weight_left = strchr(bar_right + 1, TANDEM_LINK_SEP[0]);
                     char *link = bar_right + 1;
                     double d = weight_left ? atof(weight_left + 1) : 1.0;
-                    // printf("link from %s to %s flow %s weight: %0.0f\n",
+                    // rxServerLog(rxLL_NOTICE, "link from %s to %s flow %s weight: %0.0f\n",
                     //        sdsnewlen(key, keylen),
                     //        sdsnewlen(bar_left + 1, bar_right - bar_left - 1),
                     //        sdsnewlen(link, 2), d);
@@ -337,7 +337,7 @@ public:
                     char *weight_left = strchr(bar_right + 1, TANDEM_LINK_SEP[0]);
                     char *link = bar_right + 1;
                     double d = weight_left ? atof(weight_left + 1) : 1.0;
-                    // printf("link from %s to %s flow %s weight: %0.0f\n",
+                    // rxServerLog(rxLL_NOTICE, "link from %s to %s flow %s weight: %0.0f\n",
                     //        edge_key.c_str(),
                     //        sdsnewlen(bar_left + 1, bar_right - bar_left - 1),
                     //        sdsnewlen(link, 2), d);

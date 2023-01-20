@@ -255,6 +255,8 @@ static void *execLoadThread(void *ptr)
     }
     rxDeleteTimeEvent(execute_command_cron_id);
     rxServerLog(rxLL_NOTICE, "rxGraphDb async redis commands stopped\n");
+    
+
     return NULL;
 }
 

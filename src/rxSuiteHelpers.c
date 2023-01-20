@@ -165,6 +165,16 @@ long long rxDatabaseSize(int dbNo)
 void *rxScanSetMembers(void *obj, void **siO, char **member, int64_t *member_len)
 {
     setTypeIterator **si = (setTypeIterator **)siO;
+    robj *r = (robj *)obj;
+    switch(r->encoding){
+        case OBJ_ENCODING_HT:
+        case OBJ_ENCODING_INTSET:
+            break;
+        default:
+            rxServerLog(rxLL_NOTICE, "Invalid set encoding on %p %d", r, r->encoding);
+            *si = NULL;
+            return NULL;
+    }
     if (*si == NULL)
     {
         *si = setTypeInitIterator(obj);
@@ -238,7 +248,7 @@ int rxMatchHasValue(void *oO, const char *f, rxString pattern, int plen)
             return MATCH_IS_FALSE;
         }
 
-        // printf(" %s ", k);
+        // rxServerLog(rxLL_NOTICE, " %s ", k);
         if (ret == 0 && stringmatchlen(pattern, plen, (const char *)vstr, vlen, 1))
         {
             rxStringFree(field);
@@ -251,7 +261,7 @@ int rxMatchHasValue(void *oO, const char *f, rxString pattern, int plen)
         POINTER vlen;
         long long vll;
         hashTypeGetValue(o, field, &vstr, &vlen, &vll);
-        // printf(" %s ", vstr);
+        // rxServerLog(rxLL_NOTICE, " %s ", vstr);
         if (vstr == NULL)
         {
             rxStringFree(field);
@@ -342,13 +352,15 @@ rxString rxHashAsJson(const char *key, void *o)
     rxString json = rxStringFormat("{\"%s\":{", key);
 
     hashTypeIterator *hi = hashTypeInitIterator((robj *)o);
-    char sep = ' ';
+    char sep[2];
+    sep[0] = 0x00;
+    sep[1] = 0x00;
     while (hashTypeNext(hi) != C_ERR)
     {
         rxString f = hashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_KEY);
         rxString v = hashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_VALUE);
-        json = rxStringFormat(json, "%s%c\"%s\":\"%s\"", json, sep, f, v);
-        sep = ',';
+        json = rxStringFormat("%s%s\"%s\":\"%s\"", json, sep, f, v);
+        sep[0] = ',';
         rxStringFree(f);
         rxStringFree(v);
     }
@@ -381,9 +393,25 @@ short rxGetObjectType(void *o)
     return ((robj *)o)->type;
 }
 
+int rxGetRefcount(void *oO)
+{
+    robj *o = (robj *)oO;
+    return o->refcount;
+}
+
 void *rxCreateObject(int type, void *ptr)
 {
     return createObject(type, ptr);
+}
+
+void *rxInitObject(void *oO, int type, void *ptr)
+{
+    robj *o = (robj *)oO;
+    o->type = type;
+    o->encoding = OBJ_ENCODING_RAW;
+    o->ptr = ptr;
+    o->refcount = OBJ_SHARED_REFCOUNT;
+    return o;
 }
 void *rxCreateStringObject(const char *ptr, size_t len)
 {
@@ -512,7 +540,7 @@ double rxAddSortedSetMember(const char *key, int dbNo, double score, rxString me
     if (zobj == NULL)
     {
         zobj = createZsetObject();
-        robj *k = createStringObject(key, strlen(key));
+        robj *k = createRawStringObject(key, strlen(key));
         dbAdd((&server.db[dbNo]), k, zobj);
         freeStringObject(k);
     }
@@ -646,7 +674,7 @@ void rxHarvestSortedSetMembers(void *obj, rax *bucket)
 
             if (vstr == NULL)
             {
-                printf("L:%lld ", vlong);
+                rxServerLog(rxLL_NOTICE, "L:%lld ", vlong);
             }
             else
             {
@@ -888,7 +916,8 @@ void rxRaxFreeWithCallback(rax *rax, void (*free_callback)(void *))
 /* Free a whole radix tree. */
 void rxRaxFree(rax *rax)
 {
-    rxRaxFreeWithCallback(rax, NULL);
+    if(raxSize(rax) != 0)
+        rxRaxFreeWithCallback(rax, NULL);
 }
 
 rxClientInfo rxGetClientInfo()
@@ -909,12 +938,18 @@ rxClientInfo rxGetClientInfo()
     rxClientInfo info;
     info.used_memory = zmalloc_used;
     info.used_memory_rss = mh->allocator_rss;
-    info.used_memory_peak= server.stat_peak_memory;
+    info.used_memory_peak = server.stat_peak_memory;
     info.used_memory_peak_perc = mh->peak_perc;
     info.used_memory_overhead = mh->overhead_total;
     info.used_memory_startup = mh->startup_allocated;
     info.used_memory_dataset = mh->dataset;
-    info.used_memory_dataset_perc = mh->dataset_perc;
+
+    info.total_keys = mh->total_keys;
+    info.bytes_per_key = mh->bytes_per_key;
+    info.dataset_perc = mh->dataset_perc;
+    info.peak_perc = mh->peak_perc;
+    info.total_frag = mh->total_frag;
+
     info.maxmemory = (unsigned long)total_system_mem;
 
     info.connected_clients = listLength(server.clients) - listLength(server.slaves);

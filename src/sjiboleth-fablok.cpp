@@ -7,8 +7,8 @@ extern "C"
 #include <cstdlib>
 
 #include "../../deps/hiredis/hiredis.h"
-#include "string.h"
 #include "sdsWrapper.h"
+#include "string.h"
 #include <pthread.h>
 #include <unistd.h>
 
@@ -27,76 +27,101 @@ extern "C"
 static char RUMBLE_STRIP1[] = "AUTHOR:JAN RAAK.";
 static char RUMBLE_STRIP2[] = "2022SHORELINE,WA";
 
+#include "tls.hpp"
+extern void *_allocateRax();
+
 rax *FaBlok::Get_FaBlok_Registry()
 {
-    pthread_t tid = pthread_self();
-    char id[64];
-    snprintf(id, sizeof(id), "fab:%lx", tid);
-    rax *local_registry = (rax *)raxFind(FaBlok::FaBlokRegistry, (UCHAR *)&id, sizeof(id));
-    if (local_registry == raxNotFound)
-    {
-        local_registry = raxNew();
-        raxInsert(FaBlok::FaBlokRegistry, (UCHAR *)&id, sizeof(id), local_registry, NULL);
-    }
-    return local_registry;
+    rax *registry = tls_get<rax *>((const char *)"FaBlokCache", _allocateRax);
+    return registry;
 }
 
 void FaBlok::Free_Thread_Registry()
 {
-    pthread_t tid = pthread_self();
-    char id[64];
-    snprintf(id, sizeof(id), "fab:%lx", tid);
-    void *old = NULL;
-    ;
-    raxRemove(FaBlok::FaBlokRegistry, (UCHAR *)&id, sizeof(id), &old);
+    // pthread_t tid = pthread_self();
+    // char id[64];
+    // snprintf(id, sizeof(id), "fab:%lx", tid);
+    // void *old = NULL;
+    // ;
+    // raxRemove(FaBlok::FaBlokRegistry, (UCHAR *)&id, sizeof(id), &old);
+}
+
+void FaBlok::Cache(FaBlok *b)
+{
+    return;
+    rax *r = FaBlok::Get_FaBlok_Registry();
+    if (raxFind(r, (UCHAR *)b->setname, strlen(b->setname)) == raxNotFound)
+    {
+       // rxServerLog(rxLL_NOTICE, "FaBlok::Cache fab=%p ks=%p for %s", b, b->keyset, b->setname);
+        raxInsert(r, (UCHAR *)b->setname, strlen(b->setname), b, NULL);
+    }
+}
+
+void FaBlok::Uncache(const char *sn)
+{
+    rax *r = FaBlok::Get_FaBlok_Registry();
+    auto *standing = raxFind(r, (UCHAR *)sn, strlen(sn));
+    if (standing != raxNotFound)
+    {
+       // rxServerLog(rxLL_NOTICE, "FaBlok::Rename FOUND OLD setname:%s", sn);
+        void *old;
+        raxRemove(r, (UCHAR *)sn, strlen(sn), &old);
+    }
+}
+
+void FaBlok::Uncache(FaBlok *b)
+{
+    FaBlok::Uncache(b->setname);
 }
 
 FaBlok *FaBlok::Get(const char *sn)
 {
+   // rxServerLog(rxLL_NOTICE, "FaBlok::Get setname:%s", sn);
     FaBlok *f = (FaBlok *)raxFind(FaBlok::Get_FaBlok_Registry(), (UCHAR *)sn, strlen(sn));
     if (f == raxNotFound)
     {
         return NULL;
     }
+   // rxServerLog(rxLL_NOTICE, "FaBlok::Get FOUND setname:%s", sn);
     f->IsValid();
     return f;
 }
 
 bool FaBlok::IsValid()
 {
-    if (!(((void *)this - sizeof(rax)) == (void *)this->keyset))
-    {
-        rxServerLog(rxLL_NOTICE, "Possible memory corruption fablok=%p instead of %p rax=%p instead of %p",
-                    this,
-                    ((void *)this->keyset) + sizeof(rax),
-                    this->keyset,
-                    ((void *)this) - sizeof(rax));
-        return false;
-    }
+    // if (!(((void *)this - sizeof(rax)) == (void *)this->keyset))
+    // {
+    //     rxServerLog(rxLL_NOTICE, "Possible memory corruption fablok=%p instead of %p rax=%p instead of %p",
+    //                 this,
+    //                 ((void *)this->keyset) + sizeof(rax),
+    //                 this->keyset,
+    //                 ((void *)this) - sizeof(rax));
+    //     return false;
+    // }
 
-    if (!(((void *)this + sizeof(FaBlok)) == (void *)this->setname))
-    {
-        rxServerLog(rxLL_NOTICE, "Possible memory corruption fablok=%p instead of %p setname=%p instead of %p",
-                    this,
-                    ((void *)this->setname) - sizeof(FaBlok)),
-            this->setname,
-            ((void *)this + sizeof(FaBlok));
-        return false;
-    }
+    // if (!(((void *)this + sizeof(FaBlok)) == (void *)this->setname))
+    // {
+    //     rxServerLog(rxLL_NOTICE, "Possible memory corruption fablok=%p instead of %p setname=%p instead of %p",
+    //                 this,
+    //                 ((void *)this->setname) - sizeof(FaBlok)),
+    //         this->setname,
+    //         ((void *)this + sizeof(FaBlok));
+    //     return false;
+    // }
 
     if (memcmp(this->rumble_strip1, RUMBLE_STRIP1, sizeof(this->rumble_strip1)) != 0 || memcmp(this->rumble_strip2, RUMBLE_STRIP2, sizeof(this->rumble_strip2)) != 0)
     {
         rxServerLogRaw(rxLL_NOTICE, "Rumble in the Jungle");
         return false;
     }
-    if ((strlen(this->setname) > 0 && this->size != raxSize(this->keyset)) || !(this->marked_for_deletion == 653974783 || this->marked_for_deletion == 2069722765))
+    if ((strlen(this->setname) > 0 && this->size != raxSize(this->keyset)) || !(this->marked_for_deletion == 653974783 || this->marked_for_deletion == 722765))
     {
-        rxServerLog(rxLL_NOTICE, "FaBlok for %s may be corrupted fab: reused:%ld sz: %lu marked_for_deletion:%ld temp:%ld\n",
-               this->setname,
-               this->reuse_count,
-               this->size,
-               this->marked_for_deletion,
-               this->is_temp);
+       rxServerLog(rxLL_NOTICE, "FaBlok for %s may be corrupted fab: reused:%ld sz: %lu marked_for_deletion:%ld temp:%ld\n",
+                    this->setname,
+                    this->reuse_count,
+                    this->size,
+                    this->marked_for_deletion,
+                    this->is_temp);
         return false;
     }
     return true;
@@ -104,18 +129,23 @@ bool FaBlok::IsValid()
 
 FaBlok *FaBlok::Get(const char *sn, UCHAR value_type)
 {
+   // rxServerLog(rxLL_NOTICE, "FaBlok::Get setname:%s for type:%d", sn, value_type);
     FaBlok *f = (FaBlok *)raxFind(FaBlok::Get_FaBlok_Registry(), (UCHAR *)sn, strlen(sn));
     if (f == raxNotFound)
     {
+       // rxServerLog(rxLL_NOTICE, "FaBlok::Get NOT FOUND setname:%s for type:%d", sn, value_type);
         FaBlok *n = FaBlok::New(sn, value_type);
         n->AsTemp();
-        rax *r = FaBlok::Get_FaBlok_Registry();
-        raxInsert(r, (UCHAR *)sn, strlen(sn), n, NULL);
+        if (value_type != KeysetDescriptor_TYPE_SINGULAR)
+        {
+            FaBlok::Cache(n);
+        }
         n->IsValid();
         return n;
     }
     else
     {
+       // rxServerLog(rxLL_NOTICE, "FaBlok::Get FOUND setname:%s for type:%d", sn, value_type);
         f->reuse_count++;
         f->IsValid();
     }
@@ -126,29 +156,13 @@ FaBlok *FaBlok::Get(const char *sn, UCHAR value_type)
     return f;
 }
 
-FaBlok *FaBlok::Delete(FaBlok *d)
-{
-    if (memcmp(d->rumble_strip1, RUMBLE_STRIP1, sizeof(d->rumble_strip1)) != 0 || memcmp(d->rumble_strip2, RUMBLE_STRIP2, sizeof(d->rumble_strip2)) != 0)
-    {
-        rxServerLogRaw(rxLL_NOTICE, "Rumble in the Jungle");
-    }
-    // if (d->IsValueType(KeysetDescriptor_TYPE_MONITORED_SET))
-    //     return NULL;
-    d->marked_for_deletion = 2069722765;
-    return NULL;
-}
-
 FaBlok *FaBlok::Rename(const char *setname)
 {
-    rax *r = FaBlok::Get_FaBlok_Registry();
-    auto *standing = raxFind(r, (UCHAR *)this->setname, strlen(this->setname));
-    if (standing == this)
-    {
-        void *old;
-        raxRemove(FaBlok::Get_FaBlok_Registry(), (UCHAR *)this->setname, strlen(this->setname), &old);
-    }
+   // rxServerLog(rxLL_NOTICE, "FaBlok::Rename OLD setname:%s", this->setname);
+    Uncache(setname);
+    Uncache(this);
     this->setname = setname;
-    raxInsert(r, (UCHAR *)this->setname, strlen(this->setname), this, NULL);
+    Cache(this);
     return this;
 }
 
@@ -173,10 +187,10 @@ int FaBlok::AsTemp()
 {
     if (!this->IsValueType(KeysetDescriptor_TYPE_MONITORED_SET))
     {
-        this->is_temp = 2069722765;
-        // this->marked_for_deletion = 2069722765;
+        this->is_temp = 722765;
+        // this->marked_for_deletion = 722765;
     }
-    return (this->is_temp == 2069722765);
+    return (this->is_temp == 722765);
 }
 
 FaBlok::FaBlok()
@@ -197,7 +211,7 @@ FaBlok *FaBlok::Init(void *r)
     // EMBEDDED RAX INITIALIZATION
     if (r)
         this->InitKeyset(r, true);
-    //
+
     this->vertices_or_edges = GENERIC_SET;
     this->reuse_count = 0;
     this->size = 0;
@@ -214,11 +228,17 @@ FaBlok *FaBlok::Init(void *r)
 
 void FaBlok::InitKeyset(void *r, bool withRootNode)
 {
-    // EMBEDDED RAX INITIALIZATION
-    this->keyset = (rax *)r;
-    this->keyset->numele = 0;
-    this->keyset->numnodes = 1;
-    this->keyset->head = (withRootNode == true) ? raxNewNode(0, 0) : NULL;
+    if (r == NULL)
+        this->keyset = raxNew();
+    else
+    {
+        // EMBEDDED RAX INITIALIZATION
+        this->keyset = (rax *)r;
+        this->keyset->numele = 0;
+        this->keyset->numnodes = 1;
+        this->keyset->head = (withRootNode == true) ? raxNewNode(0, 0) : NULL;
+    }
+   // rxServerLog(rxLL_NOTICE, "InitKeyset fab=%p ks=%p for %s", this, this->keyset, this->setname);
 }
 
 rax *FaBlok::AsRax()
@@ -228,6 +248,7 @@ rax *FaBlok::AsRax()
 
 FaBlok::~FaBlok()
 {
+   // rxServerLog(rxLL_NOTICE, "~FaBlok fab=%p ks=%p for %s", this, this->keyset, this->setname);
     this->IsValid();
     if (this->value_type == 0xff)
         return;
@@ -236,10 +257,10 @@ FaBlok::~FaBlok()
         rxServerLogRaw(rxLL_NOTICE, "Cross thread alloc/free!\n");
 
     this->IsValid();
-    if (this->size > 0)
-    {
-        rxRaxFree(this->keyset);
-    }
+    // if (this->size > 0)
+    // {
+    //     rxRaxFree(this->keyset);
+    // }
 
     this->value_type = 0xff;
 }
@@ -266,12 +287,25 @@ FaBlok *FaBlok::New(const char *sn, UCHAR value_type)
     return fab;
 }
 
+
+FaBlok *FaBlok::Delete(FaBlok *b)
+{
+   // rxServerLog(rxLL_NOTICE, "FaBlok::Delete fab=%p ks=%p for %s", b, b->keyset, b->setname);
+    if (memcmp(b->rumble_strip1, RUMBLE_STRIP1, sizeof(b->rumble_strip1)) != 0 || memcmp(b->rumble_strip2, RUMBLE_STRIP2, sizeof(b->rumble_strip2)) != 0)
+    {
+        rxServerLogRaw(rxLL_NOTICE, "Rumble in the Jungle");
+    }
+    b->marked_for_deletion = 722765;
+
+    rxRaxFree(b->keyset);
+    rxMemFree(b->keyset);
+    return NULL;
+}
+
 bool FaBlok::HasKeySet()
 {
     return raxSize(this->keyset) > 0;
 }
-
-rax *FaBlok::FaBlokRegistry = raxNew();
 
 UCHAR FaBlok::ValueType()
 {
@@ -282,10 +316,10 @@ UCHAR FaBlok::ValueType()
     return this->value_type;
 }
 
-void FaBlok::pushIndexEntries(redisReply *reply)
+int FaBlok::pushIndexEntries(redisReply *reply)
 {
     if (!reply)
-        return;
+        return C_ERR;
     if (reply->type == REDIS_REPLY_ARRAY)
     {
         this->ValueType(KeysetDescriptor_TYPE_KEYSET);
@@ -297,15 +331,16 @@ void FaBlok::pushIndexEntries(redisReply *reply)
             redisReply *row = reply->element[j];
             redisReply *item = row->element[0];
             double score = (row->elements > 1) ? atof(row->element[1]->str) : 1.0;
-            rxString index_entry = rxStringNew(item->str);
-
-            rxIndexEntry *ie = rxIndexEntry::New(index_entry, score);
-            void *o = rxCreateObject(rxOBJ_INDEX_ENTRY, ie);
+            void *o = rxIndexEntry::NewAsRobj(item->str, score);
+            auto *ie = (rxIndexEntry *)rxGetContainedObject(o);
             this->InsertKey((UCHAR *)ie->key, strlen(ie->key), o);
         }
         this->size = raxSize(this->keyset);
+        freeReplyObject(reply);
+        return C_OK;
     }
     freeReplyObject(reply);
+    return C_ERR;
 }
 
 rxString FaBlok::AsSds()
@@ -319,7 +354,8 @@ rxString FaBlok::AsSds()
 
 int FaBlok::FetchKeySet(redisNodeInfo *serviceConfig, const char *rh)
 {
-    redisContext *index_context = RedisClientPool<redisContext>::Acquire(serviceConfig->host_reference);
+    int rc = C_ERR;
+    redisContext *index_context = RedisClientPool<redisContext>::Acquire(serviceConfig->host_reference, "_CLIENT", "FaBlok::FetchKeySet");
     if (!index_context)
         return C_ERR;
     long long start = ustime();
@@ -342,20 +378,20 @@ int FaBlok::FetchKeySet(redisNodeInfo *serviceConfig, const char *rh)
         }
         rxStringFreeSplitRes(parts, segments);
         this->latency = ustime() - start;
-        this->pushIndexEntries(rcc);
+        rc = this->pushIndexEntries(rcc);
     }
     catch (...)
     {
         rxServerLog(rxLL_NOTICE, "#550#RXFETCH %s\n", rh);
         rxServerLog(rxLL_NOTICE, "#............ FetchKeyset ... %lld ... \n", this->latency);
     }
-    RedisClientPool<redisContext>::Release(index_context);
-    return C_OK;
+    RedisClientPool<redisContext>::Release(index_context, "FaBlok::FetchKeySet");
+    return rc;
 }
 
 int FaBlok::FetchKeySet(redisNodeInfo *serviceConfig, const char *lh, const char *rh, rxString cmp)
 {
-    auto *index_context = RedisClientPool<redisContext>::Acquire(serviceConfig->host_reference);
+    auto *index_context = RedisClientPool<redisContext>::Acquire(serviceConfig->host_reference, "_CLIENT", "FaBlok::FetchKeySet2");
     if (index_context == NULL)
         return C_OK;
     if (index_context == NULL)
@@ -375,9 +411,9 @@ int FaBlok::FetchKeySet(redisNodeInfo *serviceConfig, const char *lh, const char
         rcc = (redisReply *)redisCommand(index_context, "RXFETCH %s", rh);
     }
     this->latency = ustime() - start;
-    this->pushIndexEntries(rcc);
-    RedisClientPool<redisContext>::Release(index_context);
-    return C_OK;
+    int rc = this->pushIndexEntries(rcc);
+    RedisClientPool<redisContext>::Release(index_context, "FaBlok::FetchKeySet2");
+    return rc;
 }
 
 void FreeFaBlok(void *o)
@@ -405,12 +441,13 @@ void FreeFaBlokConditionally(void *o)
 
 void FaBlok::ClearCache()
 {
-    rax *r = FaBlok::Get_FaBlok_Registry();
-    if (raxSize(r) > 0){
-        raxFreeWithCallback(r, FreeFaBlokConditionally);
-        if (raxSize(r) == 0)
-            FaBlok::Free_Thread_Registry();
-    }
+    // TODO: Cache Management
+    //  rax *r = FaBlok::Get_FaBlok_Registry();
+    //  if (raxSize(r) > 0){
+    //      raxFreeWithCallback(r, FreeFaBlokConditionally);
+    //      if (raxSize(r) == 0)
+    //          FaBlok::Free_Thread_Registry();
+    //  }
 }
 
 bool FaBlok::IsParameterList()
@@ -435,17 +472,16 @@ FaBlok *FaBlok::Copy(rxString set_name, int value_type, RaxCopyCallProc *fnCallb
     out->AsTemp();
     if (out->HasKeySet())
     {
-        rxRaxFree(this->keyset);
+        // TODO: delete all standing entries
+        // rxRaxFree(this->keyset);
+       // rxServerLog(rxLL_NOTICE, "FaBlok::Copy Purge before copy fab=%p ks=%p for %s", this, this->keyset, this->setname);
     }
 
-    if (raxFind(FaBlok::Get_FaBlok_Registry(), (UCHAR *)set_name, strlen(set_name)) == raxNotFound)
-    {
-        rax *r = FaBlok::Get_FaBlok_Registry();
-        raxInsert(r, (UCHAR *)out->setname, strlen(out->setname), out, NULL);
-    }
+    FaBlok::Cache(out);
 
     if (this->HasKeySet())
     {
+       // rxServerLog(rxLL_NOTICE, "FaBlok::Copy fab=%p ks=%p for %s", this, this->keyset, this->setname);
         raxIterator ri;
         raxStart(&ri, this->keyset);
         raxSeek(&ri, "^", NULL, 0);
@@ -496,10 +532,12 @@ int FaBlok::MergeInto(FaBlok *out)
             out->InsertKey(riIn.key, riIn.key_len, riIn.data);
             ++c;
         }
-        else{
-            if(rxGetObjectType(riIn.data) == rxOBJ_INDEX_ENTRY && rxGetObjectType(riIn.data) == rxGetObjectType(riOut.data) ){
-                rxIndexEntry *in = (rxIndexEntry *)rxGetContainedObject(riIn.data) ;
-                rxIndexEntry *out = (rxIndexEntry *)rxGetContainedObject(riOut.data) ;
+        else
+        {
+            if (rxGetObjectType(riIn.data) == rxOBJ_INDEX_ENTRY && rxGetObjectType(riIn.data) == rxGetObjectType(riOut.data))
+            {
+                rxIndexEntry *in = (rxIndexEntry *)rxGetContainedObject(riIn.data);
+                rxIndexEntry *out = (rxIndexEntry *)rxGetContainedObject(riOut.data);
                 out->key_score += in->key_score;
             }
             raxPrev(&riOut);
@@ -523,12 +561,12 @@ void FaBlok::PushResult(GraphStack<FaBlok> *stack)
 FaBlok *FaBlok::Open()
 {
     this->start = ustime();
-    if (this->marked_for_deletion == 2069722765)
+    if (this->marked_for_deletion == 722765)
     {
         rxServerLog(rxLL_NOTICE, "Opening a deleted FABLOK!  for %s fab: reused:%ld sz: %lu    \n",
-               this->setname,
-               this->reuse_count,
-               this->size);
+                    this->setname,
+                    this->reuse_count,
+                    this->size);
     }
     this->IsValid();
     return this;
@@ -560,9 +598,10 @@ int FaBlok::MergeFrom(FaBlok *left, FaBlok *right)
     {
         if (raxCompare(&riRight, "==", riLeft.key, riLeft.key_len) == 1)
         {
-            if(rxGetObjectType(riLeft.data) == rxOBJ_INDEX_ENTRY && rxGetObjectType(riLeft.data) == rxGetObjectType(riRight.data) ){
-                rxIndexEntry *left = (rxIndexEntry *)rxGetContainedObject(riLeft.data) ;
-                rxIndexEntry *right = (rxIndexEntry *)rxGetContainedObject(riRight.data) ;
+            if (rxGetObjectType(riLeft.data) == rxOBJ_INDEX_ENTRY && rxGetObjectType(riLeft.data) == rxGetObjectType(riRight.data))
+            {
+                rxIndexEntry *left = (rxIndexEntry *)rxGetContainedObject(riLeft.data);
+                rxIndexEntry *right = (rxIndexEntry *)rxGetContainedObject(riRight.data);
                 left->key_score += right->key_score;
             }
             this->InsertKey(riLeft.key, riLeft.key_len, riLeft.data);
@@ -670,16 +709,20 @@ void FaBlok::AddKey(const char *key, void *obj)
 
 void FaBlok::InsertKey(const char *key, void *obj)
 {
+    //rxServerLog(rxLL_NOTICE, "FaBlok::InsertKey setname:%s key:%s obj:%p", this->setname, key, obj);
     void *old = raxFind(this->keyset, (UCHAR *)key, strlen(key));
     if (old != raxNotFound)
+    {
+        //rxServerLog(rxLL_NOTICE, "FaBlok::InsertKey FOUND setname:%s key:%s obj:%p", this->setname, key, obj);
         return;
-
+    }
     old = NULL;
     if (rxGetObjectType(obj) == rxOBJ_TRIPLET)
     {
         auto *g = (Graph_Triplet *)rxGetContainedObject(obj);
         g->IncrRefCnt();
     }
+    //rxServerLog(rxLL_NOTICE, "FaBlok::InsertKey fab=%p ks=%p for %s key:%s", this, this->keyset, this->setname, key);
     raxInsert(this->keyset, (UCHAR *)key, strlen(key), obj, &old);
 }
 
@@ -691,6 +734,7 @@ void FaBlok::InsertKey(unsigned char *s, size_t len, void *obj)
         auto *g = (Graph_Triplet *)rxGetContainedObject(obj);
         g->IncrRefCnt();
     }
+    //rxServerLog(rxLL_NOTICE, "FaBlok::InsertKey from string fab=%p ks=%p for %s key:%s", this, this->keyset, this->setname, key);
     this->InsertKey(key, obj);
     rxStringFree(key);
 }
@@ -698,6 +742,7 @@ void FaBlok::InsertKey(unsigned char *s, size_t len, void *obj)
 void *FaBlok::RemoveKey(const char *key)
 {
     void *old;
+   // rxServerLog(rxLL_NOTICE, "FaBlok::RemoveKey fab=%p ks=%p for %s key:%s", this, this->keyset, this->setname, key);
     raxRemove(this->keyset, (UCHAR *)key, strlen(key), &old);
     return old;
 }
@@ -705,6 +750,7 @@ void *FaBlok::RemoveKey(const char *key)
 void *FaBlok::RemoveKey(unsigned char *s, size_t len)
 {
     rxString key = rxStringNewLen((const char *)s, len);
+   // rxServerLog(rxLL_NOTICE, "FaBlok::RemoveKey bytes fab=%p ks=%p for %s key:%s", this, this->keyset, this->setname, key);
     void *old = this->RemoveKey(key);
     rxStringFree(key);
     return old;
@@ -712,9 +758,11 @@ void *FaBlok::RemoveKey(unsigned char *s, size_t len)
 
 void *FaBlok::LookupKey(const char *key)
 {
+   // rxServerLog(rxLL_NOTICE, "FaBlok::LookupKey fab=%p ks=%p for %s key:%s", this, this->keyset, this->setname, key);
     void *m = raxFind(this->keyset, (UCHAR *)key, strlen(key));
     if (m == raxNotFound)
         return NULL;
+   // rxServerLog(rxLL_NOTICE, "FaBlok::LookupKey FOUNDfab=%p ks=%p for %s key:%s", this, this->keyset, this->setname, key);
     return m;
 }
 

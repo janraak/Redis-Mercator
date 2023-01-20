@@ -67,7 +67,7 @@ SilNikParowy_Kontekst::SilNikParowy_Kontekst()
 
 void SilNikParowy_Kontekst::RetainResult()
 {
-    this->can_delete_result = 2069722765;
+    this->can_delete_result = 722765;
 }
 
 bool SilNikParowy_Kontekst::CanDeleteResult()
@@ -90,7 +90,7 @@ SilNikParowy_Kontekst::SilNikParowy_Kontekst(redisNodeInfo* server, RedisModuleC
 SilNikParowy_Kontekst::~SilNikParowy_Kontekst()
 {
     if(this->memoization == NULL)
-        printf("this->Memoization == NULL\n");
+        rxServerLog(rxLL_NOTICE, "this->Memoization == NULL\n");
     FaBlok::DeleteAllTempDescriptors();
     raxFree(this->memoization);
     this->memoization = NULL;

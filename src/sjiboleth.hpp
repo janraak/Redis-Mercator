@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "rxSuite.h"
+#include "rxSuiteHelpers.h"
 #include "sjiboleth.h"
 
 #include "graphstack.hpp"
@@ -246,7 +247,7 @@ public:
     rxIndexEntry *Init(char *key, char *key_type, double key_score)
     {
         this->key = key;
-        this->key_type = *key_type;
+        this->key_type = key_type ? *key_type : '?';
         this->key_score = key_score;
         this->obj = NULL;
         return this;
@@ -257,6 +258,21 @@ public:
         this->Init(key, key_type, key_score);
         this->obj = obj;
         return this;
+    }
+
+    static void *NewAsRobj(const char *entry, double key_score)
+    {
+        int entry_len = strlen(entry);
+        void *o = rxMemAlloc(sizeof(rxIndexEntry) + entry_len + 2 + rxSizeofRobj());
+
+        void *ie = o + rxSizeofRobj();
+
+        char *key = (char *)(ie + sizeof(rxIndexEntry));
+        strcpy(key, entry);
+        char *tab = strchr((char *)key, '\t');
+        *tab = 0x00;
+        ((rxIndexEntry *)ie)->Init(key, tab +1, key_score);
+        return rxInitObject(o, rxOBJ_INDEX_ENTRY, ie);
     }
 
     static rxIndexEntry *New(const char *entry, double key_score)
@@ -275,8 +291,13 @@ public:
         char *key = (char *)(ie +  sizeof(rxIndexEntry));
         strncpy(key, entry, len);
         char *tab = strchr((char *)key, '\t');
-        *tab = 0x00;
-        return ((rxIndexEntry *)ie)->Init(key, tab +1, key_score, obj);
+        if(tab)
+           { *tab = 0x00;
+               ++tab;
+           }
+        else
+            *(key + len) = 0x00;
+        return ((rxIndexEntry *)ie)->Init(key, tab, key_score, obj);
     }
 
     void Write(RedisModuleCtx * ctx){
@@ -286,7 +307,9 @@ public:
         RedisModule_ReplyWithStringBuffer(ctx, "type", 4);
         RedisModule_ReplyWithStringBuffer(ctx, &this->key_type, 1);
         RedisModule_ReplyWithStringBuffer(ctx, "score", 5);
-        RedisModule_ReplyWithDouble(ctx, this->key_score);
+        char sc[32];
+        snprintf(sc, sizeof(sc), "%f", this->key_score);
+        RedisModule_ReplyWithSimpleString(ctx, sc);
     }
 };
 #endif

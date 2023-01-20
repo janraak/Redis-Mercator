@@ -102,6 +102,7 @@ extern "C"
 
     short rxGetObjectType(void *o);
     void *rxCreateObject(int type, void *ptr);
+    void *rxInitObject(void *oO, int type, void *ptr);
     void *rxCreateStringObject(const char *ptr, size_t len);
     void *rxCreateHashObject(void);
     int rxHashTypeGetValue(void *o, const char *field, unsigned char **vstr, POINTER *vlen, long long *vll);
@@ -123,6 +124,7 @@ extern "C"
     void rxFreeHashObject(void *o);
     void rxFreeObject(void *o);
     void *rxGetContainedObject(void *o);
+    int rxGetRefcount(void *o);
     rax *rxSetToRax(void *obj);
 
     long long rxCreateTimeEvent(long long milliseconds,
@@ -174,6 +176,11 @@ extern "C"
         size_t blocked_clients;
         size_t tracking_clients;
         size_t clients_in_timeout_table;
+        size_t total_keys;
+        size_t bytes_per_key;
+        double dataset_perc;
+        double peak_perc;
+        double total_frag;
     } rxClientInfo;
 
     rxClientInfo rxGetClientInfo();

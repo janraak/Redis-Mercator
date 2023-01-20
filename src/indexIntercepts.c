@@ -32,6 +32,10 @@ extern void *rxStashCommand2(SimpleQueue *ctx, const char *command, int argt, in
 
 extern struct redisServer server;
 
+indexerCallBack *pre_op_indexer_callback = NULL;
+indexerCallBack *post_op_indexer_callback = NULL;
+
+static int __interceptors_installed = NULL;
 redisCommandProc **standard_command_procs = NULL;
 
 void setCommandIntercept(client *c);
@@ -56,36 +60,36 @@ void selectCommandIntercept(client *c);
 void xaddCommandIntercept(client *c);
 void xdelCommandIntercept(client *c);
 void touchCommandIntercept(client *c);
+void flushdbCommandIntercept(client *c);
+void flushallCommandIntercept(client *c);
 
 #if REDIS_VERSION_NUM < 0x00060200
-    #define INIT_CMD_STATS 0, 0
-#else 
-    #define INIT_CMD_STATS 0, 0, 0, 0
+#define INIT_CMD_STATS 0, 0
+#else
+#define INIT_CMD_STATS 0, 0, 0, 0
 #endif
-struct redisCommandInterceptRule{
-    char *name;
-    redisCommandProc *proc;
-    int id;     /* Command ID. This is a progressive ID starting from 0 that
-                   is assigned at runtime, and is used in order to check
-                   ACLs. A connection is able to execute a given command if
-                   the user associated to the connection has this command
-                   bit set in the bitmap of allowed commands. */
-};
 
+
+typedef struct interceptions{
+    struct __interceptions *next;
+    struct redisCommandInterceptRule **rules;
+    redisCommandProc **standard_command_procs;
+    rax *index;
+}interceptions;
 
 struct redisCommandInterceptRule interceptorCommandTable[] = {
 /* Note that we can't flag set as fast, since it may perform an
  * implicit DEL of a large key. */
 #define SET_INTERCEPT 0
-    {"set", setCommandIntercept, 0} ,
+    {"set", setCommandIntercept, 0},
 #define SETNX_INTERCEPT 1
-    {"setnx", setnxCommandIntercept, 0},
+    {"setnx", setCommandIntercept, 0},
 #define SETEX_INTERCEPT 2
     {"setex", setexCommandIntercept, 0},
 #define PSETEX_INTERCEPT 3
     {"psetex", psetexCommandIntercept, 0},
 #define APPEND_INTERCEPT 4
-    {"append", appendCommandIntercept, 0},
+    {"append", setCommandIntercept, 0},
 #define DEL_INTERCEPT 5
     {"del", delCommandIntercept, 0},
 #define HSET_INTERCEPT 6
@@ -111,13 +115,13 @@ struct redisCommandInterceptRule interceptorCommandTable[] = {
 #define RENAMENX_INTERCEPT 15
     {"renamenx", renamenxCommandIntercept, 0},
 #define FLUSHALL_INTERCEPT 16
-    {"NOflushdb", genericCommandIntercept, 0},
+    {"flushdb", flushdbCommandIntercept, 0},
 #define FLUSHDB_INTERCEPT 17
-    {"NOflushall", genericCommandIntercept, 0},
+    {"flushall", flushallCommandIntercept, 0},
 #define BGSAVE_INTERCEPT 18
     {"NObgsave", genericCommandIntercept, 0},
 #define INFO_INTERCEPT 19
-    {"info", infoCommandIntercept, 0},
+    {"noinfo", infoCommandIntercept, 0},
 #define SELECT_INTERCEPT 20
     {"select", selectCommandIntercept, 0},
 #define SWAPDB_INTERCEPT 21
@@ -128,6 +132,15 @@ struct redisCommandInterceptRule interceptorCommandTable[] = {
     {"xdel", xdelCommandIntercept, 0},
 #define TOUCH_INTERCEPT 24
     {"NOtouch", touchCommandIntercept, 0}};
+
+
+void *getIndexInterceptRules(){
+    return interceptorCommandTable;
+}
+
+void *getTriggerInterceptRules(){
+    return NULL;
+}
 
 void freeIndexingRequest(void *kfv)
 {
@@ -153,13 +166,18 @@ void freeCompletedRequests()
 
 void enqueueWriteCommand(client *c)
 {
+    if (!__interceptors_installed)
+        return;
+
     rxStashCommand2(index_info.key_indexing_request_queue, NULL, 2, c->argc, (void **)c->argv);
     freeCompletedRequests();
 }
+
 void setCommandIntercept(client *c)
 {
     // SET key value
 
+    //rxServerLog(rxLL_NOTICE, "Intercepted %s for %s with %s", (char *)c->argv[0]->ptr, (char *)c->argv[1]->ptr, (char *)c->argv[2]->ptr);
     index_info.set_tally++;
     redisCommandProc *standard_command_proc = standard_command_procs[SET_INTERCEPT];
     enqueueWriteCommand(c);
@@ -320,27 +338,62 @@ void infoCommandIntercept(client *c)
     standard_command_proc(c);
 }
 
-static int no_of_intercepts = 0;
-void installIndexerInterceptors()
+void flushdbCommandIntercept(client *c)
 {
+    if (pre_op_indexer_callback != NULL)
+        pre_op_indexer_callback(c);
+    redisCommandProc *standard_command_proc = standard_command_procs[FLUSHDB_INTERCEPT];
+    standard_command_proc(c);
+    if (post_op_indexer_callback != NULL)
+        post_op_indexer_callback(c);
+}
+
+void flushallCommandIntercept(client *c)
+{
+    if (pre_op_indexer_callback != NULL)
+        pre_op_indexer_callback(c);
+    redisCommandProc *standard_command_proc = standard_command_procs[FLUSHALL_INTERCEPT];
+    rxServerLog(LL_NOTICE, "About to flush all data");
+    standard_command_proc(c);
+    rxServerLog(LL_NOTICE, "All data flushed");
+    if (post_op_indexer_callback != NULL)
+        post_op_indexer_callback(c);
+}
+
+static int no_of_intercepts = 0;
+void installIndexerInterceptors(indexerCallBack *pre_op, indexerCallBack *post_op)
+{
+    __interceptors_installed = 1;
+    if (standard_command_procs != NULL)
+        return;
+    pre_op_indexer_callback = pre_op;
+    post_op_indexer_callback = post_op;
+
     no_of_intercepts = sizeof(interceptorCommandTable) / sizeof(struct redisCommandInterceptRule);
     standard_command_procs = rxMemAlloc(sizeof(redisCommandProc *) * no_of_intercepts);
-    for (unsigned int j = 0; j < no_of_intercepts; ++j)
+    for (int j = 0; j < no_of_intercepts; ++j)
     {
         struct redisCommand *cmd = lookupCommandByCString(interceptorCommandTable[j].name);
         if (cmd)
         {
-            interceptorCommandTable[j].id = cmd->id;
-            standard_command_procs[j] = cmd->proc;
-            cmd->proc = interceptorCommandTable[j].proc;
+            if (cmd->proc != interceptorCommandTable[j].proc)
+            {
+                interceptorCommandTable[j].id = cmd->id;
+                standard_command_procs[j] = cmd->proc;
+                cmd->proc = interceptorCommandTable[j].proc;
+            }
         }
     }
 }
 
 void uninstallIndexerInterceptors()
 {
+    __interceptors_installed = NULL;
+    return;
+    if (standard_command_procs == NULL)
+        return;
     // Restore original command processors
-    for (unsigned int j = 0; j < no_of_intercepts; ++j)
+    for (int j = 0; j < no_of_intercepts; ++j)
     {
         struct redisCommand *cmd = lookupCommandByCString(interceptorCommandTable[j].name);
         if (cmd)
@@ -350,4 +403,5 @@ void uninstallIndexerInterceptors()
         }
     }
     rxMemFree(standard_command_procs);
+    standard_command_procs = NULL;
 }

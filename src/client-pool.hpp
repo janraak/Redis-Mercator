@@ -42,9 +42,9 @@ public:
     T *NewInstance();
     int Grow();
 
-    static T *Acquire(const char *host_reference);
+    static T *Acquire(const char *host_reference, const char *suffix, const char */*caller*/);
 
-    static void Release(T *client);
+    static void Release(T *client, const char */*caller*/);
 };
 
 #endif

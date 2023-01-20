@@ -454,11 +454,11 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         return REDISMODULE_ERR;
 
     redisNodeInfo *index_config = rxIndexNode();
-    auto *c = (struct client *)RedisClientPool<struct client>::Acquire(index_config->host_reference);
-    RedisClientPool<struct client>::Release(c);
+    auto *c = (struct client *)RedisClientPool<struct client>::Acquire(index_config->host_reference, "_FAKE", RX_QUERY);
+    RedisClientPool<struct client>::Release(c, RX_QUERY);
     redisNodeInfo *data_config = rxDataNode();
-    c = (struct client *)RedisClientPool<struct client>::Acquire(data_config->host_reference);
-    RedisClientPool<struct client>::Release(c);
+    c = (struct client *)RedisClientPool<struct client>::Acquire(data_config->host_reference, "_CLIENT", RX_QUERY);
+    RedisClientPool<struct client>::Release(c, RX_QUERY);
     rxServerLog(rxLL_NOTICE, "OnLoad rxQuery. Done!");
     return REDISMODULE_OK;
 }

@@ -5,19 +5,19 @@
 #define FIELD_AND_VALUE_ONLY 3
 #define FIELD_OP_VALUE 4
 
+#include "client-pool.hpp"
 #include "command-multiplexer.hpp"
+#include "graphstackentry.hpp"
 #include "simpleQueue.hpp"
 #include "sjiboleth.hpp"
-#include "client-pool.hpp"
-#include "graphstackentry.hpp"
 
 #ifdef __cplusplus
 extern "C"
 {
 #endif
 
-#include "string.h"
 #include "sdsWrapper.h"
+#include "string.h"
 #include <fcntl.h>
 #include <iostream>
 #include <sys/stat.h>
@@ -114,11 +114,11 @@ static rxString extractRowForStringKey(char *row_start, char *row_end, char *hdr
         }
         rxString f = (hdr_start != NULL) ? rxStringNewLen(hdr_start, f_tab - hdr_start) : rxStringEmpty();
         int enclosure = 0;
-        if(*row_start == '"' && *(v_tab - 1) == '"'){
+        if (*row_start == '"' && *(v_tab - 1) == '"')
+        {
             enclosure = 1;
-
         }
-        rxString v = rxStringNewLen(row_start + enclosure, (v_tab - enclosure) - (row_start+enclosure));
+        rxString v = rxStringNewLen(row_start + enclosure, (v_tab - enclosure) - (row_start + enclosure));
 
         if (hdr_start == NULL)
             value = rxStringFormat(format, value, v);
@@ -148,12 +148,17 @@ static void *extractRowAsJson(SimpleQueue *req_q, char *row_start, char *row_end
     hdr_start = f_tab + strlen(column_separator);
     row_start = v_tab + strlen(column_separator);
     rxString value = extractRowForStringKey(row_start, row_end, hdr_start, hdr_end, column_separator, "%s\"%s\":\"%s\",");
+    int l = strlen(value);
+    *((char *)value + l - 1) = 0x00;
     value = rxStringFormat("{%s}", value);
     if (value != NULL)
     {
-        void *args[] = {(void *)key, (void *)value};
-        rxStashCommand2(req_q, "SETNX", STASH_STRING, 2, args);
-        rxStringFree(value);
+        redisNodeInfo *data_config = rxDataNode();
+        auto *client = RedisClientPool<redisContext>::Acquire(data_config->host_reference, "_CLIENT", "extractRowAsString");
+        auto *rcc = (redisReply *)redisCommand(client, "SET %s %s", key, value);
+        if (rcc != NULL)
+            freeReplyObject(rcc);
+        RedisClientPool<redisContext>::Release(client, "extractRowAsString");
     }
     rxStringFree(key);
     return NULL;
@@ -199,23 +204,113 @@ static void *extractRowAsHash(SimpleQueue *req_q, char *row_start, char *row_end
         }
         rxString f = rxStringNewLen(hdr_start, f_tab - hdr_start);
         int enclosure = 0;
-        if(*row_start == '"' && *(v_tab - 1) == '"'){
+        if (*row_start == '"' && *(v_tab - 1) == '"')
+        {
             enclosure = 1;
-
         }
-        rxString v = rxStringNewLen(row_start + enclosure, (v_tab - enclosure) - (row_start+enclosure));
+        rxString v = rxStringNewLen(row_start + enclosure, (v_tab - enclosure) - (row_start + enclosure));
 
         if (strlen(f) == 0)
-            f = rxStringNew("any");
+            f = "any";
 
         if (strlen(v) > 0)
         {
-            void *args[] = {(void *)key, (void *)f, (void *)v};
-            rxStashCommand2(req_q, WREDIS_CMD_HSET, STASH_STRING, 3, args);
+            redisNodeInfo *data_config = rxDataNode();
+            auto *client = RedisClientPool<redisContext>::Acquire(data_config->host_reference, "_CLIENT", "extractRowAsString");
+            auto *rcc = (redisReply *)redisCommand(client, "HSET %s %s %s", key, f, v);
+            if (rcc != NULL)
+                freeReplyObject(rcc);
+            RedisClientPool<redisContext>::Release(client, "extractRowAsString");
         }
 
-        rxStringFree(f);
+        if (f != "any")
+            rxStringFree(f);
         rxStringFree(v);
+        hdr_start = f_tab + strlen(column_separator);
+        row_start = v_tab + strlen(column_separator);
+    }
+    rxStringFree(key);
+    return NULL;
+}
+
+static void *extractRowAsAppend(SimpleQueue *req_q, char *row_start, char *row_end, char *hdr_start, char *hdr_end, char *column_separator)
+{
+
+    char *f_tab = strstr(hdr_start, column_separator);
+    char *v_tab = strstr(row_start, column_separator);
+    if (v_tab == NULL)
+        return NULL;
+    rxString key = rxStringNewLen(row_start, v_tab - row_start);
+    if (strlen(key) == 0)
+        return NULL;
+
+    redisNodeInfo *data_config = rxDataNode();
+    auto *client = RedisClientPool<redisContext>::Acquire(data_config->host_reference, "_CLIENT", "extractRowAsString");
+    auto *rcc = (redisReply *)redisCommand(client, "KEY %s %s", key, "");
+    if (rcc != NULL)
+        freeReplyObject(rcc);
+    RedisClientPool<redisContext>::Release(client, "extractRowAsString");
+
+    hdr_start = f_tab + strlen(column_separator);
+    row_start = v_tab + strlen(column_separator);
+    bool done = false;
+    while (done == false)
+    {
+        f_tab = strstr(hdr_start, column_separator);
+        if (f_tab > hdr_end)
+        {
+            f_tab = hdr_end;
+            done = true;
+        }
+        else if (f_tab == NULL)
+        {
+            f_tab = strchr(hdr_start, 0x00);
+            done = true;
+        }
+        v_tab = strstr(row_start, column_separator);
+        if (v_tab > row_end)
+        {
+            v_tab = row_end;
+            done = true;
+        }
+        else if (v_tab == NULL)
+        {
+            v_tab = strchr(row_start, 0x00);
+            done = true;
+        }
+        int f_len = f_tab - hdr_start;
+        int enclosure = 0;
+        if (*row_start == '"' && *(v_tab - 1) == '"')
+        {
+            enclosure = 1;
+        }
+        int v_len = (v_tab - enclosure) - (row_start + enclosure);
+
+        char *arg = (char *)rxMemAlloc(f_len + 1 + v_len + 1);
+        if (f_len > 0)
+        {
+            strncpy(arg, hdr_start, f_len);
+            arg[f_len] = ':';
+            strncpy(arg + f_len + 1, row_start + enclosure, v_len);
+            arg[f_len + 1 + v_len] = 0x00;
+        }
+        else
+        {
+            strncpy(arg, row_start + enclosure, v_len);
+            arg[v_len] = 0x00;
+        }
+
+        if (v_len > 0)
+        {
+            redisNodeInfo *data_config = rxDataNode();
+            auto *client = RedisClientPool<redisContext>::Acquire(data_config->host_reference, "_CLIENT", "extractRowAsString");
+            auto *rcc = (redisReply *)redisCommand(client, "APPEND %s %s", key, arg);
+            if (rcc != NULL)
+                freeReplyObject(rcc);
+            RedisClientPool<redisContext>::Release(client, "extractRowAsString");
+        }
+
+        rxMemFree(arg);
         hdr_start = f_tab + strlen(column_separator);
         row_start = v_tab + strlen(column_separator);
     }
@@ -242,9 +337,12 @@ static void *extractRowAsText(SimpleQueue *req_q, char *row_start, char *row_end
     rxString value = extractRowForStringKey(row_start, row_end, hdr_start, hdr_end, column_separator, "%s%s:%s;");
     if (value != NULL)
     {
-        void *args[] = {(void *)key, (void *)value};
-        rxStashCommand2(req_q, "SETNX", STASH_STRING, 2, args);
-        rxStringFree(value);
+        redisNodeInfo *data_config = rxDataNode();
+        auto *client = RedisClientPool<redisContext>::Acquire(data_config->host_reference, "_CLIENT", "extractRowAsString");
+        auto *rcc = (redisReply *)redisCommand(client, "SET %s %s", key, value);
+        if (rcc != NULL)
+            freeReplyObject(rcc);
+        RedisClientPool<redisContext>::Release(client, "extractRowAsString");
     }
     rxStringFree(key);
     return NULL;
@@ -265,8 +363,13 @@ static void *extractRowAsString(SimpleQueue *req_q, char *row_start, char *row_e
     rxString value = extractRowForStringKey(row_start, row_end, NULL, hdr_end, column_separator, "%s%s ");
     if (value != NULL)
     {
-        void *args[] = {(void *)key, (void *)value};
-        rxStashCommand2(req_q, "SETNX", STASH_STRING, 2, args);
+        redisNodeInfo *data_config = rxDataNode();
+        auto *client = RedisClientPool<redisContext>::Acquire(data_config->host_reference, "_CLIENT", "extractRowAsString");
+        auto *rcc = (redisReply *)redisCommand(client, "SET %s %s", key, value);
+        if (rcc != NULL)
+            freeReplyObject(rcc);
+        RedisClientPool<redisContext>::Release(client, "extractRowAsString");
+
         rxStringFree(value);
     }
     rxStringFree(key);
@@ -275,8 +378,8 @@ static void *extractRowAsString(SimpleQueue *req_q, char *row_start, char *row_e
 
 static void *execTextLoadThread(void *ptr)
 {
-    SimpleQueue *command_reponse_queue = new SimpleQueue("execTextLoadThreadRESP");
-    SimpleQueue *command_request_queue = new SimpleQueue("execTextLoadThreadREQ", command_reponse_queue);
+    SimpleQueue *command_reponse_queue = new SimpleQueue("xTxtRESP");
+    SimpleQueue *command_request_queue = new SimpleQueue("xTxtREQ", command_reponse_queue);
     execute_textload_command_cron_id = rxCreateTimeEvent(1, (aeTimeProc *)Execute_Command_Cron, command_request_queue, NULL);
 
     // // TODO: Fix potential memory release problem!
@@ -351,8 +454,6 @@ static void *execTextLoadThread(void *ptr)
             tlob = row_end + strlen(row_separator);
         }
 
-        loader_queue->response_queue->Enqueue(load_entry);
-
         // free stashed redis command on same thread as allocated
         void *stash = command_reponse_queue->Dequeue();
         while (stash != NULL)
@@ -373,6 +474,8 @@ static void *execTextLoadThread(void *ptr)
             stash2 = command_reponse_queue->Dequeue();
         }
     }
+
+    loader_queue->response_queue->Enqueue(load_entry);
     rxDeleteTimeEvent(execute_textload_command_cron_id);
     rxServerLog(rxLL_NOTICE, "rxGraphDb.Load.Text.Load.Text async redis commands stopped");
     return NULL;
@@ -387,8 +490,8 @@ public:
     RxTextLoadMultiplexer(RedisModuleString **argv, int argc)
         : Multiplexer()
     {
-        this->response = new SimpleQueue("RxTextLoadMultiplexerRESP");
-        this->request = new SimpleQueue("RxTextLoadMultiplexerREQ", (void *)execTextLoadThread, 1, this->response);
+        this->response = new SimpleQueue("TxtLdMuxRESP");
+        this->request = new SimpleQueue("TxtLdMuxREQ", (void *)execTextLoadThread, 1, this->response);
         rxStashCommand2(this->request, "", 2, argc, (void **)argv);
     }
 

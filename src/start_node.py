@@ -58,10 +58,10 @@ start0 = ''
 if node_is_local < 0:
     start0 = "ssh {} ".format(host)
 
-os.system("{}rm {}/{}  {}/{} ".format(start0, home, start_script, home, install_script))
-os.system("{}wget -O {}/{} {}/{}".format(start0, home, start_script, cdn, start_script))
+# os.system("{}rm {}/{}  {}/{} ".format(start0, home, start_script, home, install_script))
+os.system("{}wget  --timestamping  -O {}/{} {}/{}".format(start0, home, start_script, cdn, start_script))
 os.system("{}dos2unix {}/{}".format(start0, home, start_script))
-os.system("{}wget -O {}/{} {}/{}".format(start0, home, install_script, cdn, install_script))
+os.system("{}wget  --timestamping  -O {}/{} {}/{}".format(start0, home, install_script, cdn, install_script))
 os.system("{}dos2unix {}/{}".format(start0, home, install_script))
 
 os.system("{}bash  --debug --verbose  {}/{} {} {} {} 4 256 1GB >>{}/data/startup.log 2>>{}/data/startup.log".format(start0, home, start_script, redis_version, host, port, wd, wd))

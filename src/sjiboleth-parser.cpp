@@ -10,7 +10,7 @@ ParserToken *Sjiboleth::FindToken(const char *token, size_t len)
     ParserToken *t = NULL;
         t = (ParserToken *)raxFind(this->registry, (UCHAR *)token, len);
         if (t != raxNotFound)
-            return ParserToken::Copy(t, 2069722764000031);
+            return ParserToken::Copy(t, 722764031);
         return NULL;
 }
 
@@ -24,7 +24,7 @@ ParserToken *Sjiboleth::NewToken(eTokenType token_type, const char *token, size_
         {
             if (t->Priority() == priBreak)
                 return NULL;
-            return ParserToken::Copy(t,2069722764000032);
+            return ParserToken::Copy(t,722764032);
         }
         if(token_type == _operator)
             token_type = _literal;
@@ -576,7 +576,7 @@ ParserToken *Sjiboleth::ScanIdentifier(char *head, char **tail)
     rxStringFree(op);
     if (t != raxNotFound)
     {
-        return ParserToken::Copy(t,2069722764000030);
+        return ParserToken::Copy(t,722764030);
     }
     return NewToken(_operand, head, *tail - head);
 }

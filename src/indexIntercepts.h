@@ -12,9 +12,27 @@ extern "C"
 // #define REDISMODULE_EXPERIMENTAL_API
 // #include "redismodule.h"
 
+typedef void indexerCallBack(void *priv);
 
+typedef void *cmd_interceptions;
 
-void installIndexerInterceptors();
+typedef void rxRedisCommandProc(void *c);
+
+struct redisCommandInterceptRule
+{
+    char *name;
+    rxRedisCommandProc *proc;
+    int id; /* Command ID. This is a progressive ID starting from 0 that
+               is assigned at runtime, and is used in order to check
+               ACLs. A connection is able to execute a given command if
+               the user associated to the connection has this command
+               bit set in the bitmap of allowed commands. */
+};
+
+void *getIndexInterceptRules();
+void *getTriggerInterceptRules();
+
+void installIndexerInterceptors(indexerCallBack *pre_op, indexerCallBack *post_op);
 void uninstallIndexerInterceptors();
 void freeIndexingRequest(void *kfv);
 
@@ -42,4 +60,5 @@ typedef struct indexerThread
     void *executor;
 
 } indexerThread;
+
 #endif

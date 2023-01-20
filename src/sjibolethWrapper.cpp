@@ -32,6 +32,7 @@ const char *OK = "OK";
 
 #define HASHTYPE 'H'
 #define STRINGTYPE 'S'
+#define LISTTYPE 'L'
 
 CSjiboleth *newQueryEngine()
 {
@@ -214,6 +215,8 @@ bool score_comparator(const rxIndexEntry *lhs, const rxIndexEntry *rhs)
     return lhs->key_score > rhs->key_score;
 }
 
+static char type_chars[] = "SLVZH-X------IRT-";
+
 std::vector<rxIndexEntry *> FilterAndSortResults(rax *result, bool ranked, double ranked_lower_bound, double ranked_upper_bound)
 {
     std::vector<rxIndexEntry *> vec;
@@ -238,6 +241,11 @@ std::vector<rxIndexEntry *> FilterAndSortResults(rax *result, bool ranked, doubl
             {
                 ro = t;
             }
+        }else{
+            ro = rxIndexEntry::New((const char *)resultsIterator.key, resultsIterator.key_len, 1.0, NULL);
+            ro->key_type = type_chars[rxGetObjectType(o)];
+            // ro->obj = o;
+            ranked = false; // Traversal objects are not sorted!
         }
         if (ro != NULL)
             vec.push_back(ro);
@@ -267,22 +275,23 @@ int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *,
             r->Write(ctx);
         else
         {
-            rxString k = rxString(r->key);
+            // rxString k = rxString(r->key);
 
-            r->obj = rxFindKey(0, k);
-            rxStringFree(k);
-            if(r->obj == NULL){
-                RedisModule_ReplyWithArray(ctx, 4);
-                RedisModule_ReplyWithSimpleString(ctx, "key");
-                RedisModule_ReplyWithSimpleString(ctx, r->key);
-                RedisModule_ReplyWithSimpleString(ctx, "status");
-                RedisModule_ReplyWithSimpleString(ctx, "Missing/Deleted");
-            }else{
+            // r->obj = rxFindKey(0, k);
+            // if(r->obj == NULL){
+            //     RedisModule_ReplyWithArray(ctx, 4);
+            //     RedisModule_ReplyWithSimpleString(ctx, "key");
+            //     RedisModule_ReplyWithSimpleString(ctx, r->key);
+            //     RedisModule_ReplyWithSimpleString(ctx, "status");
+            //     RedisModule_ReplyWithSimpleString(ctx, "Missing/Deleted");
+            // }else{
                 RedisModule_ReplyWithArray(ctx, 6);
                 RedisModule_ReplyWithSimpleString(ctx, "key");
                 RedisModule_ReplyWithSimpleString(ctx, r->key);
                 RedisModule_ReplyWithSimpleString(ctx, "score");
-                RedisModule_ReplyWithDouble(ctx, r->key_score);
+                char sc[32];
+                snprintf(sc, sizeof(sc), "%f", r->key_score);
+                RedisModule_ReplyWithSimpleString(ctx, sc);
                 rxString e;
                 switch (r->key_type)
                 {
@@ -292,17 +301,24 @@ int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *,
                 case STRINGTYPE:
                     reply = RedisModule_Call(ctx, REDIS_CMD_GET, "c", (char *)r->key);
                     break;
+                case LISTTYPE:
+                    reply = RedisModule_Call(ctx, "LRANGE", "ccc", (char *)r->key, (char *)"0", (char *)"100");
+                    break;
                 default:
+                    continue;
                     e = rxStringFormat("%c: Unsupported key type found: %s!", r->key_type, r->key);
                     RedisModule_ReplyWithSimpleString(ctx, e);
                     rxStringFree(e);
+                    reply = NULL;
                     // return RedisModule_ReplyWithError(ctx, "Unsupported key type found!");
                 }
-                RedisModule_ReplyWithSimpleString(ctx, "value");
-                RedisModule_ReplyWithCallReply(ctx, reply);
+                if(reply){
+                    RedisModule_ReplyWithSimpleString(ctx, "value");
+                    RedisModule_ReplyWithCallReply(ctx, reply);
+                }
                 if (reply)
                     RedisModule_FreeCallReply(reply);
-            }
+            // }
         }
     }
     return 0;
@@ -336,7 +352,7 @@ bool HasParkedToken(CParsedExpression *pO, const char *token)
 CParserToken *CopyParserToken(CParserToken *tO)
 {
     ParserToken *t = (ParserToken *)tO;
-    return t->Copy(2069722764000001);
+    return t->Copy(722764001);
 }
 
 void SetParserTokenType(ParserToken *tO, eTokenType tt)

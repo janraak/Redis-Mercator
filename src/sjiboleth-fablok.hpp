@@ -54,13 +54,15 @@ class SilNikParowy;
 class FaBlok
 {
 public:
-    static rax *FaBlokRegistry;
-    void pushIndexEntries(redisReply *reply);
+    int pushIndexEntries(redisReply *reply);
 
     UCHAR value_type;
 public:
       static  rax *Get_FaBlok_Registry();
       static void Free_Thread_Registry();
+      static void Cache(FaBlok *b);
+      static void Uncache(const char *sn);
+      static void Uncache(FaBlok *b);
       /*
           Since  expression are parsed into Reversed Polish Notation
           the moving parts for the expression execution are named
@@ -111,7 +113,6 @@ public:
 
       static FaBlok *Get(const char *sn);
       static FaBlok *Get(const char *sn, UCHAR value_type);
-      static FaBlok *Delete(FaBlok *d);
       FaBlok *Rename(const char *setname);
       static void DeleteAllTempDescriptors();
       static void ClearCache();
@@ -146,6 +147,8 @@ public:
       ~FaBlok();
 
       static FaBlok *New(const char *sn, UCHAR value_type);
+      static FaBlok *Delete(FaBlok *b);
+      
 };
 
 /*
