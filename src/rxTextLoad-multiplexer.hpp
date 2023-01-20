@@ -10,6 +10,7 @@
 #include "graphstackentry.hpp"
 #include "simpleQueue.hpp"
 #include "sjiboleth.hpp"
+#define GetCurrentDir getcwd
 
 #ifdef __cplusplus
 extern "C"
@@ -48,11 +49,12 @@ long long execute_textload_command_cron_id = -1;
 
 
 */
-#define TAB_SEPAPERATED "TAB_SEPAPERATED"
+#define TAB_SEPAPERATED "TAB_SEPARATED"
 #define COMMA_SEPARATED "COMMA_SEPARATED"
 #define SEMICOLON_SEPARATED "SEMICOLON_SEPARATED"
 #define AS_JSON "AS_JSON"
 #define AS_HASH "AS_HASH"
+#define FROM_FILE "FROM"
 #define AS_TEXT "AS_TEXT"
 #define AS_STRING "AS_STRING"
 #define USE_CRLF "CRLF"
@@ -375,6 +377,7 @@ static void *extractRowAsString(SimpleQueue *req_q, char *row_start, char *row_e
     rxStringFree(key);
     return NULL;
 }
+extern rxString readFileIntoSds(const string &path);
 
 static void *execTextLoadThread(void *ptr)
 {
@@ -407,6 +410,7 @@ static void *execTextLoadThread(void *ptr)
         char *row_separator = (char *)"\n";
         rowExtractionProc *rowExtractor = (rowExtractionProc *)extractRowAsHash;
         char *tlob = NULL;
+        char *loaded_file = NULL;
 
         for (int a = 1; a < argc; ++a)
         {
@@ -429,9 +433,20 @@ static void *execTextLoadThread(void *ptr)
                 row_separator = (char *)"\r\n";
             else if (rxStringMatch(argS, USE_BAR, MATCH_IGNORE_CASE))
                 row_separator = (char *)"|";
-            else
+            else if (rxStringMatch(argS, FROM_FILE, MATCH_IGNORE_CASE)){
+                ++a;
+                argS = (const char *)rxGetContainedObject(argv[a]);
+                char cwd[FILENAME_MAX]; // create string buffer to hold path
+                GetCurrentDir(cwd, FILENAME_MAX);
+                rxString path = rxStringFormat("%s/data/%s", cwd, argS);
+                loaded_file = readFileIntoSds(path);
+
+            }else
                 tlob = (char *)argS;
         }
+
+        if(loaded_file)
+            tlob = loaded_file;
 
         char *hdr_start = tlob;
         char *hdr_end = strstr(tlob, row_separator);

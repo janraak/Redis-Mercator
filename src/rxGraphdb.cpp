@@ -1,11 +1,23 @@
 
 #define REDISMODULE_EXPERIMENTAL_API
 #include "rxGraphdb.h"
+#include <fstream>
+#include <iostream>
+#include <string>
+
+#include <array>
+#include <cstdio>
+#include <iostream>
+#include <memory>
+#include <stdexcept>
 #include <string>
 
 #include <fcntl.h>
-#include <iostream>
 #include <sys/stat.h>
+#include <stdlib.h>
+#include <string.h>
+#include <version.h>
+#include <sys/wait.h>
 
 #include "client-pool.hpp"
 
@@ -13,11 +25,13 @@ using std::string;
 #include "graphstack.hpp"
 #include "rxGraphLoad-multiplexer.hpp"
 #include "rxTextLoad-multiplexer.hpp"
+#include "rxWget-multiplexer.hpp"
 #include "rxSuite.h"
 #include "sjiboleth.hpp"
 
 extern "C"
 {
+
     int g_set(RedisModuleCtx *ctx, RedisModuleString **argv, int argc);
     int g_get(RedisModuleCtx *ctx, RedisModuleString **argv, int argc);
 
@@ -53,6 +67,13 @@ string readFileIntoString3(const string &path)
 int text_load_async(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     auto *multiplexer = new RxTextLoadMultiplexer(argv, argc);
+    multiplexer->Start(ctx);
+    return REDISMODULE_OK;
+};
+
+int g_wget(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
+{
+    auto *multiplexer = new RxWgetMultiplexer(argv, argc);
     multiplexer->Start(ctx);
     return REDISMODULE_OK;
 };
@@ -609,6 +630,9 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "load.text",
                                   text_load_async, "write", 1, 1, 0) == REDISMODULE_ERR)
+        return REDISMODULE_ERR;
+    if (RedisModule_CreateCommand(ctx, "g.wget",
+                                  g_wget, "readonly", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     rxServerLog(rxLL_NOTICE, "OnLoad rxGraphdb. Done!");

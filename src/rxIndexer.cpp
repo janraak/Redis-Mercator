@@ -64,6 +64,9 @@ extern "C"
 static void startIndexerThreads();
 static void stopIndexerThreads();
 
+static void startIndexerThreads();
+static void stopIndexerThreads();
+
 #define stringKey rxStringNew("S")
 #define hashKey rxStringNew("H")
 #define streamKey rxStringNew("X")
@@ -878,7 +881,10 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     initRxSuite();
 
     char *libpath = getenv("LD_LIBRARY_PATH");
-    rxServerLog(rxLL_NOTICE, "rxIndexer LD_LIBRARY_PATH[%d]=%s", strlen(libpath), libpath);
+    if(libpath)
+        rxServerLog(rxLL_NOTICE, "rxIndexer LD_LIBRARY_PATH[%d]=%s", strlen(libpath), libpath);
+    else
+        rxServerLog(rxLL_NOTICE, "rxIndexer NO LD_LIBRARY_PATH SET ");
 
     if (RedisModule_Init(ctx, "rxIndexer", 1, REDISMODULE_APIVER_1) == REDISMODULE_ERR)
     {
