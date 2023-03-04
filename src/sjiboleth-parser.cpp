@@ -242,6 +242,17 @@ ParsedExpression *Sjiboleth::Parse(const char *query)
     return root_expression;
 }
 
+void ParsedExpression::Write(RedisModuleCtx *ctx)
+{
+    RedisModule_ReplyWithArray(ctx, this->expression->Size());
+    this->expression->StartHead();
+    ParserToken *t;
+    while ((t = this->expression->Next()) != NULL)
+    {
+        RedisModule_ReplyWithSimpleString(ctx, t->Token());
+    }
+}
+
 void ParsedExpression::show(const char *query)
 {
     return;

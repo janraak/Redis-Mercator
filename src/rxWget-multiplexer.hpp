@@ -42,7 +42,7 @@ long long execute_Wget_command_cron_id = -1;
 
 */
 
-void *execWgetThread(void *ptr);
+static void *execWgetThread(void *ptr);
 
 class RxWgetMultiplexer : public Multiplexer
 {
@@ -82,7 +82,7 @@ public:
 
     int Write(RedisModuleCtx *ctx)
     {
-        char *fn = this->url + strlen(this->url) - 1;
+        char *fn = (char *)this->url + strlen(this->url) - 1;
         while (fn >= this->url && *fn != '/')
             fn--;
         ++fn;
@@ -98,13 +98,12 @@ public:
 
 static void *execWgetThread(void *ptr)
 {
-
     auto *multiplexer = (RxWgetMultiplexer *)ptr;
 
     char cwd[FILENAME_MAX]; // create string buffer to hold path
     GetCurrentDir(cwd, FILENAME_MAX);
     rxString command = rxStringFormat("wget  --timestamping  -P %s/data %s", cwd, multiplexer->url);
-    int rc = system(command);
+    system(command);
     multiplexer->done = true;
     return NULL;
 }

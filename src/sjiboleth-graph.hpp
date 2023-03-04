@@ -434,7 +434,7 @@ public:
 
     void Show()
     {
-        return;
+        // return;
         rxServerLog(rxLL_NOTICE, "== Triplet ==\n");
         rxServerLog(rxLL_NOTICE, " %s length=%f\n", this->subject_key, this->length);
 

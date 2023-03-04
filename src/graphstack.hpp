@@ -90,7 +90,7 @@ public:
 
     void Enqueue(T *t)
     {
-        listAddNodeTail(this->sequencer, t);
+        listAddNodeTail(this->sequencer, (void *)t);
     }
 
     T *Dequeue()

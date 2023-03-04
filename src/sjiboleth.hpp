@@ -119,6 +119,7 @@ protected:
     DECLARE_SJIBOLETH_HANDLER(executeAnd);
     DECLARE_SJIBOLETH_HANDLER(executeXor);
     DECLARE_SJIBOLETH_HANDLER(executeNotIn);
+    DECLARE_SJIBOLETH_HANDLER(executeSelectFields);
 
 public:
     ParserToken *LookupToken(rxString token);
@@ -221,6 +222,8 @@ public:
     void AddError(rxString msg);
     bool HasErrors();
     int writeErrors(RedisModuleCtx *ctx);
+
+    void Write(RedisModuleCtx *ctx);
 
     void show(const char *query);
     void Show(const char *query);

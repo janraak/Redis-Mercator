@@ -89,6 +89,8 @@ void *rxFindKey(int dbNo, const char *key)
         serverPanic("findKey: No REDIS DB!");
     if (!key)
         serverPanic("findKey: No key to search!");
+    robj k = {OBJ_STRING,OBJ_ENCODING_RAW,key,OBJ_SHARED_REFCOUNT};
+
     dictEntry *de = dictFind(db->dict, key);
     if (de)
     {
@@ -390,6 +392,8 @@ int rxSizeofRobj()
 // Wrappers
 short rxGetObjectType(void *o)
 {
+    if(!o)
+        return rxOBJ_NULL;
     return ((robj *)o)->type;
 }
 
@@ -548,7 +552,7 @@ double rxAddSortedSetMember(const char *key, int dbNo, double score, rxString me
     int score_flag = ZADD_INCR;
     zsetAdd(zobj, score, (sds)member, &score_flag, &newScore);
 #else
-    int score_flag = ZADD_IN_INCR;
+    int score_flag = ZADD_IN_GT;
     zsetAdd(zobj, score, (sds)member, score_flag, &score_flag, &newScore);
 #endif
     return newScore;

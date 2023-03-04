@@ -28,6 +28,7 @@ extern "C"
 #ifdef __cplusplus
 }
 #endif
+#include "passthru-multiplexer.hpp"
 #include "rxQuery-multiplexer.hpp"
 
 // const char *AS_ARG = "AS";
@@ -206,8 +207,20 @@ void executeQueryCommand(Sjiboleth *parser, const char *cmd, int fetch_rows, Red
         writeParsedErrors(t, ctx);
         return;
     }
-    t->Show(cmd);
+    t->Show(cmd);    
     auto *e = (SilNikParowy_Kontekst *)data_config->executor;
+    if(e){
+        if (e->fieldSelector)
+        {
+            delete e->fieldSelector;
+            e->fieldSelector = NULL;
+        }
+        if (e->sortSelector)
+        {
+            delete e->sortSelector;
+            e->sortSelector = NULL;
+        }
+    }
     if (data_config->executor == NULL)
     {
         e = new SilNikParowy_Kontekst(index_config, ctx);
@@ -217,7 +230,7 @@ void executeQueryCommand(Sjiboleth *parser, const char *cmd, int fetch_rows, Red
     rax *r = e->Execute(t);
     if (r)
     {
-        WriteResults(r, ctx, fetch_rows, NULL, ranked, ranked_lower_bound, ranked_upper_bound);
+        WriteResults(r, ctx, fetch_rows, NULL, ranked, ranked_lower_bound, ranked_upper_bound, e->fieldSelector, e->sortSelector);
         if (e->CanDeleteResult())
             FreeResults(r);
     }
@@ -225,6 +238,51 @@ void executeQueryCommand(Sjiboleth *parser, const char *cmd, int fetch_rows, Red
         RedisModule_ReplyWithSimpleString(ctx, "No results!");
     e->Reset();
     releaseQuery(t);
+}
+
+int executeParseCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
+{
+    rxString query = rxStringEmpty();
+    int dialect_skippy = 0;
+    Sjiboleth *parser = NULL;;
+    size_t arg_len;
+    char sep[2] = {0x00, 0x00};
+    for (int j = 1; j < argc; ++j)
+    {
+        char *q = (char *)RedisModule_StringPtrLen(argv[j], &arg_len);
+        if (rxStringMatchLen(q, 2, GREMLIN_PREFX, strlen(GREMLIN_PREFX), 1))
+        {
+            dialect_skippy = 2;
+            parser = new GremlinDialect();
+        }
+        else if (rxStringMatchLen(q, 2, "j:", 2, 1))
+        {
+            parser = new JsonDialect();
+        dialect_skippy = 2;
+        }
+        else if (rxStringMatchLen(q, 2, "t:", 2, 1))
+        {
+            dialect_skippy = 2;
+        parser = new TextDialect();
+        }
+            query = rxStringFormat("%s%s%s", query, sep, q);
+            sep[0] = ' ';
+    }
+    if (parser== NULL)
+        parser = new QueryDialect();
+
+    list *errors = listCreate();
+    auto *t = parser->Parse(query + dialect_skippy);
+    if (parsedWithErrors(t))
+    {
+        writeParsedErrors(t, ctx);
+        return REDISMODULE_ERR;
+    }
+    t->Write(ctx);    
+    listRelease(errors);
+    releaseParser(parser);
+    rxStringFree(query);
+    return REDISMODULE_OK;
 }
 
 int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
@@ -304,6 +362,13 @@ int executeQueryAsyncCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int 
     redisNodeInfo *data_config = rxDataNode();
     rxString cmd = (char *)rxGetContainedObject(argv[0]);
     auto *multiplexer = new RxQueryMultiplexer(rxStashCommand2(NULL, cmd, 1, argc, (void **)argv), data_config);
+    multiplexer->Start(ctx);
+    return REDISMODULE_OK;
+}
+
+int passthru(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
+{
+    auto *multiplexer = new PassthruMultiplexer(argv, argc);
     multiplexer->Start(ctx);
     return REDISMODULE_OK;
 }
@@ -451,6 +516,16 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, RX_HELP,
                                   executeHelpCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
+        return REDISMODULE_ERR;
+   if (RedisModule_CreateCommand(ctx, "rxParse",
+                                  executeParseCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
+        return REDISMODULE_ERR;
+    if (RedisModule_CreateCommand(ctx,"rxFetch",
+                                  passthru, "readonly", 1, 1, 0) == REDISMODULE_ERR)
+        return REDISMODULE_ERR;
+
+    if (RedisModule_CreateCommand(ctx, "rxDescribe",
+                                  passthru, "readonly", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     redisNodeInfo *index_config = rxIndexNode();

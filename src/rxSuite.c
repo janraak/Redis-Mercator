@@ -145,40 +145,46 @@ void rxRegisterConfig(void **oargv, int argc)
     {
         const char *arg = (const char *)argv[j]->ptr;
         int argl = strlen(arg);
-        if (stringmatchlen(arg, argl, "INDEX", 5, 1) == 1)
+        if (stringmatch(arg, "INDEX", 1) == 1)
         {
             extractArgs(argv, j + 1, &config->indexNode);
             j += 3;
         }
-        else if (stringmatchlen(arg, argl, "DATA", 4, 1) == 1)
+        else if (stringmatch(arg, "DATA", 1) == 1)
         {
             extractArgs(argv, j + 1, &config->dataNode);
             j += 3;
         }
-        else if (stringmatchlen(arg, argl, "CONTROLLER", 4, 1) == 1)
+        else if (stringmatch(arg, "CONTROLLER", 1) == 1)
         {
             extractArgs(argv, j + 1, &config->controllerNode);
             j += 3;
         }
-        else if (stringmatchlen(arg, argl, "DEFAULT_OPERATOR", 16, 1) == 1)
+        else if (stringmatch(arg, "DEFAULT_OPERATOR", 1) == 1)
         {
             ++j;
             const char *s = (const char *)argv[j]->ptr;
             config->defaultQueryOperator = sdsnew(s);
         }
-        else if (stringmatchlen(arg, argl, "CDN", 16, 1) == 1)
+        else if (stringmatch(arg, "INDEX_SCORING", 1) == 1)
+        {
+            ++j;
+            const char *s = (const char *)argv[j]->ptr;
+            config->indexScoring = (stringmatch(s,"unweighted", 1)) ? UnweightedIndexScoring: WeightedIndexScoring;
+        }
+        else if (stringmatch(arg, "CDN", 1) == 1)
         {
             ++j;
             const char *s = (const char *)argv[j]->ptr;
             config->cdnRootUrl = sdsnew(s);
         }
-        else if (stringmatchlen(arg, argl, "START-SCRIPT", 16, 1) == 1)
+        else if (stringmatch(arg, "START-SCRIPT", 1) == 1)
         {
             ++j;
             const char *s = (const char *)argv[j]->ptr;
             config->startScript = sdsnew(s);
         }
-        else if (stringmatchlen(arg, argl, "INSTALL-SCRIPT", 16, 1) == 1)
+        else if (stringmatch(arg, "INSTALL-SCRIPT", 1) == 1)
         {
             ++j;
             const char *s = (const char *)argv[j]->ptr;
@@ -195,6 +201,21 @@ void rxRegisterConfig(void **oargv, int argc)
         config->startScript = sdsnew("__start_redis.sh");
     if (config->installScript == NULL)
         config->installScript = sdsnew("__install_rxmercator.sh");
+}
+
+enum indexScoringMethod rxGetIndexScoringMethod(){
+    rxSuiteShared *config = initRxSuite();
+    return config->indexScoring;
+}
+
+void rxSetIndexScoringMethod(enum indexScoringMethod scoringMethod){
+    rxSuiteShared *config = initRxSuite();
+    config->indexScoring = scoringMethod;
+}
+
+void rxSetIndexScoringMethodFromString(const char *s){
+    rxSuiteShared *config = initRxSuite();
+            config->indexScoring = (stringmatch(s, "unweighted", 1)) ? UnweightedIndexScoring: WeightedIndexScoring;
 }
 
 char *rxGetExecutable(){

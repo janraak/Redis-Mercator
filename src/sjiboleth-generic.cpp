@@ -46,21 +46,50 @@ SJIBOLETH_HANDLER(Sjiboleth::executeNotIn)
     PushResult(out, stack);
 END_SJIBOLETH_HANDLER(Sjiboleth::executeNotIn)
 
+SJIBOLETH_HANDLER(Sjiboleth::executeSelectFields)
+STACK_CHECK(1);
+FaBlok *pl = stack->Pop();
+stack->fieldSelector = new GraphStack<const char>();
+if (pl->IsParameterList())
+{
+    while (pl->parameter_list->HasEntries())
+    {
+        FaBlok *f = pl->parameter_list->Dequeue();
+        stack->fieldSelector->Enqueue(f->setname);
+        FaBlok::Delete(f);
+    }
+}
+else
+    stack->fieldSelector->Enqueue(pl->setname);
+FaBlok::Delete(pl);
+
+END_SJIBOLETH_HANDLER(Sjiboleth::executeSelectFields)
+
+extern int executeGremlinComparePropertyToRangeValue(CParserToken *tO, CSilNikParowy_Kontekst *stackO);
+extern int executeGremlinComparePropertyToValue(CParserToken *tO, CSilNikParowy_Kontekst *stackO);
+
 bool Sjiboleth::RegisterDefaultSyntax()
 {
-    this->RegisterSyntax("-", 30, 2, 1, &Sjiboleth::executePlusMinus);
-    this->RegisterSyntax("+", 30, 2, 1, &Sjiboleth::executePlusMinus);
+    this->RegisterSyntax("-", 40, 2, 1, &Sjiboleth::executePlusMinus);
+    this->RegisterSyntax("+", 40, 2, 1, &Sjiboleth::executePlusMinus);
     this->RegisterSyntax("=", 5, 2, 1, &Sjiboleth::executeStore);
-    this->RegisterSyntax("==", 20, 2, 1, &Sjiboleth::executeEquals);
-    this->RegisterSyntax(">=", 20, 2, 1, &Sjiboleth::executeEquals);
-    this->RegisterSyntax("<=", 20, 2, 1, &Sjiboleth::executeEquals);
-    this->RegisterSyntax("<", 20, 2, 1, &Sjiboleth::executeEquals);
-    this->RegisterSyntax(">", 20, 2, 1, &Sjiboleth::executeEquals);
-    this->RegisterSyntax("!=", 20, 2, 1, &Sjiboleth::executeEquals);
+    this->RegisterSyntax("==", 30, 2, 1, &Sjiboleth::executeEquals);
+    this->RegisterSyntax(">=", 30, 2, 1, &Sjiboleth::executeEquals);
+    this->RegisterSyntax("<=", 30, 2, 1, &Sjiboleth::executeEquals);
+    this->RegisterSyntax("<", 30, 2, 1, &Sjiboleth::executeEquals);
+    this->RegisterSyntax(">", 30, 2, 1, &Sjiboleth::executeEquals);
+    this->RegisterSyntax("!=", 30, 2, 1, &Sjiboleth::executeEquals);
     this->RegisterSyntax("|", 20, 2, 1, &Sjiboleth::executeOr);
+    this->RegisterSyntax("or", 20, 2, 1, &Sjiboleth::executeOr);
     this->RegisterSyntax("&", 10, 2, 1, &Sjiboleth::executeAnd);
+    this->RegisterSyntax("and", 10, 2, 1, &Sjiboleth::executeAnd);
     this->RegisterSyntax("|&", 10, 2, 1, &Sjiboleth::executeXor);
+    this->RegisterSyntax("xor", 10, 2, 1, &Sjiboleth::executeXor);
     this->RegisterSyntax("not", 10, 2, 1, &Sjiboleth::executeNotIn);
     this->RegisterSyntax("!", 10, 2, 1, &Sjiboleth::executeNotIn);
+    this->RegisterSyntax("between", pri200, 2, 1, &executeGremlinComparePropertyToRangeValue);
+    this->RegisterSyntax("contains", pri200, 2, 1, &executeGremlinComparePropertyToValue);
+    this->RegisterSyntax("select", pri200 * 10, 1, 0, &Sjiboleth::executeSelectFields);
+    this->RegisterSyntax(",", pri500 * 10, 2, 1, &GremlinDialect::executeGremlinParameters);
     return false;
 }

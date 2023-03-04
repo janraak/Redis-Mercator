@@ -606,7 +606,7 @@ int FaBlok::MergeFrom(FaBlok *left, FaBlok *right)
             }
             this->InsertKey(riLeft.key, riLeft.key_len, riLeft.data);
             raxNext(&riLeft);
-            raxNext(&riLeft);
+            raxNext(&riRight);
             ++c;
         }
         else if (raxCompare(&riRight, ">", riLeft.key, riLeft.key_len) == 1)
@@ -643,7 +643,7 @@ int FaBlok::MergeDisjunct(FaBlok *left, FaBlok *right)
         if (raxCompare(&riRight, "==", riLeft.key, riLeft.key_len) == 1)
         {
             raxNext(&riLeft);
-            raxNext(&riLeft);
+            raxNext(&riRight);
         }
         else if (raxCompare(&riRight, ">", riLeft.key, riLeft.key_len) == 1)
         {
@@ -660,7 +660,20 @@ int FaBlok::MergeDisjunct(FaBlok *left, FaBlok *right)
         else
             rxServerLog(rxLL_NOTICE, "#140# FaBlok::MergeDisjunct %s -> %s\n", riLeft.key, riRight.key);
     }
+    while (!raxEOF(&riLeft))
+    {
+            this->InsertKey(riLeft.key, riLeft.key_len, riLeft.data);
+            ++c;
+            raxNext(&riLeft);
+    }
+    while (!raxEOF(&riRight))
+    {
+            this->InsertKey(riRight.key, riRight.key_len, riRight.data);
+            ++c;
+            raxNext(&riRight);
+    }
     raxStop(&riLeft);
+    raxStop(&riRight);
     this->size = raxSize(this->keyset);
     return c;
 }
@@ -682,7 +695,7 @@ int FaBlok::CopyNotIn(FaBlok *left, FaBlok *right)
         if (raxCompare(&riRight, "==", riLeft.key, riLeft.key_len) == 1)
         {
             raxNext(&riLeft);
-            raxNext(&riLeft);
+            raxNext(&riRight);
         }
         else if (raxCompare(&riRight, ">", riLeft.key, riLeft.key_len) == 1)
         {

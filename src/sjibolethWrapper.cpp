@@ -259,7 +259,7 @@ std::vector<rxIndexEntry *> FilterAndSortResults(rax *result, bool ranked, doubl
     return vec;
 }
 
-int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *, bool ranked, double ranked_lower_bound, double ranked_upper_bound)
+int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *, bool ranked, double ranked_lower_bound, double ranked_upper_bound, CGraphStack *fieldSelector, CGraphStack * /*sortSelector*/)
 {
     auto resultsFilteredAndSort = FilterAndSortResults(result, ranked, ranked_lower_bound, ranked_upper_bound);
     RedisModule_ReplyWithArray(ctx, resultsFilteredAndSort.size());
@@ -296,7 +296,28 @@ int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *,
                 switch (r->key_type)
                 {
                 case HASHTYPE:
+                    if (fieldSelector == NULL)
                     reply = RedisModule_Call(ctx, REDIS_CMD_HGETALL, "c", (char *)r->key);
+                    else
+                    {
+                        reply = NULL;
+                        rxString k = rxStringNew(r->key);
+                        void *o = rxFindHashKey(0, k);
+                        rxStringFree(k);
+                        if(o){
+                            auto *fields = (GraphStack<const char> *)fieldSelector;
+                            RedisModule_ReplyWithSimpleString(ctx, "value");
+                            RedisModule_ReplyWithArray(ctx, fields->Size() * 2);
+                            fields->StartHead();
+                            const char *f;
+                            while ((f = fields->Next()))
+                            {
+                                auto *v = rxGetHashField(o, f);
+                                RedisModule_ReplyWithSimpleString(ctx, f);
+                                RedisModule_ReplyWithSimpleString(ctx, v);
+                            }
+                        }
+                    }
                     break;
                 case STRINGTYPE:
                     reply = RedisModule_Call(ctx, REDIS_CMD_GET, "c", (char *)r->key);

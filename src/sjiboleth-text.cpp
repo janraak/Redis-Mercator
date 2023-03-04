@@ -21,7 +21,7 @@ typedef struct
 
 char *KEYTYPE_TAGS[] = {"S", "L", "C", "Z", "H", "M", "X"};
 
-bool TextDialect::FlushIndexables(rax *collector, rxString key, int key_type, CSimpleQueue *oPersist_q, bool use_bracket)
+bool TextDialect::FlushIndexables(rax *collector, rxString key, int key_type, CSimpleQueue *, bool use_bracket)
 {
 	redisNodeInfo *index_config = rxIndexNode();
 	auto *client = RedisClientPool<redisContext>::Acquire(index_config->host_reference, "_CLIENT", "TextDialect::FlushIndexables");
@@ -49,7 +49,10 @@ bool TextDialect::FlushIndexables(rax *collector, rxString key, int key_type, CS
 		int segments = 0;
 		rxString *parts = rxStringSplitLen(avp, indexablesIterator.key_len, "/", 1, &segments);
 		auto *indexable = (Indexable *)indexablesIterator.data;
-		rxString score = rxStringFormat("%f", indexable->sum_w / (indexable->tally * indexable->tally));
+		rxString score = rxStringFormat("%f", rxGetIndexScoringMethod() == UnweightedIndexScoring
+											? indexable->sum_w 
+											: indexable->sum_w / (indexable->tally * indexable->tally)
+										);
 		// void *add_args[] = {(void *)key, (void *)KEYTYPE_TAGS[key_type], (void *)parts[0], (void *)parts[1], (void *)score, (void *)"0"};
 		// rxStashCommand2(persist_q, "RXADD", STASH_STRING, 6, add_args);
 		rcc = (redisReply *)redisCommand(client, "RXADD %s %s %s %s %s %s", key, KEYTYPE_TAGS[key_type], parts[0], parts[1], score, "0");

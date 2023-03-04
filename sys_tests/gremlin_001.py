@@ -19,59 +19,59 @@ def check_server(must_flush):
     modulePath = path.parent.parent.joinpath("src").absolute()
     print(modulePath)
 
-    redis_client = redis.StrictRedis('192.168.1.180', 6379, 0)
+    redis_client = redis.StrictRedis('192.168.1.45', 6400, 0)
 
-    while True:
-        data =  redis_client.execute_command("info Persistence").decode('utf-8')
-        if "loading:0" in data:
-            break
-        data =  redis_client.execute_command("info Persistence").decode('utf-8')
+    # while True:
+    #     data =  redis_client.execute_command("info Persistence").decode('utf-8')
+    #     if "loading:0" in data:
+    #         break
+    #     data =  redis_client.execute_command("info Persistence").decode('utf-8')
 
-    data = redis_client.execute_command("MODULE LIST")
-    print(data)
-    graphdb_loaded = False
-    indexer_loaded = False
-    query_loaded = False
-    rules_loaded = False
-    for m in data:
-        print(m)
-        if m[b'name'].decode('utf-8') == "graphdb": graphdb_loaded= True
-        if m[b'name'].decode('utf-8') == "rxIndexer": indexer_loaded= True
-        if m[b'name'].decode('utf-8') == "RXQUERY": query_loaded= True
-        if m[b'name'].decode('utf-8') == "rxRule": rules_loaded= True
-    if not indexer_loaded:
-        redis_client.execute_command("MODULE LOAD {}/rxIndexer.so 192.168.1.182 6379".format(modulePath))
-    if not query_loaded:
-        data = redis_client.execute_command("MODULE LOAD {}/rxQuery.so  192.168.1.182 6379 &".format(modulePath))
-    if not rules_loaded:
-        data = redis_client.execute_command("MODULE LOAD {}/rxRule.so".format(modulePath))
-    if not graphdb_loaded:
-        redis_client.execute_command("MODULE LOAD {}/rxGraphdb.so ".format(modulePath))
+    # data = redis_client.execute_command("MODULE LIST")
+    # print(data)
+    # graphdb_loaded = False
+    # indexer_loaded = False
+    # query_loaded = False
+    # rules_loaded = False
+    # for m in data:
+    #     print(m)
+    #     if m[b'name'].decode('utf-8') == "graphdb": graphdb_loaded= True
+    #     if m[b'name'].decode('utf-8') == "rxIndexer": indexer_loaded= True
+    #     if m[b'name'].decode('utf-8') == "RXQUERY": query_loaded= True
+    #     if m[b'name'].decode('utf-8') == "rxRule": rules_loaded= True
+    # if not indexer_loaded:
+    #     redis_client.execute_command("MODULE LOAD {}/rxIndexer.so 192.168.1.45 6379".format(modulePath))
+    # if not query_loaded:
+    #     data = redis_client.execute_command("MODULE LOAD {}/rxQuery.so  192.168.1.45 6379 &".format(modulePath))
+    # if not rules_loaded:
+    #     data = redis_client.execute_command("MODULE LOAD {}/rxRule.so".format(modulePath))
+    # if not graphdb_loaded:
+    #     redis_client.execute_command("MODULE LOAD {}/rxGraphdb.so ".format(modulePath))
 
-    redis_index = redis.StrictRedis('192.168.1.182', 6379, 0)
-    data = redis_index.execute_command("MODULE LIST")
-    fetcher_loaded = False
-    print(data)
-    for m in data:
-        print(m)
-        if m[b'name'].decode('utf-8') == "rxIndexStore": fetcher_loaded= True
-    if not fetcher_loaded:
-        redis_index.execute_command("MODULE LOAD /home/pi/redis/redis-6.0.10/extensions/src/rxIndexStore.so a b c")
+    redis_index = redis.StrictRedis('192.168.1.45', 6401, 0)
+    # data = redis_index.execute_command("MODULE LIST")
+    # fetcher_loaded = False
+    # print(data)
+    # for m in data:
+    #     print(m)
+    #     if m[b'name'].decode('utf-8') == "rxIndexStore": fetcher_loaded= True
+    # if not fetcher_loaded:
+    #     redis_index.execute_command("MODULE LOAD /home/pi/redis/redis-7.0.5/extensions/src/rxIndexStore.so a b c")
 
-    # exit(0)    
+    # # exit(0)    
     
     if must_flush:
         redis_client.execute_command("FLUSHALL")
         redis_index.execute_command("FLUSHALL")
 
-    redis_client.execute_command("RULE.SET $$ISPERSON has(type,person)")
-    redis_client.execute_command("RULE.SET $$ISCOUNTRY has(type,country)")
-    redis_client.execute_command("RULE.SET $$ISOUDERVAN hasout(zoon,dochter).out(zoon,dochter).by(subject)")
-    redis_client.execute_command("RULE.SET $$ISOUDERVAN2 ((as(all).hasout(dochter)|as(all).hasout(zoon)))")
-    redis_client.execute_command("RULE.SET $$ISKINDVAN hasout(zoon,dochter).out(zoon,dochter).by(object)")
-    redis_client.execute_command("RULE.SET $$RAAK has(family,raak).property(target,yes)")
-    redis_client.execute_command("RULE.SET $$HORST has(family,horst).property(target,yes)")
-    redis_client.execute_command("RULE.SET $$OUDERSBEKEND (as(aKey).hasin(vader)|as(aKey).hasin(moeder)).property(known_parent,yes)")
+    # redis_client.execute_command("RULE.SET $$ISPERSON has(type,person)")
+    # redis_client.execute_command("RULE.SET $$ISCOUNTRY has(type,country)")
+    # redis_client.execute_command("RULE.SET $$ISOUDERVAN hasout(zoon,dochter).out(zoon,dochter).by(subject)")
+    # redis_client.execute_command("RULE.SET $$ISOUDERVAN2 ((as(all).hasout(dochter)|as(all).hasout(zoon)))")
+    # redis_client.execute_command("RULE.SET $$ISKINDVAN hasout(zoon,dochter).out(zoon,dochter).by(object)")
+    # redis_client.execute_command("RULE.SET $$RAAK has(family,raak).property(target,yes)")
+    # redis_client.execute_command("RULE.SET $$HORST has(family,horst).property(target,yes)")
+    # redis_client.execute_command("RULE.SET $$OUDERSBEKEND (as(aKey).hasin(vader)|as(aKey).hasin(moeder)).property(known_parent,yes)")
     redis_index.close()
 
     return redis_client
@@ -215,7 +215,7 @@ def main(must_flush = False):
             verify_vertice(redis_client, si, False)
             verify_vertice(redis_client, oi, False)
             verify_edge(redis_client,si,predicates,oi)
-        # return
+        return
         time.sleep(10)
 
         # for n in range(0,-1):

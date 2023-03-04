@@ -77,7 +77,7 @@ indexerThread data_info = {};
 indexerThread index_info = {};
 
 #define BEGIN_COMMAND_INTERCEPTOR(fn)                                                        \
-    static int fn(void *stash, redisNodeInfo *index_config, SilNikParowy_Kontekst *executor) \
+    static int fn(void *stash, redisNodeInfo *, SilNikParowy_Kontekst *executor) \
     {                                                                                        \
         int argc = *((int *)stash);                                                          \
         void **argv = (void **)(stash + sizeof(void *));                                     \
@@ -95,7 +95,6 @@ static int must_stop = 0;
 BEGIN_COMMAND_INTERCEPTOR(indexingHandlerDelCommand)
 for (int k = 1; k < argc; k++)
 {
-    rxUNUSED(index_config);
     rxUNUSED(executor);
     rxString key = (rxString)rxGetContainedObject(argv[k]);
     rxStashCommand(index_info.index_update_request_queue, "RXBEGIN", 1, key);
@@ -106,7 +105,6 @@ for (int k = 1; k < argc; k++)
 END_COMMAND_INTERCEPTOR(indexingHandlerDelCommand)
 
 BEGIN_COMMAND_INTERCEPTOR(indexingHandlerXDelCommand)
-rxUNUSED(index_config);
 rxUNUSED(executor);
 rxString okey = (rxString)rxGetContainedObject(argv[1]);
 for (int k = 2; k < argc; k++)
@@ -322,7 +320,6 @@ static int indexingHandler(int, void *stash, redisNodeInfo *index_config, SilNik
     return C_OK;
 }
 
-static char *freeCompletedRedisRequests_last_key = NULL;
 void freeCompletedRedisRequests()
 {
     if (index_info.index_update_respone_queue == NULL)
@@ -882,7 +879,7 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 
     char *libpath = getenv("LD_LIBRARY_PATH");
     if(libpath)
-        rxServerLog(rxLL_NOTICE, "rxIndexer LD_LIBRARY_PATH[%d]=%s", strlen(libpath), libpath);
+        rxServerLog(rxLL_NOTICE, RXINDEX_FORMAT_001, strlen(libpath), libpath);
     else
         rxServerLog(rxLL_NOTICE, "rxIndexer NO LD_LIBRARY_PATH SET ");
 
