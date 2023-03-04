@@ -163,18 +163,21 @@ public:
                 }
                 break;
             case FIELD_OP_VALUE:
-                if (this->matchOperation != NULL)
+                if (rxStringMatchLen(this->attribute, this->attribute_len, parts[2], strlen(parts[2]), 1))
                 {
-                    if (this->matchOperation(parts[1], strlen(parts[1]), this->attribute_value) != 0)
+                    if (this->matchOperation != NULL)
                     {
-                        this->hits++;
-                        rxHarvestSortedSetMembers(value, this->bucket);
+                        if (this->matchOperation(parts[1], strlen(parts[1]), this->attribute_value) != 0)
+                        {
+                            this->hits++;
+                            rxHarvestSortedSetMembers(value, this->bucket);
+                        }
+                        else
+                            this->misses++;
                     }
                     else
-                        this->misses++;
+                        rxModulePanic((char *)"f op v requires a valid operator");
                 }
-                else
-                    rxModulePanic((char *)"f op v requires a valid operator");
                 break;
             }
             rxStringFreeSplitRes(parts, segments);

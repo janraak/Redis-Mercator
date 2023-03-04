@@ -89,41 +89,41 @@ FaBlok *FaBlok::Get(const char *sn)
 
 bool FaBlok::IsValid()
 {
-    // if (!(((void *)this - sizeof(rax)) == (void *)this->keyset))
+    // // if (!(((void *)this - sizeof(rax)) == (void *)this->keyset))
+    // // {
+    // //     rxServerLog(rxLL_NOTICE, "Possible memory corruption fablok=%p instead of %p rax=%p instead of %p",
+    // //                 this,
+    // //                 ((void *)this->keyset) + sizeof(rax),
+    // //                 this->keyset,
+    // //                 ((void *)this) - sizeof(rax));
+    // //     return false;
+    // // }
+
+    // // if (!(((void *)this + sizeof(FaBlok)) == (void *)this->setname))
+    // // {
+    // //     rxServerLog(rxLL_NOTICE, "Possible memory corruption fablok=%p instead of %p setname=%p instead of %p",
+    // //                 this,
+    // //                 ((void *)this->setname) - sizeof(FaBlok)),
+    // //         this->setname,
+    // //         ((void *)this + sizeof(FaBlok));
+    // //     return false;
+    // // }
+
+    // if (memcmp(this->rumble_strip1, RUMBLE_STRIP1, sizeof(this->rumble_strip1)) != 0 || memcmp(this->rumble_strip2, RUMBLE_STRIP2, sizeof(this->rumble_strip2)) != 0)
     // {
-    //     rxServerLog(rxLL_NOTICE, "Possible memory corruption fablok=%p instead of %p rax=%p instead of %p",
-    //                 this,
-    //                 ((void *)this->keyset) + sizeof(rax),
-    //                 this->keyset,
-    //                 ((void *)this) - sizeof(rax));
+    //     rxServerLogRaw(rxLL_NOTICE, "Rumble in the Jungle");
     //     return false;
     // }
-
-    // if (!(((void *)this + sizeof(FaBlok)) == (void *)this->setname))
+    // if ((strlen(this->setname) > 0 /*&& this->size != raxSize(this->keyset)*/) || !(this->marked_for_deletion == 653974783 || this->marked_for_deletion == 722765))
     // {
-    //     rxServerLog(rxLL_NOTICE, "Possible memory corruption fablok=%p instead of %p setname=%p instead of %p",
-    //                 this,
-    //                 ((void *)this->setname) - sizeof(FaBlok)),
-    //         this->setname,
-    //         ((void *)this + sizeof(FaBlok));
+    //    rxServerLog(rxLL_NOTICE, "FaBlok for %s may be corrupted fab: reused:%ld sz: %lu marked_for_deletion:%ld temp:%ld\n",
+    //                 this->setname,
+    //                 this->reuse_count,
+    //                 this->size,
+    //                 this->marked_for_deletion,
+    //                 this->is_temp);
     //     return false;
     // }
-
-    if (memcmp(this->rumble_strip1, RUMBLE_STRIP1, sizeof(this->rumble_strip1)) != 0 || memcmp(this->rumble_strip2, RUMBLE_STRIP2, sizeof(this->rumble_strip2)) != 0)
-    {
-        rxServerLogRaw(rxLL_NOTICE, "Rumble in the Jungle");
-        return false;
-    }
-    if ((strlen(this->setname) > 0 && this->size != raxSize(this->keyset)) || !(this->marked_for_deletion == 653974783 || this->marked_for_deletion == 722765))
-    {
-       rxServerLog(rxLL_NOTICE, "FaBlok for %s may be corrupted fab: reused:%ld sz: %lu marked_for_deletion:%ld temp:%ld\n",
-                    this->setname,
-                    this->reuse_count,
-                    this->size,
-                    this->marked_for_deletion,
-                    this->is_temp);
-        return false;
-    }
     return true;
 }
 
@@ -606,7 +606,7 @@ int FaBlok::MergeFrom(FaBlok *left, FaBlok *right)
             }
             this->InsertKey(riLeft.key, riLeft.key_len, riLeft.data);
             raxNext(&riLeft);
-            raxNext(&riLeft);
+            raxNext(&riRight);
             ++c;
         }
         else if (raxCompare(&riRight, ">", riLeft.key, riLeft.key_len) == 1)
@@ -643,7 +643,7 @@ int FaBlok::MergeDisjunct(FaBlok *left, FaBlok *right)
         if (raxCompare(&riRight, "==", riLeft.key, riLeft.key_len) == 1)
         {
             raxNext(&riLeft);
-            raxNext(&riLeft);
+            raxNext(&riRight);
         }
         else if (raxCompare(&riRight, ">", riLeft.key, riLeft.key_len) == 1)
         {
@@ -660,7 +660,20 @@ int FaBlok::MergeDisjunct(FaBlok *left, FaBlok *right)
         else
             rxServerLog(rxLL_NOTICE, "#140# FaBlok::MergeDisjunct %s -> %s\n", riLeft.key, riRight.key);
     }
+    while (!raxEOF(&riLeft))
+    {
+            this->InsertKey(riLeft.key, riLeft.key_len, riLeft.data);
+            ++c;
+            raxNext(&riLeft);
+    }
+    while (!raxEOF(&riRight))
+    {
+            this->InsertKey(riRight.key, riRight.key_len, riRight.data);
+            ++c;
+            raxNext(&riRight);
+    }
     raxStop(&riLeft);
+    raxStop(&riRight);
     this->size = raxSize(this->keyset);
     return c;
 }
@@ -682,7 +695,7 @@ int FaBlok::CopyNotIn(FaBlok *left, FaBlok *right)
         if (raxCompare(&riRight, "==", riLeft.key, riLeft.key_len) == 1)
         {
             raxNext(&riLeft);
-            raxNext(&riLeft);
+            raxNext(&riRight);
         }
         else if (raxCompare(&riRight, ">", riLeft.key, riLeft.key_len) == 1)
         {
@@ -754,6 +767,20 @@ void *FaBlok::RemoveKey(unsigned char *s, size_t len)
     void *old = this->RemoveKey(key);
     rxStringFree(key);
     return old;
+}
+
+void *FaBlok::ClearKeys()
+{
+    raxIterator setIterator;
+    raxStart(&setIterator, this->keyset);
+    raxSeek(&setIterator, "^", NULL, 0);
+    while (raxSize(this->keyset) > 0)
+    {
+        raxRemove(this->keyset, setIterator.key, setIterator.key_len, NULL);
+        raxSeek(&setIterator, "^", NULL, 0);
+    }
+    raxStop(&setIterator);
+    return this;
 }
 
 void *FaBlok::LookupKey(const char *key)

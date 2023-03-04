@@ -2,13 +2,15 @@
 #define __GRAPHSTACK_H__
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
-#include <stddef.h>
 #include "adlist.h"
+#include <stddef.h>
 #ifdef __cplusplus
 }
 #endif
+typedef int EnqueueInOrder(void *left, void *right, void *parm); // Comparator prototype for priority enqueue
 
 template <typename T>
 class GraphStack
@@ -90,7 +92,24 @@ public:
 
     void Enqueue(T *t)
     {
-        listAddNodeTail(this->sequencer, t);
+        listAddNodeTail(this->sequencer, (void *)t);
+    }
+
+    void Enqueue(T *t, EnqueueInOrder *sequencer, void* parm)
+    {
+        auto *li = listGetIterator(this->sequencer, AL_START_HEAD);
+        listNode *node;
+        while ((node = listNext(li)))
+        {
+            if ((*sequencer)(t, node->value, parm) >= 0)
+            {
+                listInsertNode(this->sequencer, node, (void *)t, 0);
+                listReleaseIterator(li);
+                return;
+            }
+        }
+        listAddNodeTail(this->sequencer, (void *)t);
+        listReleaseIterator(li);
     }
 
     T *Dequeue()
@@ -140,6 +159,39 @@ public:
     }
     listIter *sequencer_iter = NULL;
 
+
+    void RemoveFirst()
+    {
+        if (this->sequencer)
+        {
+            listDelNode(this->sequencer, listFirst(this->sequencer));
+        }
+    }
+
+    void RemoveLast()
+    {
+        if (this->sequencer)
+        {
+            listDelNode(this->sequencer, listLast(this->sequencer));
+        }
+    }
+
+    void RemoveAllBut(int pivot_pos)
+    {
+        if (this->sequencer)
+        {
+            int from_head = pivot_pos;
+            int from_tail = this->sequencer->len - pivot_pos - 1;
+            while (from_tail--)
+                listDelNode(this->sequencer, listLast(this->sequencer));
+            if (pivot_pos > 0)
+            {
+                while (from_head--)
+                    listDelNode(this->sequencer, listFirst(this->sequencer));
+            }
+        }
+    }
+
     void Purge()
     {
         do
@@ -178,9 +230,16 @@ public:
         sequencer_iter = NULL;
     }
 
-    void Join(GraphStack<T> *adjacent){
-        if(adjacent && adjacent->sequencer)
+    void Join(GraphStack<T> *adjacent)
+    {
+        if (adjacent && adjacent->sequencer)
             listJoin(this->sequencer, listDup(adjacent->sequencer));
+    }
+
+    void CopyTo(GraphStack<T> *receiver)
+    {
+        if (receiver && receiver->sequencer)
+            listJoin(receiver->sequencer, listDup(this->sequencer));
     }
 };
 

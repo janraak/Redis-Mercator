@@ -1,3 +1,10 @@
+def get_dataset():
+    return [
+           {   's': {'k':'john', 'doi':'1953-11-18', 'family': 'rock'}, 
+                'o': {'k':'clara', 'doi':'1955-11-23', 'family': 'horst'}, 
+                'p': {'r':['echtgenoot','echtgenote'], 'doi':'1974-11-21'}
+            },
+    ]
 def get_dataset2():
     return [
            {   's': {'k':'john', 'doi':'1953-11-18', 'family': 'rock'}, 
@@ -102,7 +109,7 @@ def get_dataset0():
                 'p': {'r':['province','country']}
             },
     ]
-def get_dataset():
+def get_dataset_all():
     return [
             {  's': {'k':'United States of America', 't':'country', 'abbr': 'USA'}, 
                'o': {'k':'Washington', 't': 'state'}, 

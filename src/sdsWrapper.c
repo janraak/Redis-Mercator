@@ -13,6 +13,10 @@
 #include <unistd.h>
 #include <zmalloc.h>
 #include <rax.h>
+#include <rax.h>
+#define REDISMODULE_EXPERIMENTAL_API
+#include "../../src/redismodule.h"
+
 extern void serverLogHexDump(int level, char *descr, void *value, size_t len);
 
 #include "sdsWrapper.h"
@@ -54,6 +58,10 @@ void rxStringFreeSplitRes(rxString *tokens, int count)
 rxString rxStringMapChars(rxString s, const char *from, const char *to, size_t setlen)
 {
     return sdsmapchars((sds)s, from, to, setlen);
+}
+
+rxString rxStringLenMapChars(rxString s, size_t len, const char *from, const char *to, size_t setlen){
+    return (const char*)memmapchars((char *)s, len, from, to, setlen);
 }
 
 rxString rxStringFormat(const char *fmt, ...)
@@ -248,4 +256,35 @@ size_t rxMemAllocSize(void *ptr)
     }
 #endif
     return zmalloc_size(ptr);
+}
+
+const char *rxStringBuildRedisCommand(int argc, rxRedisModuleString **argv){
+    int commandline_length = 1;
+        size_t arg_len;
+        const char *s;
+    for(int n = 0 ; n < argc; ++n ){
+       s = RedisModule_StringPtrLen((RedisModuleString*)argv[n], &arg_len);
+        commandline_length += 3 + arg_len;
+    }
+
+    char *cmd = (char*)rxMemAlloc(commandline_length);
+    memset(cmd, 0x00, commandline_length);
+    s = RedisModule_StringPtrLen((RedisModuleString*)argv[0], &arg_len);
+    strcpy(cmd, s);
+    for (int n = 1; n < argc; ++n)
+    {
+        s = RedisModule_StringPtrLen((RedisModuleString*)argv[n], &arg_len);
+        if (strchr(s, ' ')||strchr(s, '%'))
+        {
+            strcat(cmd, " \"");
+            strcat(cmd, s);
+            strcat(cmd, "\"");
+        }
+        else
+        {
+            strcat(cmd, " ");
+            strcat(cmd, s);
+        }
+    }
+    return (const char *)cmd;
 }
