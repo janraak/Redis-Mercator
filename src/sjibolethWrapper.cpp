@@ -223,8 +223,6 @@ bool score_comparator_lo_hi(const rxIndexEntry *lhs, const rxIndexEntry *rhs)
     return lhs->key_score < rhs->key_score;
 }
 
-static char type_chars[] = "SLVZH-X------IRT-";
-
 std::vector<rxIndexEntry *> FilterAndSortResults(rax *result, bool ranked, double ranked_lower_bound, double ranked_upper_bound)
 {
     std::vector<rxIndexEntry *> vec;
@@ -242,13 +240,13 @@ std::vector<rxIndexEntry *> FilterAndSortResults(rax *result, bool ranked, doubl
             if (t->length >= ranked_lower_bound && t->length <= ranked_upper_bound)
             {
                 ro = rxIndexEntry::New((const char *)resultsIterator.key, resultsIterator.key_len, t->length, t);
-                // ranked = false; // Traversal objects are not sorted!
+                ro->key_type = rxGetObjectType(o);
                 loHi = true;
             }
         }
         else if (rxGetObjectType(o) == rxOBJ_INDEX_ENTRY)
         {
-            rxIndexEntry *t = (rxIndexEntry *)rxGetContainedObject(o);
+            auto *t = (rxIndexEntry *)rxGetContainedObject(o);
             if (t->key_score >= ranked_lower_bound && t->key_score <= ranked_upper_bound)
             {
                 ro = t;
@@ -257,20 +255,18 @@ std::vector<rxIndexEntry *> FilterAndSortResults(rax *result, bool ranked, doubl
         else
         {
             ro = rxIndexEntry::New((const char *)resultsIterator.key, resultsIterator.key_len, 1.0, NULL);
-            ro->key_type = type_chars[rxGetObjectType(o)];
-            // ro->obj = o;
+            ro->key_type = rxGetObjectType(o); // type_chars[rxGetObjectType(o)];
+            ro->key_type = rxGetObjectType(o);
             ranked = false; // Traversal objects are not sorted!
         }
-        if (ro != NULL){
-                ro->key_type = rxGetObjectType(o);
+        if(ro != NULL)
             vec.push_back(ro);
-        }
     }
     raxStop(&resultsIterator);
     if (ranked)
     {
         // Using lambda expressions in C++11
-        sort(vec.begin(), vec.end(), loHi ?  &score_comparator_lo_hi : &score_comparator);
+        sort(vec.begin(), vec.end(), loHi ? &score_comparator_lo_hi : &score_comparator);
     }
     return vec;
 }
@@ -322,6 +318,7 @@ int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *,
                 rxString e;
                 switch (r->key_type)
                 {
+                case rxOBJ_HASH:
                 case HASHTYPE:
                     if (fieldSelector == NULL)
                     reply = RedisModule_Call(ctx, REDIS_CMD_HGETALL, "c", (char *)r->key);
@@ -346,14 +343,16 @@ int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *,
                         }
                     }
                     break;
+                case rxOBJ_STRING:
                 case STRINGTYPE:
                     reply = RedisModule_Call(ctx, REDIS_CMD_GET, "c", (char *)r->key);
                     break;
+                case rxOBJ_LIST:
                 case LISTTYPE:
                     reply = RedisModule_Call(ctx, "LRANGE", "ccc", (char *)r->key, (char *)"0", (char *)"100");
                     break;
                 default:
-                    e = rxStringFormat("%c: Unsupported key type found: %s!", r->key_type, r->key);
+                    e = rxStringFormat("%c: Unsupported key type found: %s!", r->Key_Type(), r->key);
                     RedisModule_ReplyWithSimpleString(ctx, e);
                     rxStringFree(e);
                     reply = NULL;
