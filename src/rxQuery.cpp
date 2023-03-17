@@ -143,7 +143,7 @@ const char *HELP_STRING = "RX Query Commands:\n"
 //     {
 //         robj *o = dictGetVal(match);
 //         json = rxStringFormat("%s%s{ \"key\":\"%s\", \"value\" : {", json, objsep, (char *)match->key);
-//         if (o->type == OBJ_TRIPLET)
+//         if (o->type == rxOBJ_TRIPLET)
 //         {
 //             Graph_Triplet *t = (Graph_Triplet *)o->ptr; // cn->value;
 //             if (t)
@@ -343,7 +343,7 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     {
         parser = new GremlinDialect();
         dialect_skippy = strlen(GREMLIN_PREFX);
-        ranked = false;
+        // ranked = false;
     }
     else
         parser = new QueryDialect();

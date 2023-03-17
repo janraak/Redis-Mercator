@@ -22,3 +22,5 @@ deps/concurrentqueue
 sys_test/data/dataset1.txt
 sys_tests/curses.py
 sys_tests/curses.pyc
+deps/concurrentqueue
+deps/concurrentqueue

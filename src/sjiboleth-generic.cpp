@@ -47,22 +47,24 @@ SJIBOLETH_HANDLER(Sjiboleth::executeNotIn)
 END_SJIBOLETH_HANDLER(Sjiboleth::executeNotIn)
 
 SJIBOLETH_HANDLER(Sjiboleth::executeSelectFields)
-STACK_CHECK(1);
-FaBlok *pl = stack->Pop();
-stack->fieldSelector = new GraphStack<const char>();
-if (pl->IsParameterList())
 {
-    while (pl->parameter_list->HasEntries())
+    rxUNUSED(t);
+    STACK_CHECK(1);
+    FaBlok *pl = stack->Pop();
+    stack->fieldSelector = new GraphStack<const char>();
+    if (pl->IsParameterList())
     {
-        FaBlok *f = pl->parameter_list->Dequeue();
-        stack->fieldSelector->Enqueue(f->setname);
-        FaBlok::Delete(f);
+        while (pl->parameter_list->HasEntries())
+        {
+            FaBlok *f = pl->parameter_list->Dequeue();
+            stack->fieldSelector->Enqueue(f->setname);
+            FaBlok::Delete(f);
+        }
     }
+    else
+        stack->fieldSelector->Enqueue(pl->setname);
+    FaBlok::Delete(pl);
 }
-else
-    stack->fieldSelector->Enqueue(pl->setname);
-FaBlok::Delete(pl);
-
 END_SJIBOLETH_HANDLER(Sjiboleth::executeSelectFields)
 
 extern int executeGremlinComparePropertyToRangeValue(CParserToken *tO, CSilNikParowy_Kontekst *stackO);

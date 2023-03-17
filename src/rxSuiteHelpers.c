@@ -5,9 +5,9 @@ extern "C"
 #endif
 #include "version.h"
 
+#include <ctype.h>
 #include <sched.h>
 #include <signal.h>
-#include <ctype.h>
 
 #include "../../src/sds.h"
 #include "../../src/server.h"
@@ -80,6 +80,20 @@ void uninstallInterceptors(interceptRule *commandTable, int no_of_commands)
     }
 }
 
+static rxString rxFindByScan(int dbNo, const char *regex)
+{
+    void *iter = NULL;
+    rxString key;
+    void *obj;
+
+    while ((obj = rxScanKeys(dbNo, &iter, (char **)&key)) != NULL)
+    {
+        if (rxStringMatch(key, regex, MATCH_IGNORE_CASE))
+            return key;
+    }
+    return NULL;
+}
+
 void *rxFindKey(int dbNo, const char *key)
 {
     if (dbNo < 0 || dbNo >= server.dbnum)
@@ -89,7 +103,7 @@ void *rxFindKey(int dbNo, const char *key)
         serverPanic("findKey: No REDIS DB!");
     if (!key)
         serverPanic("findKey: No key to search!");
-    robj k = {OBJ_STRING,OBJ_ENCODING_RAW,key,OBJ_SHARED_REFCOUNT};
+    robj k = {OBJ_STRING, OBJ_ENCODING_RAW, key, OBJ_SHARED_REFCOUNT};
 
     dictEntry *de = dictFind(db->dict, key);
     if (de)
@@ -98,10 +112,18 @@ void *rxFindKey(int dbNo, const char *key)
     }
     else
     {
-        return NULL;
+        rxString altK = rxFindByScan(dbNo, key);
+        if (altK)
+        {
+            de = dictFind(db->dict, altK);
+            if (de)
+            {
+                return dictGetVal(de);
+            }
+            return NULL;
+        }
     }
 }
-
 void *rxFindSetKey(int dbNo, const char *key)
 {
     robj *o = rxFindKey(dbNo, key);
@@ -168,14 +190,15 @@ void *rxScanSetMembers(void *obj, void **siO, char **member, int64_t *member_len
 {
     setTypeIterator **si = (setTypeIterator **)siO;
     robj *r = (robj *)obj;
-    switch(r->encoding){
-        case OBJ_ENCODING_HT:
-        case OBJ_ENCODING_INTSET:
-            break;
-        default:
-            rxServerLog(rxLL_NOTICE, "Invalid set encoding on %p %d", r, r->encoding);
-            *si = NULL;
-            return NULL;
+    switch (r->encoding)
+    {
+    case OBJ_ENCODING_HT:
+    case OBJ_ENCODING_INTSET:
+        break;
+    default:
+        rxServerLog(rxLL_NOTICE, "Invalid set encoding on %p %d", r, r->encoding);
+        *si = NULL;
+        return NULL;
     }
     if (*si == NULL)
     {
@@ -392,7 +415,7 @@ int rxSizeofRobj()
 // Wrappers
 short rxGetObjectType(void *o)
 {
-    if(!o)
+    if (!o)
         return rxOBJ_NULL;
     return ((robj *)o)->type;
 }
@@ -920,7 +943,7 @@ void rxRaxFreeWithCallback(rax *rax, void (*free_callback)(void *))
 /* Free a whole radix tree. */
 void rxRaxFree(rax *rax)
 {
-    if(raxSize(rax) != 0)
+    if (raxSize(rax) != 0)
         rxRaxFreeWithCallback(rax, NULL);
 }
 

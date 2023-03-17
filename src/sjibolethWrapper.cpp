@@ -33,6 +33,7 @@ const char *OK = "OK";
 #define HASHTYPE 'H'
 #define STRINGTYPE 'S'
 #define LISTTYPE 'L'
+#define TRIPLET 'T'
 
 CSjiboleth *newQueryEngine()
 {
@@ -214,6 +215,13 @@ bool score_comparator(const rxIndexEntry *lhs, const rxIndexEntry *rhs)
     // hi-lo sort
     return lhs->key_score > rhs->key_score;
 }
+bool score_comparator_lo_hi(const rxIndexEntry *lhs, const rxIndexEntry *rhs)
+{
+    if (lhs->key_score == rhs->key_score)
+        return lhs->key > rhs->key;
+    // hi-lo sort
+    return lhs->key_score < rhs->key_score;
+}
 
 static char type_chars[] = "SLVZH-X------IRT-";
 
@@ -223,7 +231,7 @@ std::vector<rxIndexEntry *> FilterAndSortResults(rax *result, bool ranked, doubl
     raxIterator resultsIterator;
     raxStart(&resultsIterator, result);
     raxSeek(&resultsIterator, "^", NULL, 0);
-
+    bool loHi = false;
     while (raxNext(&resultsIterator))
     {
         void *o = resultsIterator.data;
@@ -231,8 +239,12 @@ std::vector<rxIndexEntry *> FilterAndSortResults(rax *result, bool ranked, doubl
         if (rxGetObjectType(o) == rxOBJ_TRIPLET)
         {
             Graph_Triplet *t = (Graph_Triplet *)rxGetContainedObject(o);
-            ro = rxIndexEntry::New((const char *)resultsIterator.key, resultsIterator.key_len, 1.0, t);
-            ranked = false; // Traversal objects are not sorted!
+            if (t->length >= ranked_lower_bound && t->length <= ranked_upper_bound)
+            {
+                ro = rxIndexEntry::New((const char *)resultsIterator.key, resultsIterator.key_len, t->length, t);
+                // ranked = false; // Traversal objects are not sorted!
+                loHi = true;
+            }
         }
         else if (rxGetObjectType(o) == rxOBJ_INDEX_ENTRY)
         {
@@ -241,20 +253,24 @@ std::vector<rxIndexEntry *> FilterAndSortResults(rax *result, bool ranked, doubl
             {
                 ro = t;
             }
-        }else{
+        }
+        else
+        {
             ro = rxIndexEntry::New((const char *)resultsIterator.key, resultsIterator.key_len, 1.0, NULL);
             ro->key_type = type_chars[rxGetObjectType(o)];
             // ro->obj = o;
             ranked = false; // Traversal objects are not sorted!
         }
-        if (ro != NULL)
+        if (ro != NULL){
+                ro->key_type = rxGetObjectType(o);
             vec.push_back(ro);
+        }
     }
     raxStop(&resultsIterator);
     if (ranked)
     {
         // Using lambda expressions in C++11
-        sort(vec.begin(), vec.end(), &score_comparator);
+        sort(vec.begin(), vec.end(), loHi ?  &score_comparator_lo_hi : &score_comparator);
     }
     return vec;
 }
@@ -270,7 +286,18 @@ int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *,
     {
         if (r->obj != NULL)
             // Traversal objects do not need fetching
-            ((Graph_Triplet *)r->obj)->Write(ctx);
+            switch(r->key_type){
+                case rxOBJ_TRIPLET:
+                    ((Graph_Triplet *)r->obj)->Write(ctx);
+                    break;
+                default:
+                {
+                    auto *msg = rxStringFormat("Unexpected object type: %d for Triplet: %s r:%p r->obj:%p", rxGetObjectType(r->obj), r->key, r, r->obj);
+                    RedisModule_ReplyWithSimpleString(ctx, msg);
+                    rxStringFree(msg);
+                }
+                break;
+                }
         else if (fetch_rows == 0)
             r->Write(ctx);
         else
@@ -326,7 +353,6 @@ int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *,
                     reply = RedisModule_Call(ctx, "LRANGE", "ccc", (char *)r->key, (char *)"0", (char *)"100");
                     break;
                 default:
-                    continue;
                     e = rxStringFormat("%c: Unsupported key type found: %s!", r->key_type, r->key);
                     RedisModule_ReplyWithSimpleString(ctx, e);
                     rxStringFree(e);
@@ -350,10 +376,18 @@ void FreeResultObject(void *o)
     if (rxGetObjectType(o) == rxOBJ_TRIPLET)
     {
         auto *t = (Graph_Triplet *)rxGetContainedObject(o);
-        if (t->DecrRefCnt() <= 1)
+        if (t != NULL)
         {
-            delete t;
-            rxMemFree(o);
+            if(t->subject_key != (char *)((void*)t + sizeof(Graph_Triplet))){
+                rxServerLog(rxLL_NOTICE, "Suspicious Graph_Triplet t:%p sk:%p not %p", t, t->subject_key, (void*)t + sizeof(Graph_Triplet));
+                return;
+            }
+                if (t->DecrRefCnt() <= 1)
+                {
+                    // delete t;
+                    rxMemFree(t);
+                    rxMemFree(o);
+                }
         }
     }
 }

@@ -156,15 +156,15 @@ end_of_loop:
             r = stack->Pop();
             if (r->IsValueType(KeysetDescriptor_TYPE_MONITORED_SET))
                 stack->RetainResult();
-            FaBlok *checkV = stack->Pop();
-            FaBlok *memo = (FaBlok *)stack->Recall("V");
-            if (memo != NULL && memo != checkV)
-            {
-                error = rxStringNew("Invalid expression, ");
-                error = rxStringFormat("%s %d  results yielded!\n", error, stack->Size());
-                e->AddError(error);
-                return NULL;
-            }
+            // FaBlok *checkV = stack->Pop();
+            // FaBlok *memo = (FaBlok *)stack->Recall("V");
+            // if (memo != NULL && memo != checkV)
+            // {
+            //     error = rxStringNew("Invalid expression, ");
+            //     error = rxStringFormat("%s %d  results yielded!\n", error, stack->Size());
+            //     e->AddError(error);
+            //     return NULL;
+            // }
             if ((r->IsValueType(KeysetDescriptor_TYPE_KEYSET) || r->IsValueType(KeysetDescriptor_TYPE_SINGULAR)) && !r->HasKeySet())
             {
                 r->FetchKeySet(stack->serviceConfig, rxStringEmpty(), r->setname, rxStringEmpty());
