@@ -41,10 +41,10 @@ const char *ENTITY_TYPE = "type";
 const char *ENTITY_INVERSE_TYPE = "inverse";
 const char *WEIGHT = "weight";
 
-const char *EDGE_TYPE_EDGE_TO_SUBJECT = "ES";
+const char *EDGE_TYPE_EDGE_TO_SUBJECT = "EO";
 const char *EDGE_TYPE_SUBJECT_TO_EDGE = "SE";
 const char *EDGE_TYPE_EDGE_TO_OBJECT = "EO";
-const char *EDGE_TYPE_OBJECT_TO_EDGE = "OE";
+const char *EDGE_TYPE_OBJECT_TO_EDGE = "SE";
 
 const char *WREDIS_CMD_SADD = "sadd";
 const char *WREDIS_CMD_SMEMBERS = "SMEMBERS";

@@ -104,7 +104,6 @@ void *rxFindKey(int dbNo, const char *key)
     if (!key)
         serverPanic("findKey: No key to search!");
     robj k = {OBJ_STRING, OBJ_ENCODING_RAW, key, OBJ_SHARED_REFCOUNT};
-
     dictEntry *de = dictFind(db->dict, key);
     if (de)
     {

@@ -293,7 +293,7 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     int fetch_rows = strcmp(RX_GET, cmd) == 0 ? 1 : 0;
     rxString query = rxStringEmpty();
     bool ranked = false;
-    double ranked_lower_bound = std::numeric_limits<double>::min();
+    double ranked_lower_bound = -1;//std::numeric_limits<double>::min();
     double ranked_upper_bound = std::numeric_limits<double>::max();
     int dialect_skippy = 0;
     size_t arg_len;

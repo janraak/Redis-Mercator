@@ -361,7 +361,7 @@ public:
         if (!subject /*|| !object*/)
             return NULL;
         Graph_Triplet *triplet = Graph_Triplet::New(subject_key, subject);
-        triplet->length = terminal->length;
+        triplet->length = terminal ? terminal->length : 0;
         if (object)
         {
             Graph_Triplet_Edge *e = Graph_Triplet_Edge::New(object_key, object, path);
@@ -617,7 +617,9 @@ public:
     {
         bool nested = (this->edges.Size() > 1);
         bool has_edges = (this->edges.HasEntries());
-        bool has_length = (this->length != 0.0);
+        if(this->length < 0.0)
+            this->length = 0.0;
+        bool has_length = (this->length >= 0.0);
         int no_of_elements = 2 + (has_length ? 2 : 0) + (nested ? 2 : 0) + (has_edges ? (nested ? 0 : 4) : 0);
         RedisModule_ReplyWithArray(ctx, no_of_elements);
         RedisModule_ReplyWithStringBuffer(ctx, "subject", 7);
