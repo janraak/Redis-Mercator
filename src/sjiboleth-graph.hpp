@@ -325,6 +325,15 @@ public:
         return New(subject_key, subject, 0);
     }
 
+    static Graph_Triplet *Rename(Graph_Triplet *old, rxString new_subject_key)
+    {
+        auto *copy = New(new_subject_key, old->subject);
+        copy->JoinEdges(old);
+
+        // rxMemFree(old);
+        return copy;
+    }
+
     static CGraph_Triplet *InitializeResult(int db, Graph_Leg *terminal, rxString subject_key, rxString member, rxString edge)
     {
         void *subject = rxFindHashKey(db, subject_key);
@@ -439,10 +448,12 @@ public:
     {
         source->edges.StartHead();
         Graph_Triplet_Edge *e;
-        while ((e = source->edges.Next()) != NULL)
+            this->length = 0;
+    while ((e = source->edges.Next()) != NULL)
         {
             e->IncrRefCnt();
             this->edges.Push(e);
+            this->length += listLength(e->path) - 1;
         }
         source->edges.Stop();
     }
@@ -521,8 +532,8 @@ public:
         {
             // this->Show();
             this->subject = NULL;
-            rxStringFree(this->subject_key);
-            this->subject_key = rxStringEmpty();
+            // rxStringFree(this->subject_key);
+            // this->subject_key = rxStringEmpty();
         }
         while (this->edges.HasEntries())
         {

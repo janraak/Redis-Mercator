@@ -182,6 +182,11 @@ public:
         if(adjacent && adjacent->sequencer)
             listJoin(this->sequencer, listDup(adjacent->sequencer));
     }
+
+    void CopyTo(GraphStack<T> *receiver){        
+        if(receiver && receiver->sequencer)
+            listJoin(receiver->sequencer, listDup(this->sequencer));
+    }
 };
 
 #endif

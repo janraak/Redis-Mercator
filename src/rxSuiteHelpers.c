@@ -430,6 +430,13 @@ void *rxCreateObject(int type, void *ptr)
     return createObject(type, ptr);
 }
 
+void *rxSetContainedObject(void *oO, void *ptr)
+{
+    robj *o = (robj *)oO;
+    o->ptr = ptr;
+    return o;
+}
+
 void *rxInitObject(void *oO, int type, void *ptr)
 {
     robj *o = (robj *)oO;

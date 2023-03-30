@@ -125,6 +125,7 @@ extern "C"
     void rxFreeHashObject(void *o);
     void rxFreeObject(void *o);
     void *rxGetContainedObject(void *o);
+    void *rxSetContainedObject(void *oO, void *ptr);
     int rxGetRefcount(void *o);
     rax *rxSetToRax(void *obj);
 
