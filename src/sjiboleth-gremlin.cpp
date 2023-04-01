@@ -212,10 +212,10 @@ void AddKeyForEmptyBlok(FaBlok *e)
       3) "barney"
 
 */
-int mergeMatches(FaBlok *result)
+void mergeMatches(FaBlok *result)
 {
     if (raxSize(result->keyset) <= 1)
-        return C_OK;
+        return;
     raxIterator setIterator;
     raxStart(&setIterator, result->keyset);
     raxSeek(&setIterator, "^", NULL, 0);
@@ -235,13 +235,12 @@ int mergeMatches(FaBlok *result)
 
         first_triplet->JoinEdges(second_triplet);
 
-
         first_key = rxStringFormat("%s->%s", first_key, second_key);
         rxStringFree(second_key);
 
         first_triplet = Graph_Triplet::Rename(first_triplet, first_key);
         // rxFreeObject(first_data);
-        first_data = rxCreateObject(rxOBJ_TRIPLET, first_triplet);   
+        first_data = rxCreateObject(rxOBJ_TRIPLET, first_triplet);
 
         rxFreeObject(second_data);
 
@@ -251,11 +250,34 @@ int mergeMatches(FaBlok *result)
     rxStringFree(first_key);
 }
 
+int executeSingleMatch(const char *first_key, const char *second_key, SilNikParowy_Kontekst *stack, FaBlok *from, FaBlok *to, FaBlok *result)
+{
+    if (strcmp(first_key, second_key) == 0)
+    {
+        // No self matches!
+        return 0;
+        ;
+    }
+    from->InsertKey(first_key, rxFindKey(0, first_key));
+    to->InsertKey(second_key, rxFindKey(0, second_key));
+
+    int this_matches = breadthFirstSearch(from, NULL, result, GRAPH_TRAVERSE_INOUT, TRAVERSE_GETDATA, to->keyset, (rax *)stack->Recall("matchIncludes"), (rax *)stack->Recall("matchExcludes"), TRAVERSE_FINAL_VERTEX);
+
+    if (this_matches == 0)
+    {
+        // No match for section == no match for path!
+        return -1;
+    }
+    mergeMatches(result);
+    from->ClearKeys();
+    to->ClearKeys();
+    first_key = second_key;
+    return 1;
+}
+
 int executeMultiMatch(ParserToken *, SilNikParowy_Kontekst *stack, FaBlok *pl)
 {
-    GraphStack<FaBlok> permutes;
-    GraphStack<GraphStack<const char>> permutes2;
-    uint64_t nof_sets = pl->parameter_list->Size();
+    GraphStack<GraphStack<const char>> permutes;
     FaBlok *set = AddKeyForEmptyBlok(pl->parameter_list->Dequeue(), stack);
     // 1. Baseline first set
     raxIterator setIterator;
@@ -264,16 +286,11 @@ int executeMultiMatch(ParserToken *, SilNikParowy_Kontekst *stack, FaBlok *pl)
     while (raxNext(&setIterator))
     {
         rxString inner_key = rxStringNewLen((const char *)setIterator.key, setIterator.key_len);
-        FaBlok *inner = FaBlok::New(set->AsSds(), KeysetDescriptor_TYPE_GREMLIN_VERTEX_SET);
-        inner->InsertKey(inner_key, setIterator.data);
-        // TODO: Do MATCH( Outer_key, inner key here)  !!!!!!!!
+        auto *inner = new GraphStack<const char>();
+        inner->Enqueue(inner_key);
         permutes.Enqueue(inner);
 
-        auto *inner2 = new GraphStack<const char>();
-        inner2->Push(inner_key);
-        permutes2.Enqueue(inner2);
-
-        rxStringFree(inner_key);
+        // rxStringFree(inner_key);
     }
     raxStop(&setIterator);
     // 2. Expand with next sets
@@ -287,30 +304,18 @@ int executeMultiMatch(ParserToken *, SilNikParowy_Kontekst *stack, FaBlok *pl)
         {
             outer_size--;
             auto *outer = permutes.Dequeue();
-            auto *outer2 = permutes2.Dequeue();
             raxStart(&setIterator, set->keyset);
             raxSeek(&setIterator, "^", NULL, 0);
             while (raxNext(&setIterator))
             {
                 rxString inner_key = rxStringNewLen((const char *)setIterator.key, setIterator.key_len);
-                rxString joint = rxStringFormat("%s x %s", outer->AsSds(), set->AsSds());
-                FaBlok *inner = FaBlok::New(joint, KeysetDescriptor_TYPE_GREMLIN_VERTEX_SET);
-
+                auto *inner = new GraphStack<const char>();
                 outer->CopyTo(inner);
-                inner->InsertKey(inner_key, setIterator.data);
+                inner->Enqueue(inner_key);
                 permutes.Enqueue(inner);
-
-                auto *inner2 = new GraphStack<const char>();
-                outer2->CopyTo(inner2);
-                inner2->Push(inner_key);
-                permutes2.Enqueue(inner2);
-
-                rxStringFree(joint);
-                rxStringFree(inner_key);
             }
             raxStop(&setIterator);
-            FaBlok::Delete(outer);
-            delete outer2;
+            delete outer;
         }
     }
     // 3. Find path for each adjacent pair
@@ -322,45 +327,37 @@ int executeMultiMatch(ParserToken *, SilNikParowy_Kontekst *stack, FaBlok *pl)
     auto *to = FaBlok::New(terminator_temp_setname, KeysetDescriptor_TYPE_GREMLINSET);
     rxString setname = rxStringFormat("MULTIMATCH:::PATH:::%lld::OUT", ustime());
     auto *final_result = FaBlok::New(setname, KeysetDescriptor_TYPE_GREMLINSET);
+
     while (permutes.HasEntries())
     {
-        set = permutes.Dequeue();
-        if(raxSize(set->keyset) != nof_sets)
-            continue;
-        raxStart(&setIterator, set->keyset);
-        raxSeek(&setIterator, "^", NULL, 0);
-        if (raxNext(&setIterator))
-        {
-            setname = rxStringFormat("MULTIMATCH:::PATH:::%lld::OUT", ustime());
-            auto *result = FaBlok::New(terminator_temp_setname, KeysetDescriptor_TYPE_GREMLINSET);
-            rxString first_key = rxStringNewLen((const char *)setIterator.key, setIterator.key_len);
-            void *first_data = setIterator.data;
-            while (raxNext(&setIterator))
-            {
-                rxString second_key = rxStringNewLen((const char *)setIterator.key, setIterator.key_len);
-                if (strcmp(first_key, second_key) == 0)
-                    continue;
-                from->InsertKey(first_key, first_data);
-                to->InsertKey(second_key, setIterator.data);
+        auto *row = permutes.Dequeue();
+        row->StartHead();
+        // rxString trace = rxStringNew("row: ");
+        // const char *k;
+        // while ((k = row->Next()) != NULL)
+        //     trace = rxStringFormat("%s %s", trace, k);
+        int64_t row_size = row->Size();
 
-                int nof_matches = breadthFirstSearch(from, NULL, result, GRAPH_TRAVERSE_INOUT, TRAVERSE_GETDATA, to->keyset, (rax *)stack->Recall("matchIncludes"), (rax *)stack->Recall("matchExcludes"), TRAVERSE_FINAL_VERTEX);
-                if (nof_matches == 0)
-                {
-                    // No match for section == no match for path!
-                    break;
-                }
-                mergeMatches(result);
-                from->RemoveKey(first_key);
-                to->RemoveKey(second_key);
-                rxStringFree(first_key);
-                first_key = second_key;
-            }
-            rxStringFree(first_key);
-            result->CopyTo(final_result);
-            FaBlok::Delete(result);
+        setname = rxStringFormat("MULTIMATCH:::PATH:::%lld::OUT", ustime());
+        auto *result = FaBlok::New(setname, KeysetDescriptor_TYPE_GREMLINSET);
+        const char *first_key = row->Dequeue();
+        const char *start_key = first_key;
+        const char *end_key = NULL;
+        int nof_matches = 0;
+        while (row->HasEntries())
+        {
+            const char *second_key = row->Dequeue();
+            end_key = second_key;
+            nof_matches += executeSingleMatch(first_key, second_key, stack, from, to, result);
+            first_key = second_key;
         }
-        raxStop(&setIterator);
-        FaBlok::Delete(set);
+        nof_matches += executeSingleMatch(start_key, end_key, stack, from, to, result);
+
+        // rxServerLog(rxLL_NOTICE, "%s => %d", trace, nof_matches);
+        if (nof_matches == row_size)
+            result->CopyTo(final_result);
+        FaBlok::Delete(result);
+        delete row;
     }
     FaBlok::Delete(to);
     FaBlok::Delete(from);
@@ -694,7 +691,7 @@ SJIBOLETH_HANDLER(GremlinDialect::executeAllVertices)
         {
             PushResult(kd, stack);
             // No tokens on Stack
-            kd = getAllKeysByRegex(0, "[A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*", NO_MATCH_PATTERN, "vertices");
+            kd = getAllKeysByRegex(0, "[^~`][A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*", NO_MATCH_PATTERN, "vertices");
         }
         else
         {
@@ -734,7 +731,7 @@ SJIBOLETH_HANDLER(GremlinDialect::executeAllVertices)
                 if (key_or_pattern_mode == 2)
                 {
                     FaBlok::Delete(kd);
-                    kd = getAllKeysByField(0, "[A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*", NO_MATCH_PATTERN, ad->AsSds(), patterns, setname);
+                    kd = getAllKeysByField(0, "[^~`][A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*", NO_MATCH_PATTERN, ad->AsSds(), patterns, setname);
                 }
                 else
                     kd->Rename(setname);
@@ -755,7 +752,7 @@ SJIBOLETH_HANDLER(GremlinDialect::executeAllVertices)
                     if (key_entry != NULL)
                         kd->LoadKey(0, kd->setname);
                     else if (kd->FetchKeySet(index_config, kd->setname) == C_ERR)
-                        kd = getAllKeysByType(0, "[A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*", NO_MATCH_PATTERN, kd->AsSds());
+                        kd = getAllKeysByType(0, "[^~`][A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*[:][A-Z0-9@#$!%&_-]*", NO_MATCH_PATTERN, kd->AsSds());
                 }
                 rxStringFree(metatype);
             }
@@ -1753,7 +1750,7 @@ void executeGremlinAddEdgeUsingSubjectEdgeNamesObject(SilNikParowy_Kontekst *sta
 
     FaBlok *e = persistTriplet(stack, NULL, s->setname, pred->setname, pred->setname, o->setname, data_config);
     if (strcmp(pred->setname, inv_pred->setname) != 0)
-        FaBlok *e = persistTriplet(stack, e, o->setname, inv_pred->setname, inv_pred->setname, s->setname, data_config);
+        e = persistTriplet(stack, e, o->setname, inv_pred->setname, inv_pred->setname, s->setname, data_config);
     PushResult(e, stack);
     FaBlok::Delete(et);
 }
@@ -2120,7 +2117,7 @@ FaBlok *getAllKeysByRegex(int dbNo, const char *regex, int on_matched, const cha
     while ((obj = rxScanKeys(dbNo, &iter, (char **)&key)) != NULL)
     {
 
-        if (*key == '^')
+        if (*key == '^' || *key == '~' || *key == '`')
             continue;
 
         int stringmatch = rxStringCharCount(key, ':') >= 2;
@@ -2265,7 +2262,11 @@ int AddMemberToKeysetForMatch(int db, unsigned char *vstr, size_t vlen, FaBlok *
             path = path->origin;
         }
         rxString match_key = rxStringFormat("%s->%s", origin_key, vstr);
-        kd->AddKey(match_key, tobj);
+
+        if (origin_key != NULL)
+            kd->AddKey(match_key, tobj);
+        else
+            rxMemFree(tobj);
         return 1;
     }
 

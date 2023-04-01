@@ -123,6 +123,7 @@ public:
       void InsertKey(unsigned char *s, size_t len, void *obj);
       void *RemoveKey(const char *key);
       void *RemoveKey(unsigned char *s, size_t len);
+      void *ClearKeys();      
       void *LookupKey(const char *key);
       void PushResult(GraphStack<FaBlok> *stack);
 

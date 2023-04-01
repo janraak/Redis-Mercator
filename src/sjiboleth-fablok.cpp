@@ -769,6 +769,20 @@ void *FaBlok::RemoveKey(unsigned char *s, size_t len)
     return old;
 }
 
+void *FaBlok::ClearKeys()
+{
+    raxIterator setIterator;
+    raxStart(&setIterator, this->keyset);
+    raxSeek(&setIterator, "^", NULL, 0);
+    while (raxSize(this->keyset) > 0)
+    {
+        raxRemove(this->keyset, setIterator.key, setIterator.key_len, NULL);
+        raxSeek(&setIterator, "^", NULL, 0);
+    }
+    raxStop(&setIterator);
+    return this;
+}
+
 void *FaBlok::LookupKey(const char *key)
 {
    // rxServerLog(rxLL_NOTICE, "FaBlok::LookupKey fab=%p ks=%p for %s key:%s", this, this->keyset, this->setname, key);
