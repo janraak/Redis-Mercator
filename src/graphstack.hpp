@@ -140,6 +140,39 @@ public:
     }
     listIter *sequencer_iter = NULL;
 
+
+    void RemoveFirst()
+    {
+        if (this->sequencer)
+        {
+            listDelNode(this->sequencer, listFirst(this->sequencer));
+        }
+    }
+
+    void RemoveLast()
+    {
+        if (this->sequencer)
+        {
+            listDelNode(this->sequencer, listLast(this->sequencer));
+        }
+    }
+
+    void RemoveAllBut(int pivot_pos)
+    {
+        if (this->sequencer)
+        {
+            int from_head = pivot_pos;
+            int from_tail = this->sequencer->len - pivot_pos - 1;
+            while (from_tail--)
+                listDelNode(this->sequencer, listLast(this->sequencer));
+            if (pivot_pos > 0)
+            {
+                while (from_head--)
+                    listDelNode(this->sequencer, listFirst(this->sequencer));
+            }
+        }
+    }
+
     void Purge()
     {
         do

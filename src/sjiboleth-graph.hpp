@@ -83,7 +83,7 @@ public:
 
 typedef void CGraph_Triplet;      // Opaque Redis Object
 typedef void CGraph_Triplet_Edge; // Opaque Redis Object
-
+extern bool raxContains(rax *tree, char const *key);
 class Graph_Triplet_Edge
 {
 public:
@@ -119,11 +119,12 @@ public:
     //     listAddNodeTail(this->path, (void *)step);
     // }
 
-    static Graph_Triplet_Edge *New(rxString object_key, void *object, list *path){
-        if(strlen(object_key) == 0)
+    static Graph_Triplet_Edge *New(rxString object_key, void *object, list *path)
+    {
+        if (strlen(object_key) == 0)
             rxServerLog(rxLL_NOTICE, "Suspicious call");
         auto *edge = (Graph_Triplet_Edge *)rxMemAlloc(sizeof(Graph_Triplet_Edge) + strlen(object_key) + 1);
-        auto *ok = (char*)((void *)edge) + sizeof(Graph_Triplet_Edge);
+        auto *ok = (char *)((void *)edge) + sizeof(Graph_Triplet_Edge);
         strcpy(ok, object_key);
         edge->object = object;
         edge->object_key = ok;
@@ -132,12 +133,13 @@ public:
         return edge;
     }
 
-    static Graph_Triplet_Edge *New(rxString object_key, void *object, rxString step){
-        if(strlen(object_key) == 0)
+    static Graph_Triplet_Edge *New(rxString object_key, void *object, rxString step)
+    {
+        if (strlen(object_key) == 0)
             rxServerLog(rxLL_NOTICE, "Suspicious call");
         auto *edge = (Graph_Triplet_Edge *)rxMemAlloc(sizeof(Graph_Triplet_Edge) + strlen(object_key) + 1 + strlen(step) + 1);
-        auto *ok = (char*)((void *)edge) + sizeof(Graph_Triplet_Edge);
-        auto *section = ok + 1 +  strlen(object_key);
+        auto *ok = (char *)((void *)edge) + sizeof(Graph_Triplet_Edge);
+        auto *section = ok + 1 + strlen(object_key);
         strcpy(ok, object_key);
         strcpy(section, step);
         edge->object = object;
@@ -194,6 +196,20 @@ public:
         }
         rxServerLog(rxLL_NOTICE, "\n");
         listReleaseIterator(li);
+    }
+
+    int Number_of_Touches(rax *steps)
+    {
+        int touches = 0;
+        listIter *li = listGetIterator(this->path, 0);
+        listNode *ln;
+        while ((ln = listNext(li)) != NULL)
+        {
+            if (raxContains(steps, (char *)ln->value))
+                ++touches;
+        }
+        listReleaseIterator(li);
+        return touches;
     }
 
     rxString Json(rxString json)
@@ -304,11 +320,10 @@ public:
     //     this->length = length;
     // }
 
-
     static Graph_Triplet *New(rxString subject_key, void *subject, double length)
     {
         auto *t = (Graph_Triplet *)rxMemAlloc(sizeof(Graph_Triplet) + strlen(subject_key) + 1);
-        auto * sk = (char *)((void *) t ) + sizeof(Graph_Triplet);
+        auto *sk = (char *)((void *)t) + sizeof(Graph_Triplet);
         strcpy(sk, subject_key);
 
         t->subject_key = sk;
@@ -448,8 +463,8 @@ public:
     {
         source->edges.StartHead();
         Graph_Triplet_Edge *e;
-            this->length = 0;
-    while ((e = source->edges.Next()) != NULL)
+        this->length = 0;
+        while ((e = source->edges.Next()) != NULL)
         {
             e->IncrRefCnt();
             this->edges.Push(e);
@@ -538,8 +553,9 @@ public:
         while (this->edges.HasEntries())
         {
             Graph_Triplet_Edge *e = (Graph_Triplet_Edge *)this->edges.Pop();
-            if(e->object_key != (char *)((void*)e + sizeof(Graph_Triplet_Edge))){
-                rxServerLog(rxLL_NOTICE, "Suspicious Graph_Triplet_Edge e:%p ok:%p not %p", e, e->object_key, (void*)e + sizeof(Graph_Triplet_Edge));
+            if (e->object_key != (char *)((void *)e + sizeof(Graph_Triplet_Edge)))
+            {
+                rxServerLog(rxLL_NOTICE, "Suspicious Graph_Triplet_Edge e:%p ok:%p not %p", e, e->object_key, (void *)e + sizeof(Graph_Triplet_Edge));
                 continue;
             }
             if (e)
@@ -628,7 +644,7 @@ public:
     {
         bool nested = (this->edges.Size() > 1);
         bool has_edges = (this->edges.HasEntries());
-        if(this->length < 0.0)
+        if (this->length < 0.0)
             this->length = 0.0;
         bool has_length = (this->length >= 0.0);
         int no_of_elements = 2 + (has_length ? 2 : 0) + (nested ? 2 : 0) + (has_edges ? (nested ? 0 : 4) : 0);
@@ -668,6 +684,38 @@ public:
     {
         this->refCnt--;
         return this->refCnt;
+    }
+
+    void CalcLength()
+    {
+        this->length = 0;
+        if ((this->edges.HasEntries()))
+        {
+            this->edges.StartHead();
+            Graph_Triplet_Edge *e;
+            while ((e = this->edges.Next()) != NULL)
+            {
+                this->length += ((e->path->len + 1)/ 2);
+            }
+            this->edges.Stop();
+        }
+    }
+
+    void RemoveAllEdgesBut(int pivot_pos)
+    {
+        this->edges.RemoveAllBut(pivot_pos);
+        this->CalcLength();
+    }
+
+    void RemoveLastEdge()
+    {
+        this->edges.RemoveLast();
+        this->CalcLength();
+    }
+    void RemoveFirstEdge()
+    {
+        this->edges.RemoveFirst();
+        this->CalcLength();
     }
 };
 

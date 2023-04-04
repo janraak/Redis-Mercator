@@ -89,41 +89,41 @@ FaBlok *FaBlok::Get(const char *sn)
 
 bool FaBlok::IsValid()
 {
-    // if (!(((void *)this - sizeof(rax)) == (void *)this->keyset))
+    // // if (!(((void *)this - sizeof(rax)) == (void *)this->keyset))
+    // // {
+    // //     rxServerLog(rxLL_NOTICE, "Possible memory corruption fablok=%p instead of %p rax=%p instead of %p",
+    // //                 this,
+    // //                 ((void *)this->keyset) + sizeof(rax),
+    // //                 this->keyset,
+    // //                 ((void *)this) - sizeof(rax));
+    // //     return false;
+    // // }
+
+    // // if (!(((void *)this + sizeof(FaBlok)) == (void *)this->setname))
+    // // {
+    // //     rxServerLog(rxLL_NOTICE, "Possible memory corruption fablok=%p instead of %p setname=%p instead of %p",
+    // //                 this,
+    // //                 ((void *)this->setname) - sizeof(FaBlok)),
+    // //         this->setname,
+    // //         ((void *)this + sizeof(FaBlok));
+    // //     return false;
+    // // }
+
+    // if (memcmp(this->rumble_strip1, RUMBLE_STRIP1, sizeof(this->rumble_strip1)) != 0 || memcmp(this->rumble_strip2, RUMBLE_STRIP2, sizeof(this->rumble_strip2)) != 0)
     // {
-    //     rxServerLog(rxLL_NOTICE, "Possible memory corruption fablok=%p instead of %p rax=%p instead of %p",
-    //                 this,
-    //                 ((void *)this->keyset) + sizeof(rax),
-    //                 this->keyset,
-    //                 ((void *)this) - sizeof(rax));
+    //     rxServerLogRaw(rxLL_NOTICE, "Rumble in the Jungle");
     //     return false;
     // }
-
-    // if (!(((void *)this + sizeof(FaBlok)) == (void *)this->setname))
+    // if ((strlen(this->setname) > 0 /*&& this->size != raxSize(this->keyset)*/) || !(this->marked_for_deletion == 653974783 || this->marked_for_deletion == 722765))
     // {
-    //     rxServerLog(rxLL_NOTICE, "Possible memory corruption fablok=%p instead of %p setname=%p instead of %p",
-    //                 this,
-    //                 ((void *)this->setname) - sizeof(FaBlok)),
-    //         this->setname,
-    //         ((void *)this + sizeof(FaBlok));
+    //    rxServerLog(rxLL_NOTICE, "FaBlok for %s may be corrupted fab: reused:%ld sz: %lu marked_for_deletion:%ld temp:%ld\n",
+    //                 this->setname,
+    //                 this->reuse_count,
+    //                 this->size,
+    //                 this->marked_for_deletion,
+    //                 this->is_temp);
     //     return false;
     // }
-
-    if (memcmp(this->rumble_strip1, RUMBLE_STRIP1, sizeof(this->rumble_strip1)) != 0 || memcmp(this->rumble_strip2, RUMBLE_STRIP2, sizeof(this->rumble_strip2)) != 0)
-    {
-        rxServerLogRaw(rxLL_NOTICE, "Rumble in the Jungle");
-        return false;
-    }
-    if ((strlen(this->setname) > 0 && this->size != raxSize(this->keyset)) || !(this->marked_for_deletion == 653974783 || this->marked_for_deletion == 722765))
-    {
-       rxServerLog(rxLL_NOTICE, "FaBlok for %s may be corrupted fab: reused:%ld sz: %lu marked_for_deletion:%ld temp:%ld\n",
-                    this->setname,
-                    this->reuse_count,
-                    this->size,
-                    this->marked_for_deletion,
-                    this->is_temp);
-        return false;
-    }
     return true;
 }
 
