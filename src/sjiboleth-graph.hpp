@@ -31,31 +31,54 @@ extern "C"
 class Graph_Leg
 {
 public:
-    rxString key;
-    float length;
+    char *key;
+    double length;
     Graph_Leg *start;
     Graph_Leg *origin;
     void *obj;
 
 public:
-    Graph_Leg(rxString key, float weight)
+    void Init(rxString key, double weight)
     {
-        this->key = rxStringDup(key);
-        this->length = weight;
+        this->key = (char *)((void *)this + sizeof(Graph_Leg));
+        strcpy(this->key, key);
+        this->length = weight / 2;
         this->start = NULL;
         this->origin = NULL;
         this->obj = NULL;
     }
 
-    Graph_Leg(rxString key, float weight, Graph_Leg *origin)
-        : Graph_Leg(key, origin == NULL ? weight : origin->length + weight)
+    static Graph_Leg *New(rxString key, double weight)
     {
-        this->origin = origin;
+        auto *here = (Graph_Leg *)rxMemAlloc(sizeof(Graph_Leg) + strlen(key) + 1);
+        here->Init(key, weight);
+        return here;
+    }
+
+    static Graph_Leg *New(rxString key, double weight, Graph_Leg *origin)
+    {
+        auto *here = (Graph_Leg *)rxMemAlloc(sizeof(Graph_Leg) + strlen(key) + 1);
+        here->Init(key, weight);
+        here->origin = origin;
+        return here;
     }
 
     ~Graph_Leg()
     {
-        rxStringFree(this->key);
+    }
+
+    static int WeightOrdered(void *left, void *right) // Comparator for priority enqueue
+    {
+        /*  -1 == l > r
+             0 == l == r
+             1 == l < r
+        */  
+        float balance = ((Graph_Leg *)left)->length - ((Graph_Leg *)right)->length;
+        if (balance < 0)
+            return 1; // l < r
+        if (balance > 0)
+            return -1; // l > r
+        return 0; // l == r
     }
 
     static Graph_Leg *Add(rxString key, double const weight, Graph_Leg *origin, GraphStack<Graph_Leg> *bsf_q, rax *touches)
@@ -66,8 +89,8 @@ public:
             if (data != raxNotFound)
                 return NULL;
         }
-        auto *leg = new Graph_Leg(key, weight, origin);
-        bsf_q->Enqueue(leg);
+        auto *leg = Graph_Leg::New(key, weight, origin);
+        bsf_q->Enqueue(leg, WeightOrdered);
         if (touches)
             raxInsert(touches, (UCHAR *)key, strlen(key), leg, NULL);
         return leg;
@@ -75,8 +98,8 @@ public:
 
     static Graph_Leg *Add(rxString key, double weight, GraphStack<Graph_Leg> *bsf_q)
     {
-        auto *leg = new Graph_Leg(key, weight);
-        bsf_q->Enqueue(leg);
+        auto *leg = Graph_Leg::New(key, weight);
+        bsf_q->Enqueue(leg, WeightOrdered);
         return leg;
     }
 };
@@ -91,33 +114,15 @@ public:
     void *object;
     list *path;
     int refCnt;
-    void *legit;
+    double length;
 
 public:
     Graph_Triplet_Edge()
     {
         this->object = NULL;
-        this->object_key = rxStringEmpty();
         this->path = NULL;
         this->refCnt = 1;
     }
-
-    // Graph_Triplet_Edge(rxString object_key, void *object, list *path)
-    //     : Graph_Triplet_Edge()
-    // {
-    //     this->object = object;
-    //     this->object_key = rxStringDup(object_key);
-    //     this->path = path;
-    // }
-
-    // Graph_Triplet_Edge(rxString object_key, void *object, rxString step)
-    //     : Graph_Triplet_Edge()
-    // {
-    //     this->object = object;
-    //     this->object_key = rxStringDup(object_key);
-    //     this->path = listCreate();
-    //     listAddNodeTail(this->path, (void *)step);
-    // }
 
     static Graph_Triplet_Edge *New(rxString object_key, void *object, list *path)
     {
@@ -130,6 +135,7 @@ public:
         edge->object_key = ok;
         edge->path = path;
         edge->refCnt = 1;
+        edge->CalcLength();
         return edge;
     }
 
@@ -146,7 +152,7 @@ public:
         edge->object_key = ok;
         edge->path = listCreate();
         edge->refCnt = 1;
-        listAddNodeTail(edge->path, (void *)section);
+        listAddNodeHead(edge->path, Graph_Leg::New(step, 0.0));
         return edge;
     }
 
@@ -163,17 +169,31 @@ public:
         return this->refCnt;
     }
 
+    double CalcLength()
+    {
+        this->length = 0;
+        auto *iter = listGetIterator(this->path, AL_START_HEAD);
+        listNode *node;
+        while ((node = listNext(iter)))
+        {
+            this->length += ((Graph_Leg *)node->value)->length;
+        }
+        listReleaseIterator(iter);
+        return this->length;
+    }
+
     ~Graph_Triplet_Edge()
     {
         this->object = NULL;
-        rxStringFree(this->object_key);
-        this->object_key = rxStringEmpty();
+        // rxStringFree(this->object_key);
+        // this->object_key = rxStringEmpty();
         while (listLength(this->path))
         {
             listNode *node = listIndex(this->path, 0);
             if (node)
             {
-                rxStringFree((rxString)node->value);
+                //TODO: free path and graph_legs!
+                rxMemFree(node->value);
                 listDelNode(this->path, node);
             }
         }
@@ -195,6 +215,22 @@ public:
             rxServerLog(rxLL_NOTICE, " => %s", (char *)ln->value);
         }
         rxServerLog(rxLL_NOTICE, "\n");
+        if(this->path){
+              listIter *li = listGetIterator(this->path, 0);
+            listNode *ln;
+            while ((ln = listNext(li)))
+            {
+                auto *k = (Graph_Leg*)ln->value;
+                if((ln->value + sizeof(Graph_Leg)) == (void*)k->key){
+                    rxServerLog(rxLL_NOTICE,"path: %p %s %f", k, k->key, k->length);
+                }else{
+                    rxServerLog(rxLL_NOTICE,"Leg with gangreen! %p\n", k);
+
+                }
+            }
+            listReleaseIterator(li);
+          
+        }
         listReleaseIterator(li);
     }
 
@@ -239,9 +275,9 @@ public:
         if (nested)
             RedisModule_ReplyWithArray(ctx, 4);
 
-        RedisModule_ReplyWithStringBuffer(ctx, "object", 6);
+        RedisModule_ReplyWithSimpleString(ctx, "object");
         RedisModule_ReplyWithStringBuffer(ctx, (char *)this->object_key, strlen((char *)this->object_key));
-        RedisModule_ReplyWithStringBuffer(ctx, "path", 4);
+        RedisModule_ReplyWithSimpleString(ctx, "path");
         if (this->path && listLength(this->path))
         {
             RedisModule_ReplyWithArray(ctx, listLength(this->path));
@@ -249,8 +285,16 @@ public:
             listNode *ln;
             while ((ln = listNext(li)))
             {
-                rxString k = (rxString)ln->value;
-                RedisModule_ReplyWithStringBuffer(ctx, (char *)k, strlen(k));
+                RedisModule_ReplyWithArray(ctx, 2);
+                auto *k = (Graph_Leg*)ln->value;
+                if((ln->value + sizeof(Graph_Leg)) == (void*)k->key){
+                    RedisModule_ReplyWithSimpleString(ctx, k->key);
+                    RedisModule_ReplyWithDouble(ctx, k->length);
+                }else{
+                    RedisModule_ReplyWithSimpleString(ctx, "Leg with gangreen!");
+                    RedisModule_ReplyWithDouble(ctx, 0.0);
+
+                }
             }
             listReleaseIterator(li);
         }
@@ -296,29 +340,8 @@ public:
     GraphStack<Graph_Triplet_Edge> edges;
     GraphStack<FaBlok> containers;
     int refCnt;
-    void *legit;
 
 public:
-    // Graph_Triplet()
-    // {
-    //     this->subject_key = rxStringEmpty();
-    //     this->subject = NULL;
-    //     this->refCnt = 0;
-    // }
-
-    // Graph_Triplet(rxString subject_key, void *subject)
-    // {
-    //     this->subject_key = rxStringDup(subject_key);
-    //     this->subject = subject;
-    //     this->length = 0.0;
-    //     this->refCnt = 0;
-    // }
-
-    // Graph_Triplet(rxString subject_key, void *subject, double length)
-    //     : Graph_Triplet(subject_key, subject)
-    // {
-    //     this->length = length;
-    // }
 
     static Graph_Triplet *New(rxString subject_key, void *subject, double length)
     {
@@ -349,9 +372,9 @@ public:
         return copy;
     }
 
-    static CGraph_Triplet *InitializeResult(int db, Graph_Leg *terminal, rxString subject_key, rxString member, rxString edge)
+    static CGraph_Triplet *InitializeResult(int db, Graph_Leg *terminal, rxString object_key, rxString member, rxString edge)
     {
-        void *subject = rxFindHashKey(db, subject_key);
+        void *subject = rxFindHashKey(db, object_key);
         if (subject == NULL)
             subject = rxCreateHashObject();
 
@@ -359,7 +382,8 @@ public:
 
         Graph_Leg *p = terminal;
         void *object = NULL;
-        rxString object_key = member;
+        double l = 0.0;
+        rxString subject_key = member;
         if (member == NULL || strlen(member) == 0)
         {
             while (p)
@@ -369,9 +393,10 @@ public:
                     object = rxFindHashKey(db, p->key);
                     if (object == NULL)
                         return NULL;
-                    object_key = rxStringDup(p->key);
+                    subject_key = p->key;
                 }
-                listAddNodeTail(path, (void *)rxStringDup(p->key));
+                listAddNodeHead(path, p);
+                l += p->length;
                 p = p->origin;
             }
         }
@@ -380,12 +405,12 @@ public:
             member = rxStringTrim(member, "^");
             object = rxFindKey(db, member);
             if (edge != NULL)
-                listAddNodeTail(path, (void *)rxStringDup(edge));
+                listAddNodeHead(path, Graph_Leg::New(edge, 0));
         }
         if (!subject /*|| !object*/)
             return NULL;
         Graph_Triplet *triplet = Graph_Triplet::New(subject_key, subject);
-        triplet->length = terminal ? terminal->length : 0;
+        triplet->length = l;
         if (object)
         {
             Graph_Triplet_Edge *e = Graph_Triplet_Edge::New(object_key, object, path);
@@ -410,13 +435,14 @@ public:
         double path_length = (terminal != NULL) ? terminal->length : 0.0;
         while (p)
         {
-            listAddNodeTail(path, (void *)rxStringDup(p->key));
+            listAddNodeHead(path, p);
             p = p->origin;
         }
         object_key = rxStringTrim(object_key, "^");
         object = rxFindKey(db, object_key);
-        if (edge)
-            listAddNodeTail(path, (void *)rxStringDup(edge));
+        if (edge){
+            listAddNodeHead(path, Graph_Leg::New(edge, 0.0));
+        }
 
         if (!subject /*|| !object*/)
             return NULL;
@@ -468,7 +494,7 @@ public:
         {
             e->IncrRefCnt();
             this->edges.Push(e);
-            this->length += listLength(e->path) - 1;
+            this->length += e->CalcLength();
         }
         source->edges.Stop();
     }
@@ -564,7 +590,7 @@ public:
                 if (e->DecrRefCnt() <= 0)
                 {
                     // delete e;
-
+                    // Todo: free path! and legs!
                     rxMemFree(e);
                 }
             }
@@ -649,16 +675,16 @@ public:
         bool has_length = (this->length >= 0.0);
         int no_of_elements = 2 + (has_length ? 2 : 0) + (nested ? 2 : 0) + (has_edges ? (nested ? 0 : 4) : 0);
         RedisModule_ReplyWithArray(ctx, no_of_elements);
-        RedisModule_ReplyWithStringBuffer(ctx, "subject", 7);
+        RedisModule_ReplyWithSimpleString(ctx, "subject");
         RedisModule_ReplyWithStringBuffer(ctx, (char *)this->subject_key, strlen((char *)this->subject_key));
         if (has_length)
         {
-            RedisModule_ReplyWithStringBuffer(ctx, "length", 6);
+            RedisModule_ReplyWithSimpleString(ctx, "length");
             RedisModule_ReplyWithDouble(ctx, this->length);
         }
         if (nested)
         {
-            RedisModule_ReplyWithStringBuffer(ctx, "objects", 7);
+            RedisModule_ReplyWithSimpleString(ctx, "objects");
             RedisModule_ReplyWithArray(ctx, this->edges.Size());
         }
         if (has_edges)
@@ -686,7 +712,7 @@ public:
         return this->refCnt;
     }
 
-    void CalcLength()
+    double CalcLength()
     {
         this->length = 0;
         if ((this->edges.HasEntries()))
@@ -695,10 +721,11 @@ public:
             Graph_Triplet_Edge *e;
             while ((e = this->edges.Next()) != NULL)
             {
-                this->length += ((e->path->len + 1)/ 2);
+                this->length += e->CalcLength();
             }
             this->edges.Stop();
         }
+        return this->length;
     }
 
     void RemoveAllEdgesBut(int pivot_pos)

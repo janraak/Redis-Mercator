@@ -2,13 +2,15 @@
 #define __GRAPHSTACK_H__
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
-#include <stddef.h>
 #include "adlist.h"
+#include <stddef.h>
 #ifdef __cplusplus
 }
 #endif
+typedef int EnqueueInOrder(void *left, void *right); // Comparator prototype for priority enqueue
 
 template <typename T>
 class GraphStack
@@ -91,6 +93,23 @@ public:
     void Enqueue(T *t)
     {
         listAddNodeTail(this->sequencer, (void *)t);
+    }
+
+    void Enqueue(T *t, EnqueueInOrder *sequencer)
+    {
+        auto *li = listGetIterator(this->sequencer, AL_START_HEAD);
+        listNode *node;
+        while ((node = listNext(li)))
+        {
+            if ((*sequencer)(t, node->value) >= 0)
+            {
+                listInsertNode(this->sequencer, node, (void *)t, 0);
+                listReleaseIterator(li);
+                return;
+            }
+        }
+        listAddNodeTail(this->sequencer, (void *)t);
+        listReleaseIterator(li);
     }
 
     T *Dequeue()
@@ -211,13 +230,15 @@ public:
         sequencer_iter = NULL;
     }
 
-    void Join(GraphStack<T> *adjacent){
-        if(adjacent && adjacent->sequencer)
+    void Join(GraphStack<T> *adjacent)
+    {
+        if (adjacent && adjacent->sequencer)
             listJoin(this->sequencer, listDup(adjacent->sequencer));
     }
 
-    void CopyTo(GraphStack<T> *receiver){        
-        if(receiver && receiver->sequencer)
+    void CopyTo(GraphStack<T> *receiver)
+    {
+        if (receiver && receiver->sequencer)
             listJoin(receiver->sequencer, listDup(this->sequencer));
     }
 };

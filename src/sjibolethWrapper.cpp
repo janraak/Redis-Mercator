@@ -377,16 +377,12 @@ void FreeResultObject(void *o)
         auto *t = (Graph_Triplet *)rxGetContainedObject(o);
         if (t != NULL)
         {
-            if(t->subject_key != (char *)((void*)t + sizeof(Graph_Triplet))){
-                rxServerLog(rxLL_NOTICE, "Suspicious Graph_Triplet t:%p sk:%p not %p", t, t->subject_key, (void*)t + sizeof(Graph_Triplet));
-                return;
+            if (t->DecrRefCnt() <= 1)
+            {
+                //TODO: Delete object content!;
+                rxMemFree(t);
+                rxMemFree(o);
             }
-                if (t->DecrRefCnt() <= 1)
-                {
-                    // delete t;
-                    rxMemFree(t);
-                    rxMemFree(o);
-                }
         }
     }
 }
