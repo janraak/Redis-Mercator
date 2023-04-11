@@ -137,7 +137,7 @@ static rxString extractRowForStringKey(char *row_start, char *row_end, char *hdr
     return value;
 }
 
-static void *extractRowAsJson(SimpleQueue *req_q, char *row_start, char *row_end, char *hdr_start, char *hdr_end, char *column_separator)
+static void *extractRowAsJson(SimpleQueue *, char *row_start, char *row_end, char *hdr_start, char *hdr_end, char *column_separator)
 {
     char *f_tab = strstr(hdr_start, column_separator);
     char *v_tab = strstr(row_start, column_separator);
@@ -166,7 +166,7 @@ static void *extractRowAsJson(SimpleQueue *req_q, char *row_start, char *row_end
     return NULL;
 }
 
-static void *extractRowAsHash(SimpleQueue *req_q, char *row_start, char *row_end, char *hdr_start, char *hdr_end, char *column_separator)
+static void *extractRowAsHash(SimpleQueue *, char *row_start, char *row_end, char *hdr_start, char *hdr_end, char *column_separator)
 {
 
     char *f_tab = strstr(hdr_start, column_separator);
@@ -210,10 +210,18 @@ static void *extractRowAsHash(SimpleQueue *req_q, char *row_start, char *row_end
         {
             enclosure = 1;
         }
-        rxString v = rxStringNewLen(row_start + enclosure, (v_tab - enclosure) - (row_start + enclosure));
+        int tailing_spaces = 0;
+        char *tail = v_tab - 1;
+        while (*tail == ' ')
+        {
+            tail--;
+            tailing_spaces++;
+        }
+
+        rxString v = rxStringNewLen(row_start + enclosure, (v_tab - enclosure - tailing_spaces) - (row_start + enclosure));
 
         if (strlen(f) == 0)
-            f = "any";
+            f = (char *)"any";
 
         if (strlen(v) > 0)
         {
@@ -225,7 +233,7 @@ static void *extractRowAsHash(SimpleQueue *req_q, char *row_start, char *row_end
             RedisClientPool<redisContext>::Release(client, "extractRowAsString");
         }
 
-        if (f != "any")
+        if (f != (char *)"any")
             rxStringFree(f);
         rxStringFree(v);
         hdr_start = f_tab + strlen(column_separator);
@@ -235,96 +243,12 @@ static void *extractRowAsHash(SimpleQueue *req_q, char *row_start, char *row_end
     return NULL;
 }
 
-static void *extractRowAsAppend(SimpleQueue *req_q, char *row_start, char *row_end, char *hdr_start, char *hdr_end, char *column_separator)
-{
-
-    char *f_tab = strstr(hdr_start, column_separator);
-    char *v_tab = strstr(row_start, column_separator);
-    if (v_tab == NULL)
-        return NULL;
-    rxString key = rxStringNewLen(row_start, v_tab - row_start);
-    if (strlen(key) == 0)
-        return NULL;
-
-    redisNodeInfo *data_config = rxDataNode();
-    auto *client = RedisClientPool<redisContext>::Acquire(data_config->host_reference, "_CLIENT", "extractRowAsString");
-    auto *rcc = (redisReply *)redisCommand(client, "KEY %s %s", key, "");
-    if (rcc != NULL)
-        freeReplyObject(rcc);
-    RedisClientPool<redisContext>::Release(client, "extractRowAsString");
-
-    hdr_start = f_tab + strlen(column_separator);
-    row_start = v_tab + strlen(column_separator);
-    bool done = false;
-    while (done == false)
-    {
-        f_tab = strstr(hdr_start, column_separator);
-        if (f_tab > hdr_end)
-        {
-            f_tab = hdr_end;
-            done = true;
-        }
-        else if (f_tab == NULL)
-        {
-            f_tab = strchr(hdr_start, 0x00);
-            done = true;
-        }
-        v_tab = strstr(row_start, column_separator);
-        if (v_tab > row_end)
-        {
-            v_tab = row_end;
-            done = true;
-        }
-        else if (v_tab == NULL)
-        {
-            v_tab = strchr(row_start, 0x00);
-            done = true;
-        }
-        int f_len = f_tab - hdr_start;
-        int enclosure = 0;
-        if (*row_start == '"' && *(v_tab - 1) == '"')
-        {
-            enclosure = 1;
-        }
-        int v_len = (v_tab - enclosure) - (row_start + enclosure);
-
-        char *arg = (char *)rxMemAlloc(f_len + 1 + v_len + 1);
-        if (f_len > 0)
-        {
-            strncpy(arg, hdr_start, f_len);
-            arg[f_len] = ':';
-            strncpy(arg + f_len + 1, row_start + enclosure, v_len);
-            arg[f_len + 1 + v_len] = 0x00;
-        }
-        else
-        {
-            strncpy(arg, row_start + enclosure, v_len);
-            arg[v_len] = 0x00;
-        }
-
-        if (v_len > 0)
-        {
-            redisNodeInfo *data_config = rxDataNode();
-            auto *client = RedisClientPool<redisContext>::Acquire(data_config->host_reference, "_CLIENT", "extractRowAsString");
-            auto *rcc = (redisReply *)redisCommand(client, "APPEND %s %s", key, arg);
-            if (rcc != NULL)
-                freeReplyObject(rcc);
-            RedisClientPool<redisContext>::Release(client, "extractRowAsString");
-        }
-
-        rxMemFree(arg);
-        hdr_start = f_tab + strlen(column_separator);
-        row_start = v_tab + strlen(column_separator);
-    }
-    rxStringFree(key);
-    return NULL;
-}
 
 /*
     Use column 1 as key
     Join column 2...n as <field>:<value>;
 */
-static void *extractRowAsText(SimpleQueue *req_q, char *row_start, char *row_end, char *hdr_start, char *hdr_end, char *column_separator)
+static void *extractRowAsText(SimpleQueue *, char *row_start, char *row_end, char *hdr_start, char *hdr_end, char *column_separator)
 {
     char *f_tab = strstr(hdr_start, column_separator);
     char *v_tab = strstr(row_start, column_separator);
@@ -350,7 +274,7 @@ static void *extractRowAsText(SimpleQueue *req_q, char *row_start, char *row_end
     return NULL;
 }
 
-static void *extractRowAsString(SimpleQueue *req_q, char *row_start, char *row_end, char *hdr_start, char *hdr_end, char *column_separator)
+static void *extractRowAsString(SimpleQueue *, char *row_start, char *row_end, char *hdr_start, char *hdr_end, char *column_separator)
 {
     char *f_tab = strstr(hdr_start, column_separator);
     char *v_tab = strstr(row_start, column_separator);
@@ -381,15 +305,15 @@ extern rxString readFileIntoSds(const string &path);
 
 static void *execTextLoadThread(void *ptr)
 {
-    SimpleQueue *command_reponse_queue = new SimpleQueue("xTxtRESP");
-    SimpleQueue *command_request_queue = new SimpleQueue("xTxtREQ", command_reponse_queue);
+    auto *command_reponse_queue = new SimpleQueue("xTxtRESP");
+    auto *command_request_queue = new SimpleQueue("xTxtREQ", command_reponse_queue);
     execute_textload_command_cron_id = rxCreateTimeEvent(1, (aeTimeProc *)Execute_Command_Cron, command_request_queue, NULL);
 
     // // TODO: Fix potential memory release problem!
     // SimpleQueue *command_request_queue = (SimpleQueue *)rxGetCronCommandQueue();
     // SimpleQueue *command_reponse_queue =  command_request_queue->response_queue;
 
-    SimpleQueue *loader_queue = (SimpleQueue *)ptr;
+    auto *loader_queue = (SimpleQueue *)ptr;
     // indexer_set_thread_title("rxGraphDb.Load.Text async loader");
     rxServerLog(rxLL_NOTICE, "rxGraphDb.Load.Text async loader started");
     loader_queue->Started();
@@ -405,6 +329,7 @@ static void *execTextLoadThread(void *ptr)
     if (load_entry != NULL)
     {
         GET_ARGUMENTS_FROM_STASH(load_entry);
+        rxSetIndexScoringMethodFromString("default");
 
         char *column_separator = (char *)"\t";
         char *row_separator = (char *)"\n";
@@ -433,19 +358,26 @@ static void *execTextLoadThread(void *ptr)
                 row_separator = (char *)"\r\n";
             else if (rxStringMatch(argS, USE_BAR, MATCH_IGNORE_CASE))
                 row_separator = (char *)"|";
-            else if (rxStringMatch(argS, FROM_FILE, MATCH_IGNORE_CASE)){
+            else if (rxStringMatch(argS, FROM_FILE, MATCH_IGNORE_CASE))
+            {
                 ++a;
                 argS = (const char *)rxGetContainedObject(argv[a]);
                 char cwd[FILENAME_MAX]; // create string buffer to hold path
                 GetCurrentDir(cwd, FILENAME_MAX);
                 rxString path = rxStringFormat("%s/data/%s", cwd, argS);
-                loaded_file = readFileIntoSds(path);
-
-            }else
+                loaded_file = (char *)readFileIntoSds(path);
+            }
+            else if (rxStringMatch(argS, "INDEX_SCORING", MATCH_IGNORE_CASE))
+            {
+                ++a;
+                argS = (const char *)rxGetContainedObject(argv[a]);
+                rxSetIndexScoringMethodFromString(argS);
+            }
+            else
                 tlob = (char *)argS;
         }
 
-        if(loaded_file)
+        if (loaded_file)
             tlob = loaded_file;
 
         char *hdr_start = tlob;
@@ -454,6 +386,7 @@ static void *execTextLoadThread(void *ptr)
         {
             return NULL;
         }
+        rxStringLenMapChars(hdr_start, hdr_end - hdr_start, " ()./+-*%", "_________", 9);
         int column_count = getColumnCount(hdr_start, hdr_end, column_separator);
 
         rxUNUSED(column_count);
@@ -499,24 +432,24 @@ static void *execTextLoadThread(void *ptr)
 class RxTextLoadMultiplexer : public Multiplexer
 {
 public:
-    SimpleQueue *request;
-    SimpleQueue *response;
+    SimpleQueue *threading_request;
+    SimpleQueue *threading_response;
 
     RxTextLoadMultiplexer(RedisModuleString **argv, int argc)
         : Multiplexer()
     {
-        this->response = new SimpleQueue("TxtLdMuxRESP");
-        this->request = new SimpleQueue("TxtLdMuxREQ", (void *)execTextLoadThread, 1, this->response);
-        rxStashCommand2(this->request, "", 2, argc, (void **)argv);
+        this->threading_response = new SimpleQueue("TxtLdMuxRESP");
+        this->threading_request = new SimpleQueue("TxtLdMuxREQ", (void *)execTextLoadThread, 1, this->threading_response);
+        rxStashCommand2(this->threading_request, "", 2, argc, (void **)argv);
     }
 
     ~RxTextLoadMultiplexer()
     {
-        this->response->Release();
-        this->request->Release();
+        this->threading_response->Release();
+        this->threading_request->Release();
 
-        delete this->request;
-        delete this->response;
+        delete this->threading_request;
+        delete this->threading_response;
     }
 
     long long Timeout()
@@ -526,7 +459,7 @@ public:
 
     int Execute()
     {
-        void *response = this->response->Dequeue();
+        void *response = this->threading_response->Dequeue();
         if (response != NULL)
         {
             FreeStash(response);

@@ -63,8 +63,8 @@ extern "C"
 #define QE_SWAP_LARGEST_FIRST 16
 
 
-    typedef void CSilNikParowy; // Opaque Execution Engine 
-
+    typedef void CSilNikParowy; // Opaque Execution Engine
+    typedef void CGraphStack;   // Opaque Stack/List
     typedef int operationProc(CParserToken *tO, CSilNikParowy_Kontekst *stackO);
     typedef CParserToken *parserContextProc(CParserToken *t, char *head, CParsedExpression *expression, CSjiboleth *pO);
 
@@ -85,7 +85,7 @@ extern "C"
     int writeParsedErrors(CParsedExpression *p, RedisModuleCtx *ctx);
 
     rax *executeQ(CParsedExpression *e, redisNodeInfo *serviceConfig, RedisModuleCtx *module_context, list **errors);
-    int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *target_setname, bool ranked, double ranked_over, double ranked_under);
+    int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *target_setname, bool ranked, double ranked_over, double ranked_under, CGraphStack *fieldSelector, CGraphStack *sortSelector);
     void FreeResults(rax *result);
     
     CParsedExpression *releaseQuery(CParsedExpression *e);

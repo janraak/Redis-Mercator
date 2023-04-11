@@ -49,7 +49,8 @@ list *SilNikParowy_Kontekst::Errors()
 
 void SilNikParowy_Kontekst::AddError(rxString msg)
 {
-    return this->expression->AddError(msg);
+    if(this->expression)
+        this->expression->AddError(msg);
 }
 
 void SilNikParowy_Kontekst::Reset()
@@ -63,6 +64,8 @@ SilNikParowy_Kontekst::SilNikParowy_Kontekst()
     this->module_contex = NULL;
     this->memoization = raxNew();
     this->can_delete_result = 653974783;
+    this->fieldSelector = NULL;
+    this->sortSelector = NULL;
 }
 
 void SilNikParowy_Kontekst::RetainResult()
@@ -89,11 +92,15 @@ SilNikParowy_Kontekst::SilNikParowy_Kontekst(redisNodeInfo* server, RedisModuleC
 
 SilNikParowy_Kontekst::~SilNikParowy_Kontekst()
 {
-    if(this->memoization == NULL)
+    if (this->memoization == NULL)
         rxServerLog(rxLL_NOTICE, "this->Memoization == NULL\n");
     FaBlok::DeleteAllTempDescriptors();
     raxFree(this->memoization);
     this->memoization = NULL;
+    if (this->fieldSelector != NULL)
+        delete this->fieldSelector;
+    if (this->sortSelector != NULL)
+        delete this->sortSelector;
 }
 
 int SilNikParowy_Kontekst::FetchKeySet(FaBlok *out, FaBlok *left, FaBlok *right, ParserToken *token)

@@ -43,8 +43,9 @@ extern "C"
 #define KeysetDescriptor_TYPE_GREMLIN_AS_SET (UCHAR)0x80
 
 #define GENERIC_SET (UCHAR)0x0
-#define VERTEX_SET (UCHAR)0x1
-#define EDGE_SET (UCHAR)0x2
+#define VERTEX_SET (UCHAR)0x2
+#define EDGE_SET (UCHAR)0x4
+#define EDGE_TEMPLATE (UCHAR)0x5
 
 #endif
 typedef bool RaxCopyCallProc(unsigned char *s, size_t len, void *data, void **privData);
@@ -122,6 +123,7 @@ public:
       void InsertKey(unsigned char *s, size_t len, void *obj);
       void *RemoveKey(const char *key);
       void *RemoveKey(unsigned char *s, size_t len);
+      void *ClearKeys();      
       void *LookupKey(const char *key);
       void PushResult(GraphStack<FaBlok> *stack);
 
@@ -172,10 +174,11 @@ protected:
         ParsedExpression *expression;
         RedisModuleCtx *module_contex;
 
-       virtual rax *Execute(ParsedExpression *e);
-        virtual rax *Execute(ParsedExpression *e, const char *key)
-        ;
-     
+        virtual rax *Execute(ParsedExpression *e);
+        virtual rax *Execute(ParsedExpression *e, const char *key);
+
+        GraphStack<const char> *fieldSelector;
+        GraphStack<const char> *sortSelector;
 
         SilNikParowy_Kontekst(SilNikParowy *engine, ParsedExpression *e, redisNodeInfo *serviceConfig);
         SilNikParowy_Kontekst(SilNikParowy *engine, ParsedExpression *e, const char *key, redisNodeInfo *serviceConfig);

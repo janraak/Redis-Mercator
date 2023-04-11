@@ -223,7 +223,6 @@ static void *execLoadThread(void *ptr)
         }
         delete parsed_json;
         delete parser;
-        loader_queue->response_queue->Enqueue(load_entry);
 
     // free stashed redis command on same thread as allocated
     void *stash = command_reponse_queue->Dequeue();
@@ -254,6 +253,7 @@ static void *execLoadThread(void *ptr)
         }
     }
     rxDeleteTimeEvent(execute_command_cron_id);
+    loader_queue->response_queue->Enqueue(load_entry);
     rxServerLog(rxLL_NOTICE, "rxGraphDb async redis commands stopped\n");
     
 

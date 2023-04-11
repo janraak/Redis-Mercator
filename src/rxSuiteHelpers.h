@@ -90,9 +90,10 @@ extern "C"
 #define rxOBJ_ZSET 3         /* Sorted set object. */
 #define rxOBJ_HASH 4         /* Hash object. */
 #define rxOBJ_STREAM 6       /* Hash object. */
-#define rxOBJ_INDEX_ENTRY 13 /* Rax object. */
-#define rxOBJ_RAX 14         /* RX Index Entry object. */
-#define rxOBJ_TRIPLET 15     /* RX triplet object. */
+#define rxOBJ_INDEX_ENTRY 12 /* Rax object. */
+#define rxOBJ_RAX 13         /* RX Index Entry object. */
+#define rxOBJ_TRIPLET 14     /* RX triplet object. */
+#define rxOBJ_NULL 15     /* RX triplet object. */
 
     struct client *rxCreateAOFClient(void);
     struct redisCommand *rxLookupCommand(rxString name);
@@ -124,6 +125,7 @@ extern "C"
     void rxFreeHashObject(void *o);
     void rxFreeObject(void *o);
     void *rxGetContainedObject(void *o);
+    void *rxSetContainedObject(void *oO, void *ptr);
     int rxGetRefcount(void *o);
     rax *rxSetToRax(void *obj);
 

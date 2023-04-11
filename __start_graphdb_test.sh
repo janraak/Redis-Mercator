@@ -22,7 +22,7 @@ cd ../..
 # # wait 180
 # # ../src/redis-cli g.set file "./test_data/nwt-de.graph.json"
 # # wait 180
-# # ../src/redis-cli g.set file "./test_data/nwt-it.graph.json"
+# # ../src/redis-cli g.set file "./test_d/home/pi/redis-7.0.5/data/dataata/nwt-it.graph.json"
 # # wait 180
 # # ../src/redis-cli g.set file "./test_data/nwt-nl.graph.json"
 # # wait 180

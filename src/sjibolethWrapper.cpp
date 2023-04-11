@@ -33,6 +33,7 @@ const char *OK = "OK";
 #define HASHTYPE 'H'
 #define STRINGTYPE 'S'
 #define LISTTYPE 'L'
+#define TRIPLET 'T'
 
 CSjiboleth *newQueryEngine()
 {
@@ -214,8 +215,13 @@ bool score_comparator(const rxIndexEntry *lhs, const rxIndexEntry *rhs)
     // hi-lo sort
     return lhs->key_score > rhs->key_score;
 }
-
-static char type_chars[] = "SLVZH-X------IRT-";
+bool score_comparator_lo_hi(const rxIndexEntry *lhs, const rxIndexEntry *rhs)
+{
+    if (lhs->key_score == rhs->key_score)
+        return lhs->key > rhs->key;
+    // hi-lo sort
+    return lhs->key_score < rhs->key_score;
+}
 
 std::vector<rxIndexEntry *> FilterAndSortResults(rax *result, bool ranked, double ranked_lower_bound, double ranked_upper_bound)
 {
@@ -223,7 +229,7 @@ std::vector<rxIndexEntry *> FilterAndSortResults(rax *result, bool ranked, doubl
     raxIterator resultsIterator;
     raxStart(&resultsIterator, result);
     raxSeek(&resultsIterator, "^", NULL, 0);
-
+    bool loHi = false;
     while (raxNext(&resultsIterator))
     {
         void *o = resultsIterator.data;
@@ -231,35 +237,41 @@ std::vector<rxIndexEntry *> FilterAndSortResults(rax *result, bool ranked, doubl
         if (rxGetObjectType(o) == rxOBJ_TRIPLET)
         {
             Graph_Triplet *t = (Graph_Triplet *)rxGetContainedObject(o);
-            ro = rxIndexEntry::New((const char *)resultsIterator.key, resultsIterator.key_len, 1.0, t);
-            ranked = false; // Traversal objects are not sorted!
+            if (t->length >= ranked_lower_bound && t->length <= ranked_upper_bound)
+            {
+                ro = rxIndexEntry::New((const char *)resultsIterator.key, resultsIterator.key_len, t->length, t);
+                ro->key_type = rxGetObjectType(o);
+                loHi = true;
+            }
         }
         else if (rxGetObjectType(o) == rxOBJ_INDEX_ENTRY)
         {
-            rxIndexEntry *t = (rxIndexEntry *)rxGetContainedObject(o);
+            auto *t = (rxIndexEntry *)rxGetContainedObject(o);
             if (t->key_score >= ranked_lower_bound && t->key_score <= ranked_upper_bound)
             {
                 ro = t;
             }
-        }else{
+        }
+        else
+        {
             ro = rxIndexEntry::New((const char *)resultsIterator.key, resultsIterator.key_len, 1.0, NULL);
-            ro->key_type = type_chars[rxGetObjectType(o)];
-            // ro->obj = o;
+            ro->key_type = rxGetObjectType(o); // type_chars[rxGetObjectType(o)];
+            ro->key_type = rxGetObjectType(o);
             ranked = false; // Traversal objects are not sorted!
         }
-        if (ro != NULL)
+        if(ro != NULL)
             vec.push_back(ro);
     }
     raxStop(&resultsIterator);
     if (ranked)
     {
         // Using lambda expressions in C++11
-        sort(vec.begin(), vec.end(), &score_comparator);
+        sort(vec.begin(), vec.end(), loHi ? &score_comparator_lo_hi : &score_comparator);
     }
     return vec;
 }
 
-int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *, bool ranked, double ranked_lower_bound, double ranked_upper_bound)
+int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *, bool ranked, double ranked_lower_bound, double ranked_upper_bound, CGraphStack *fieldSelector, CGraphStack * /*sortSelector*/)
 {
     auto resultsFilteredAndSort = FilterAndSortResults(result, ranked, ranked_lower_bound, ranked_upper_bound);
     RedisModule_ReplyWithArray(ctx, resultsFilteredAndSort.size());
@@ -270,7 +282,18 @@ int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *,
     {
         if (r->obj != NULL)
             // Traversal objects do not need fetching
-            ((Graph_Triplet *)r->obj)->Write(ctx);
+            switch(r->key_type){
+                case rxOBJ_TRIPLET:
+                    ((Graph_Triplet *)r->obj)->Write(ctx);
+                    break;
+                default:
+                {
+                    auto *msg = rxStringFormat("Unexpected object type: %d for Triplet: %s r:%p r->obj:%p", rxGetObjectType(r->obj), r->key, r, r->obj);
+                    RedisModule_ReplyWithSimpleString(ctx, msg);
+                    rxStringFree(msg);
+                }
+                break;
+                }
         else if (fetch_rows == 0)
             r->Write(ctx);
         else
@@ -295,18 +318,41 @@ int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *,
                 rxString e;
                 switch (r->key_type)
                 {
+                case rxOBJ_HASH:
                 case HASHTYPE:
+                    if (fieldSelector == NULL)
                     reply = RedisModule_Call(ctx, REDIS_CMD_HGETALL, "c", (char *)r->key);
+                    else
+                    {
+                        reply = NULL;
+                        rxString k = rxStringNew(r->key);
+                        void *o = rxFindHashKey(0, k);
+                        rxStringFree(k);
+                        if(o){
+                            auto *fields = (GraphStack<const char> *)fieldSelector;
+                            RedisModule_ReplyWithSimpleString(ctx, "value");
+                            RedisModule_ReplyWithArray(ctx, fields->Size() * 2);
+                            fields->StartHead();
+                            const char *f;
+                            while ((f = fields->Next()))
+                            {
+                                auto *v = rxGetHashField(o, f);
+                                RedisModule_ReplyWithSimpleString(ctx, f);
+                                RedisModule_ReplyWithSimpleString(ctx, v);
+                            }
+                        }
+                    }
                     break;
+                case rxOBJ_STRING:
                 case STRINGTYPE:
                     reply = RedisModule_Call(ctx, REDIS_CMD_GET, "c", (char *)r->key);
                     break;
+                case rxOBJ_LIST:
                 case LISTTYPE:
                     reply = RedisModule_Call(ctx, "LRANGE", "ccc", (char *)r->key, (char *)"0", (char *)"100");
                     break;
                 default:
-                    continue;
-                    e = rxStringFormat("%c: Unsupported key type found: %s!", r->key_type, r->key);
+                    e = rxStringFormat("%c: Unsupported key type found: %s!", r->Key_Type(), r->key);
                     RedisModule_ReplyWithSimpleString(ctx, e);
                     rxStringFree(e);
                     reply = NULL;
@@ -329,10 +375,14 @@ void FreeResultObject(void *o)
     if (rxGetObjectType(o) == rxOBJ_TRIPLET)
     {
         auto *t = (Graph_Triplet *)rxGetContainedObject(o);
-        if (t->DecrRefCnt() <= 1)
+        if (t != NULL)
         {
-            delete t;
-            rxMemFree(o);
+            if (t->DecrRefCnt() <= 1)
+            {
+                //TODO: Delete object content!;
+                rxMemFree(t);
+                rxMemFree(o);
+            }
         }
     }
 }

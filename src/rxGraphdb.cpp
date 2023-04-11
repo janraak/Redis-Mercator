@@ -474,13 +474,28 @@ void emit_entity(RedisModuleCtx *ctx, const char *key, size_t keylen, string &js
             elem_start = consume_element(elem_start, tail, &elem_end, &skip_len, &elem_next);
             elem_start = elem_next;
             // get field name
+            if (elem_start == NULL)
+            {
+                elem_start = elem_next;
+                continue;
+            }
             char *field = elem_start = consume_element(elem_start, tail, &elem_end, &field_len, &elem_next);
             elem_start = elem_next;
             size_t value_len;
             // skip size
+            if (elem_start == NULL)
+            {
+                elem_start = elem_next;
+                continue;
+            }
             elem_start = consume_element(elem_start, tail, &elem_end, &skip_len, &elem_next);
             elem_start = elem_next;
             // get field value
+            if (elem_start == NULL)
+            {
+                elem_start = elem_next;
+                continue;
+            }
             char *value = elem_start = consume_element(elem_start, tail, &elem_end, &value_len, &elem_next);
             emit_json(json, field, field_len, value, value_len, hash_sep);
             elem_start = elem_next;

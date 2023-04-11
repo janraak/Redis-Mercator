@@ -7,6 +7,8 @@
     #define C_ERR -1
 #endif
 
+#include "rxliterals.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -38,6 +40,8 @@ typedef struct{
     int is_local;
     void *executor;
 } redisNodeInfo;
+enum indexScoringMethod {WeightedIndexScoring, UnweightedIndexScoring};
+
 typedef struct
 {
     // dict *OperationMap;
@@ -46,6 +50,7 @@ typedef struct
     redisNodeInfo indexNode;
     redisNodeInfo dataNode;
     redisNodeInfo controllerNode;
+    enum indexScoringMethod indexScoring;
     const char *defaultQueryOperator;
     const char *cdnRootUrl;
     const char *startScript;
@@ -58,6 +63,10 @@ rxSuiteShared *getRxSuite();
 redisNodeInfo *rxIndexNode();
 redisNodeInfo *rxDataNode();
 redisNodeInfo *rxControllerNode();
+
+enum indexScoringMethod rxGetIndexScoringMethod();
+void rxSetIndexScoringMethod(enum indexScoringMethod scoringMethod);
+void rxSetIndexScoringMethodFromString(const char *s);
 void rxRegisterConfig(void **argv, int argc);
 void rxRegisterCronCommandQueue(CSimpleQueue *queue);
 CSimpleQueue *rxGetCronCommandQueue();

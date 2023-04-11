@@ -1,8 +1,8 @@
 #ifndef __SJIBOLETH_HPP__
 #define __SJIBOLETH_HPP__
 
-#include <string>
 #include <string.h>
+#include <string>
 
 #include "rxSuite.h"
 #include "rxSuiteHelpers.h"
@@ -119,6 +119,7 @@ protected:
     DECLARE_SJIBOLETH_HANDLER(executeAnd);
     DECLARE_SJIBOLETH_HANDLER(executeXor);
     DECLARE_SJIBOLETH_HANDLER(executeNotIn);
+    DECLARE_SJIBOLETH_HANDLER(executeSelectFields);
 
 public:
     ParserToken *LookupToken(rxString token);
@@ -164,6 +165,8 @@ public:
     DECLARE_SJIBOLETH_HANDLER(executeAllVertices);
     DECLARE_SJIBOLETH_HANDLER(executeGremlinParameters);
     DECLARE_SJIBOLETH_HANDLER(executeGremlinMatchInExclude);
+    DECLARE_SJIBOLETH_HANDLER(executeGremlinMatchMinimize);
+    DECLARE_SJIBOLETH_HANDLER(executeGremlinMatchMaximize);
     GremlinDialect();
 
     virtual SilNikParowy *GetEngine();
@@ -222,6 +225,8 @@ public:
     bool HasErrors();
     int writeErrors(RedisModuleCtx *ctx);
 
+    void Write(RedisModuleCtx *ctx);
+
     void show(const char *query);
     void Show(const char *query);
     ParsedExpression(Sjiboleth *dialect);
@@ -236,6 +241,8 @@ public:
     GraphStack<ParserToken> *RPN();
 };
 
+static char type_chars[] = "SLVZH-X------IRT-";
+
 class rxIndexEntry
 {
 public:
@@ -247,7 +254,16 @@ public:
     rxIndexEntry *Init(char *key, char *key_type, double key_score)
     {
         this->key = key;
-        this->key_type = key_type ? *key_type : '?';
+        int n = 0;
+        if (key_type != NULL)
+        {
+            for (; type_chars[n] != *key_type; ++n)
+            {
+            }
+            this->key_type = (char)n; // key_type ? *key_type : '?';
+        }
+        else
+            this->key_type = (char)15; // key_type ? *key_type : '?';
         this->key_score = key_score;
         this->obj = NULL;
         return this;
@@ -271,45 +287,52 @@ public:
         strcpy(key, entry);
         char *tab = strchr((char *)key, '\t');
         *tab = 0x00;
-        ((rxIndexEntry *)ie)->Init(key, tab +1, key_score);
+        ((rxIndexEntry *)ie)->Init(key, tab + 1, key_score);
         return rxInitObject(o, rxOBJ_INDEX_ENTRY, ie);
     }
 
     static rxIndexEntry *New(const char *entry, double key_score)
     {
-        void *ie = rxMemAlloc(sizeof(rxIndexEntry) + strlen(entry) )+ 1 ;
-        char *key = (char *)(ie +  sizeof(rxIndexEntry));
+        void *ie = rxMemAlloc(sizeof(rxIndexEntry) + strlen(entry)) + 1;
+        char *key = (char *)(ie + sizeof(rxIndexEntry));
         strcpy(key, entry);
         char *tab = strchr((char *)key, '\t');
         *tab = 0x00;
-        return ((rxIndexEntry *)ie)->Init(key, tab +1, key_score);
+        return ((rxIndexEntry *)ie)->Init(key, tab + 1, key_score);
     }
 
     static rxIndexEntry *New(const char *entry, size_t len, double key_score, void *obj)
     {
-        void *ie = rxMemAlloc(sizeof(rxIndexEntry) + strlen(entry) )+ 1 ;
-        char *key = (char *)(ie +  sizeof(rxIndexEntry));
+        void *ie = rxMemAlloc(sizeof(rxIndexEntry) + strlen(entry)) + 1;
+        char *key = (char *)(ie + sizeof(rxIndexEntry));
         strncpy(key, entry, len);
         char *tab = strchr((char *)key, '\t');
-        if(tab)
-           { *tab = 0x00;
-               ++tab;
-           }
+        if (tab)
+        {
+            *tab = 0x00;
+            ++tab;
+        }
         else
             *(key + len) = 0x00;
         return ((rxIndexEntry *)ie)->Init(key, tab, key_score, obj);
     }
 
-    void Write(RedisModuleCtx * ctx){
+    void Write(RedisModuleCtx *ctx)
+    {
         RedisModule_ReplyWithArray(ctx, 6);
         RedisModule_ReplyWithStringBuffer(ctx, "key", 3);
         RedisModule_ReplyWithStringBuffer(ctx, this->key, strlen(this->key));
         RedisModule_ReplyWithStringBuffer(ctx, "type", 4);
-        RedisModule_ReplyWithStringBuffer(ctx, &this->key_type, 1);
+        RedisModule_ReplyWithStringBuffer(ctx, this->Key_Type(), 1);
         RedisModule_ReplyWithStringBuffer(ctx, "score", 5);
         char sc[32];
         snprintf(sc, sizeof(sc), "%f", this->key_score);
         RedisModule_ReplyWithSimpleString(ctx, sc);
+    }
+
+    char *Key_Type()
+    {
+        return (char *)&type_chars + this->key_type;
     }
 };
 #endif
