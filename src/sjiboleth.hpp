@@ -165,6 +165,8 @@ public:
     DECLARE_SJIBOLETH_HANDLER(executeAllVertices);
     DECLARE_SJIBOLETH_HANDLER(executeGremlinParameters);
     DECLARE_SJIBOLETH_HANDLER(executeGremlinMatchInExclude);
+    DECLARE_SJIBOLETH_HANDLER(executeGremlinMatchMinimize);
+    DECLARE_SJIBOLETH_HANDLER(executeGremlinMatchMaximize);
     GremlinDialect();
 
     virtual SilNikParowy *GetEngine();

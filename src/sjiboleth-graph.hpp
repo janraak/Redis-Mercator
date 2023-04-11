@@ -67,7 +67,7 @@ public:
     {
     }
 
-    static int WeightOrdered(void *left, void *right) // Comparator for priority enqueue
+    static int WeightOrdered(void *left, void *right, void *parm) // Comparator for priority enqueue
     {
         /*  -1 == l > r
              0 == l == r
@@ -75,13 +75,13 @@ public:
         */  
         float balance = ((Graph_Leg *)left)->length - ((Graph_Leg *)right)->length;
         if (balance < 0)
-            return 1; // l < r
+            return 1 * (int)parm; // l < r
         if (balance > 0)
-            return -1; // l > r
+            return -1 * (int)parm; // l > r
         return 0; // l == r
     }
 
-    static Graph_Leg *Add(rxString key, double const weight, Graph_Leg *origin, GraphStack<Graph_Leg> *bsf_q, rax *touches)
+    static Graph_Leg *Add(rxString key, double const weight, Graph_Leg *origin, GraphStack<Graph_Leg> *bsf_q, rax *touches, int optimization)
     {
         if (touches)
         {
@@ -90,16 +90,16 @@ public:
                 return NULL;
         }
         auto *leg = Graph_Leg::New(key, weight, origin);
-        bsf_q->Enqueue(leg, WeightOrdered);
+        bsf_q->Enqueue(leg, WeightOrdered, (void*)optimization);
         if (touches)
             raxInsert(touches, (UCHAR *)key, strlen(key), leg, NULL);
         return leg;
     }
 
-    static Graph_Leg *Add(rxString key, double weight, GraphStack<Graph_Leg> *bsf_q)
+    static Graph_Leg *Add(rxString key, double weight, GraphStack<Graph_Leg> *bsf_q, int optimization)
     {
         auto *leg = Graph_Leg::New(key, weight);
-        bsf_q->Enqueue(leg, WeightOrdered);
+        bsf_q->Enqueue(leg, WeightOrdered, (void*)optimization);
         return leg;
     }
 };

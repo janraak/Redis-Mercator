@@ -42,7 +42,7 @@ static FaBlok *getAllKeysByField(int dbNo, const char *regex, int on_matched, rx
 #define GRAPH_TRAVERSE_INOUT 3
 
 FaBlok *persistTriplet(SilNikParowy_Kontekst *stack, FaBlok *edge_set, const char *subject, const char *fwd_predicate, const char *bwd_predicate, const char *object, double weight, redisNodeInfo *data_config);
-int breadthFirstSearch(FaBlok *leaders, list *patterns, FaBlok *kd, int traverse_direction, short filter_only, rax *terminators, rax *includes, rax *excludes, short final_vertex_or_edge);
+int breadthFirstSearch(FaBlok *leaders, list *patterns, FaBlok *kd, int traverse_direction, short filter_only, rax *terminators, rax *includes, rax *excludes, short final_vertex_or_edge, int optimization, const char *length_field);
 
 static int redis_HSET(SilNikParowy_Kontekst *, const char *key, const char *field, const char *value, const char *host_reference)
 {
@@ -251,7 +251,7 @@ void mergeMatches(FaBlok *result)
     rxStringFree(first_key);
 }
 
-int executeSingleMatch(const char *first_key, const char *second_key, SilNikParowy_Kontekst *stack, FaBlok *from, FaBlok *to, FaBlok *result, rax *matchIncludes, rax *matchExcludes)
+int executeSingleMatch(const char *first_key, const char *second_key, SilNikParowy_Kontekst *stack, FaBlok *from, FaBlok *to, FaBlok *result, rax *matchIncludes, rax *matchExcludes, int optimization, const char *length_field)
 {
     if (strcmp(first_key, second_key) == 0)
     {
@@ -262,7 +262,7 @@ int executeSingleMatch(const char *first_key, const char *second_key, SilNikParo
     from->InsertKey(first_key, rxFindKey(0, first_key));
     to->InsertKey(second_key, rxFindKey(0, second_key));
 
-    int this_matches = breadthFirstSearch(from, NULL, result, GRAPH_TRAVERSE_INOUT, TRAVERSE_GETDATA, to->keyset, matchIncludes, matchExcludes, TRAVERSE_FINAL_VERTEX);
+    int this_matches = breadthFirstSearch(from, NULL, result, GRAPH_TRAVERSE_INOUT, TRAVERSE_GETDATA, to->keyset, matchIncludes, matchExcludes, TRAVERSE_FINAL_VERTEX, optimization, length_field);
 
     if (this_matches == 0)
     {
@@ -348,7 +348,7 @@ const char *Join_Keys(rax *steps)
     return j;
 }
 
-int executeMultiMatch(ParserToken *, SilNikParowy_Kontekst *stack, FaBlok *pl, rax *matchIncludes, rax *matchExcludes)
+int executeMultiMatch(ParserToken *, SilNikParowy_Kontekst *stack, FaBlok *pl, rax *matchIncludes, rax *matchExcludes, int optimization, const char *length_field)
 {
    GraphStack<GraphStack<const char>> permutes;
     FaBlok *set = AddKeyForEmptyBlok(pl->parameter_list->Dequeue(), stack);
@@ -427,10 +427,10 @@ int executeMultiMatch(ParserToken *, SilNikParowy_Kontekst *stack, FaBlok *pl, r
             {
                 const char *second_key = row->Dequeue();
                 end_key = second_key;
-                nof_matches += executeSingleMatch(first_key, second_key, stack, from, to, result, matchIncludes, matchExcludes);
+                nof_matches += executeSingleMatch(first_key, second_key, stack, from, to, result, matchIncludes, matchExcludes, optimization, length_field);
                 first_key = second_key;
             }
-            nof_matches += executeSingleMatch(start_key, end_key, stack, from, to, result, matchIncludes, matchExcludes);
+            nof_matches += executeSingleMatch(start_key, end_key, stack, from, to, result, matchIncludes, matchExcludes, optimization, length_field);
 
             // rxServerLog(rxLL_NOTICE, "%s => %d", trace, nof_matches);
             if (nof_matches == row_size)
@@ -460,13 +460,15 @@ SJIBOLETH_HANDLER(GremlinDialect::executeMatch)
 
     auto *matchIncludes = (rax *)stack->Recall("matchIncludes");
     auto *matchExcludes = (rax *)stack->Recall("matchExcludes");
+    auto optimization = stack->IsMemoized("matchOptimisationMethod") ? (int)stack->Recall("matchOptimisationMethod") : 1;
+    auto *length_field = stack->IsMemoized("matchOptimisationField") ? (const char*)stack->Recall("matchOptimisationField") : NULL;
 
     FaBlok *pl = stack->Pop();
     FaBlok *result = NULL;
     raxIterator leadersIterator;
     if (pl->IsParameterList() && pl->parameter_list->Size() > 2)
     {
-        executeMultiMatch(t, stack, pl, matchIncludes, matchExcludes);
+        executeMultiMatch(t, stack, pl, matchIncludes, matchExcludes, optimization, length_field);
     }
     else if (pl->IsParameterList())
     {
@@ -508,7 +510,7 @@ SJIBOLETH_HANDLER(GremlinDialect::executeMatch)
                     if (rxStringCharCount(terminator, ':') < 2)
                     {
                         to->InsertKey(terminatorsIterator.key, terminatorsIterator.key_len, terminatorsIterator.data);
-                        breadthFirstSearch(from, NULL, result, GRAPH_TRAVERSE_INOUT, TRAVERSE_GETDATA, to->keyset, matchIncludes, matchExcludes, TRAVERSE_FINAL_VERTEX);
+                        breadthFirstSearch(from, NULL, result, GRAPH_TRAVERSE_INOUT, TRAVERSE_GETDATA, to->keyset, matchIncludes, matchExcludes, TRAVERSE_FINAL_VERTEX, optimization, length_field);
                     }
                     to->RemoveKey(terminatorsIterator.key, terminatorsIterator.key_len);
                     rxStringFree(terminator);
@@ -540,6 +542,8 @@ SJIBOLETH_HANDLER(GremlinDialect::executeMatch)
         rax *set = (rax *)stack->Forget((char *)"matchExcludes");
         raxFree(set);
     }
+    stack->Forget("matchOptimisationMethod");
+    stack->Forget("matchOptimisationField");
 }
 END_SJIBOLETH_HANDLER(GremlinDialect::executeMatch)
 
@@ -550,6 +554,8 @@ SJIBOLETH_HANDLER(GremlinDialect::executeNomatch)
     {
         ERROR("Cannot use an exclude and an include filter together!");
     }
+    auto optimization = stack->IsMemoized("matchOptimisationMethod") ? (int)stack->Recall("matchOptimisationMethod") : 1;
+    auto *length_field = stack->IsMemoized("matchOptimisationField") ? (const char*)stack->Recall("matchOptimisationField") : NULL;
 
     FaBlok *pl = stack->Pop();
     raxIterator leadersIterator;
@@ -597,7 +603,7 @@ SJIBOLETH_HANDLER(GremlinDialect::executeNomatch)
                         rxString pair = rxStringFormat("%s->%s", leader, terminator);
                         FaBlok *result = FaBlok::New(terminator_temp_setname, KeysetDescriptor_TYPE_GREMLINSET);
                         to->InsertKey(terminatorsIterator.key, terminatorsIterator.key_len, terminatorsIterator.data);
-                        breadthFirstSearch(from, NULL, result, GRAPH_TRAVERSE_INOUT, TRAVERSE_GETDATA, to->keyset, (rax *)stack->Recall("matchIncludes"), (rax *)stack->Recall("matchExcludes"), TRAVERSE_FINAL_VERTEX);
+                        breadthFirstSearch(from, NULL, result, GRAPH_TRAVERSE_INOUT, TRAVERSE_GETDATA, to->keyset, (rax *)stack->Recall("matchIncludes"), (rax *)stack->Recall("matchExcludes"), TRAVERSE_FINAL_VERTEX, optimization, length_field);
                         if (raxSize(result->keyset) == 0)
                         {
                             auto *origin = Graph_Leg::New(leader, 0.0, NULL);
@@ -641,6 +647,8 @@ SJIBOLETH_HANDLER(GremlinDialect::executeNomatch)
         rax *set = (rax *)stack->Forget((char *)"matchExcludes");
         raxFree(set);
     }
+    stack->Forget("matchOptimisationMethod");
+    stack->Forget("matchOptimisationField");
 }
 END_SJIBOLETH_HANDLER(GremlinDialect::executeNomatch)
 
@@ -719,6 +727,32 @@ SJIBOLETH_HANDLER(GremlinDialect::executeGremlinMatchInExclude)
     stack->Memoize((toupper(t->Token()[0]) == 'I') ? "matchIncludes" : "matchExcludes", filter);
 }
 END_SJIBOLETH_HANDLER(GremlinDialect::executeGremlinMatchInExclude)
+
+/*
+    [ minimise | maximize ](field)
+ */
+SJIBOLETH_HANDLER(GremlinDialect::executeGremlinMatchMinimize)
+{
+
+    STACK_CHECK(1);
+    FaBlok *p = stack->Pop();
+    stack->Memoize("matchOptimisationMethod", (void*)1);
+    stack->Memoize("matchOptimisationField", (void*)p->AsSds());
+     FaBlok::Delete(p);
+
+}
+END_SJIBOLETH_HANDLER(GremlinDialect::executeGremlinMatchMinimize)
+SJIBOLETH_HANDLER(GremlinDialect::executeGremlinMatchMaximize)
+{
+
+    STACK_CHECK(1);
+    FaBlok *p = stack->Pop();
+    stack->Memoize("matchOptimisationMethod", (void*)-1);
+    stack->Memoize("matchOptimisationField", (void*)p->AsSds());
+     FaBlok::Delete(p);
+
+}
+END_SJIBOLETH_HANDLER(GremlinDialect::executeGremlinMatchMaximize)
 
 FaBlok *LoadKeySetFromMetaType(FaBlok *kd, rxString metaType)
 {
@@ -1414,7 +1448,7 @@ int executeGremlinTraverse(SilNikParowy_Kontekst *stack, int traverse_direction,
 
     rxString set_name = rxStringFormat("%s->%s", od->setname, vd->setname);
     FaBlok *kd = FaBlok::Get(set_name, KeysetDescriptor_TYPE_GREMLINSET);
-    breadthFirstSearch(od, patterns, kd, traverse_direction, filterOnly, NULL, NULL, NULL, final_vertex_or_edge);
+    breadthFirstSearch(od, patterns, kd, traverse_direction, filterOnly, NULL, NULL, NULL, final_vertex_or_edge, 0, NULL);
     PushResult(kd, stack);
     listRelease(patterns);
     rxStringFree(set_name);
@@ -2154,6 +2188,8 @@ bool GremlinDialect::RegisterDefaultSyntax()
     this->RegisterSyntax("include", 500, 2, 1, &executeGremlinMatchInExclude);
     this->RegisterSyntax("excl", 500, 2, 1, &executeGremlinMatchInExclude);
     this->RegisterSyntax("exclude", 500, 2, 1, &executeGremlinMatchInExclude);
+    this->RegisterSyntax("minimize", 500, 2, 1, &executeGremlinMatchMinimize);
+    this->RegisterSyntax("maximize", 500, 2, 1, &executeGremlinMatchMaximize);
     this->RegisterSyntax("as", 500, 2, 1, &executeGremlinAs);
     this->RegisterSyntax("use", 500, 2, 1, &executeGremlinUse);
     this->RegisterSyntax("has", 500, 2, 1, &executeGremlinHas);
@@ -2480,7 +2516,7 @@ int getEdgeDirection(rxString flowy)
     return GRAPH_TRAVERSE_INOUT;
 }
 
-int matchEdges(int db, Graph_Leg *leg, list *patterns, FaBlok *kd, GraphStack<Graph_Leg> *bsf_q, rax *touches, int traverse_direction, short filter_only, rax *terminators, rax *includes, rax *excludes, short final_vertex_or_edge)
+int matchEdges(int db, Graph_Leg *leg, list *patterns, FaBlok *kd, GraphStack<Graph_Leg> *bsf_q, rax *touches, int traverse_direction, short filter_only, rax *terminators, rax *includes, rax *excludes, short final_vertex_or_edge, int optimization, const char *length_field)
 {
     if (terminators)
     {
@@ -2570,11 +2606,20 @@ int matchEdges(int db, Graph_Leg *leg, list *patterns, FaBlok *kd, GraphStack<Gr
         else if (patterns == NULL /*&& includes == NULL*/)
         {
             // Is the subject or object of the requested type?
-
-            Graph_Leg *next = Graph_Leg::Add(link, weight, leg, bsf_q, touches);
+            void *next_obj = rxFindKey(db, link);
+            if(rxGetObjectType(next_obj) == rxOBJ_HASH){
+                rxString optimiseFieldValue = rxGetHashField2(next_obj, length_field);
+                if (strlen(optimiseFieldValue) > 0)
+                {
+                    double value = atof(optimiseFieldValue);
+                    if (value != 0)
+                        weight = value;
+                }
+            }
+            Graph_Leg *next = Graph_Leg::Add(link, weight, leg, bsf_q, touches, optimization);
             if (next)
             {
-                next->obj = rxFindKey(db, link);
+                next->obj = next_obj;
             }
         }
         rxStringFreeSplitRes(parts, segments);
@@ -2585,7 +2630,7 @@ int matchEdges(int db, Graph_Leg *leg, list *patterns, FaBlok *kd, GraphStack<Gr
     return numkeys;
 }
 
-int breadthFirstSearch(FaBlok *leaders, list *patterns, FaBlok *kd, int traverse_direction, short filter_only, rax *terminators, rax *includes, rax *excludes, short final_vertex_or_edge)
+int breadthFirstSearch(FaBlok *leaders, list *patterns, FaBlok *kd, int traverse_direction, short filter_only, rax *terminators, rax *includes, rax *excludes, short final_vertex_or_edge, int optimization, const char *length_field)
 {
     int numkeys = 0;
 
@@ -2604,7 +2649,7 @@ int breadthFirstSearch(FaBlok *leaders, list *patterns, FaBlok *kd, int traverse
         while (raxNext(&leadersIterator))
         {
             rxString key = rxStringNewLen((const char *)leadersIterator.key, leadersIterator.key_len);
-            Graph_Leg *leg = Graph_Leg::Add(key, 0.0, &bsf_q);
+            Graph_Leg *leg = Graph_Leg::Add(key, 0.0, &bsf_q, optimization);
             leg->start = leg;
             leg->obj = leadersIterator.data;
         }
@@ -2614,7 +2659,7 @@ int breadthFirstSearch(FaBlok *leaders, list *patterns, FaBlok *kd, int traverse
         while (bsf_q.HasEntries())
         {
             Graph_Leg *leg = bsf_q.Pop();
-            numkeys += matchEdges(db, leg, patterns, kd, &bsf_q, touches, traverse_direction, filter_only, terminators, includes, excludes, final_vertex_or_edge);
+            numkeys += matchEdges(db, leg, patterns, kd, &bsf_q, touches, traverse_direction, filter_only, terminators, includes, excludes, final_vertex_or_edge, optimization, length_field);
             bsf_c.Enqueue(leg);
         }
 

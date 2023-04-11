@@ -10,7 +10,7 @@ extern "C"
 #ifdef __cplusplus
 }
 #endif
-typedef int EnqueueInOrder(void *left, void *right); // Comparator prototype for priority enqueue
+typedef int EnqueueInOrder(void *left, void *right, void *parm); // Comparator prototype for priority enqueue
 
 template <typename T>
 class GraphStack
@@ -95,13 +95,13 @@ public:
         listAddNodeTail(this->sequencer, (void *)t);
     }
 
-    void Enqueue(T *t, EnqueueInOrder *sequencer)
+    void Enqueue(T *t, EnqueueInOrder *sequencer, void* parm)
     {
         auto *li = listGetIterator(this->sequencer, AL_START_HEAD);
         listNode *node;
         while ((node = listNext(li)))
         {
-            if ((*sequencer)(t, node->value) >= 0)
+            if ((*sequencer)(t, node->value, parm) >= 0)
             {
                 listInsertNode(this->sequencer, node, (void *)t, 0);
                 listReleaseIterator(li);
