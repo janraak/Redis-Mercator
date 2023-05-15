@@ -25,6 +25,10 @@ extern "C"
 #include "rxSuite.h"
 #include "rxSuiteHelpers.h"
 
+// #include <signal.h>
+// #include <stdlib.h>
+// #include <setjmp.h>
+
 #ifdef __cplusplus
 }
 #endif
@@ -223,6 +227,21 @@ public:
 
     SilNikParowy();
     virtual ~SilNikParowy();
+
+    // public:
+    //     static struct sigaction new_action;
+    //     static struct sigaction old_action;
+    //     static jmp_buf env_buffer;
+
+    //     static void *CurrentException;
+    //     static __sighandler_t *UpstreamExceptionHandler;
+    //     static __sighandler_t *CurrentExceptionHandler;
+    //     static void ExceptionHandler(int signal, siginfo_t *info, void *secret);
+    //     static bool ExceptionHandlerState;
+    //     static bool IsExceptionHandlerActive();
+    //     static bool ExceptionHandler_Activate();
+    //     static bool ExceptionHandler_Deactivate();
+    //     static void *GetException();
 };
 
 #define STACK_CHECK(minSize) \

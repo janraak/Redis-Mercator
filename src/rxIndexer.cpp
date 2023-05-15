@@ -52,7 +52,7 @@ extern "C"
 #ifdef __cplusplus
 }
 #endif
-
+#include "tls.hpp"
 #include "indexIntercepts.h"
 
 #include "client-pool.hpp"
@@ -671,6 +671,11 @@ int reindex(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     return RedisModule_ReplyWithSimpleString(ctx, response);
 }
 
+void *Allocate_Global_Context(void *config){
+    return (void *)new SilNikParowy_Kontekst((redisNodeInfo *)config);
+
+}
+
 SilNikParowy_Kontekst *executor = NULL;
 static void *execIndexerThread(void *ptr)
 {
@@ -683,13 +688,9 @@ static void *execIndexerThread(void *ptr)
     auto *c = (struct client *)RedisClientPool<struct client>::Acquire(index_config->host_reference, "_FAKE", "execIndexerThread");
     RedisClientPool<struct client>::Release(c, "execIndexerThread");
 
-    if (executor == NULL)
-    {
-        if (index_config->executor == NULL)
-            index_config->executor = new SilNikParowy_Kontekst(index_config);
-        executor = (SilNikParowy_Kontekst *)index_config->executor;
+    if(executor == NULL){
+        executor = new SilNikParowy_Kontekst(index_config, NULL);
     }
-
     long long start = ustime();
     int tally = 0;
     while (!indexing_queue->must_stop)
@@ -840,23 +841,6 @@ static void stopIndexerThreads()
         dictReleaseIterator(reindex_iterator);
     }
     reindex_iterator = NULL;
-    // Verify db0
-    dictEntry *de;
-    dictIterator *checker = rxGetDatabaseIterator(0);
-    while ((de = dictNext(checker)) != NULL)
-    {
-        rxString key = (rxString)dictGetKey(de);
-        void *value_for_key = dictGetVal(de);
-        if (value_for_key == NULL)
-        {
-            rxServerLog(rxLL_NOTICE, "DB check %s == NULL", key);
-        }
-        else if (rxGetRefcount(value_for_key) < 1)
-        {
-            rxServerLog(rxLL_NOTICE, "DB check %s refcnt error", key);
-        }
-    }
-    dictReleaseIterator(checker);
 
     rxServerLog(LL_NOTICE, "Indexer stopped");
 }

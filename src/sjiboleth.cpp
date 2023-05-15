@@ -15,6 +15,9 @@ extern "C"
 #ifdef __cplusplus
 }
 #endif
+#include "tls.hpp"
+
+void *rxMemAllocSession(size_t size, const char *tag);
 
 ParserToken::ParserToken()
 {
@@ -84,7 +87,8 @@ ParserToken *ParserToken::Copy(ParserToken *base, long reference)
 
 ParserToken *ParserToken::Copy(long reference)
 {
-    ParserToken *out = ParserToken::New(this->Token(), this->TokenType(), this->Priority(), this->no_of_stack_entries_consumed, this->no_of_stack_entries_produced);
+    ParserToken* out = ParserToken::New(this->Token(), this->TokenType(), this->Priority(), this->no_of_stack_entries_consumed, this->no_of_stack_entries_produced);
+
     out->opf= this->opf;
     out->pcf=this->pcf;
     out->copy_of = this;
@@ -320,13 +324,13 @@ bool Sjiboleth::RegisterSyntax(const char *op, short token_priority, int inE, in
 
 bool Sjiboleth::DeregisterSyntax(const char *op)
 {
-    void *old = NULL;
-    raxRemove(this->registry, (UCHAR *)op, strlen(op), &old);
+    // void *old = NULL;
+    // raxRemove(this->registry, (UCHAR *)op, strlen(op), &old);
 
-    //TODO: have a global syntax registry per dialect 
-    //TODO: deregister safely for used tokens
-    // if(old != NULL)
-    //     FreeSyntax(old);
+    // //TODO: have a global syntax registry per dialect 
+    // //TODO: deregister safely for used tokens
+    // // if(old != NULL)
+    // //     FreeSyntax(old);
     return true;
 }
 
@@ -337,6 +341,14 @@ ParserToken *Sjiboleth::LookupToken(rxString token){
         return referal_token;
     }
     return NULL;
+}
+
+rax *Sjiboleth::Master_Registry = NULL;
+rax *Sjiboleth::Get_Master_Registry()
+{
+    if (Sjiboleth::Master_Registry == NULL)
+        Sjiboleth::Master_Registry = raxNew();
+    return Sjiboleth::Master_Registry;
 }
 
 Sjiboleth::Sjiboleth()
@@ -378,6 +390,30 @@ Sjiboleth::~Sjiboleth()
     // }
     // raxFree(this->registry);
     // this->registry = NULL;
+}
+
+
+void *_allocateDialect(void *){
+    return raxNew();
+}
+
+Sjiboleth *Sjiboleth::Get(const char* dialect){
+    auto *master = tls_get<rax *>((const char*)"Sjiboleth", _allocateDialect, NULL);
+    // auto *master = Sjiboleth::Get_Master_Registry();
+    size_t dialect_len = strlen(dialect);
+    auto *parser = (Sjiboleth*)raxFind(master, (UCHAR *)dialect, dialect_len);
+    if(parser == raxNotFound){
+        if(rxStringMatch(dialect,"QueryDialect", 1))
+            parser = new QueryDialect();
+        else if(rxStringMatch(dialect,"GremlinDialect", 1))
+            parser = new GremlinDialect();
+        else if(rxStringMatch(dialect,"JsonDialect", 1))
+            parser = new JsonDialect();
+        else if(rxStringMatch(dialect,"TextDialect", 1))
+            parser = new TextDialect();
+        raxInsert(master, (UCHAR *)dialect, dialect_len, parser, NULL);
+    }
+    return parser;
 }
 
 bool Sjiboleth::hasDefaultOperator()

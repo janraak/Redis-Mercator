@@ -111,12 +111,17 @@ public:
 
     void Started()
     {
-        this->thread_count++;
+        this->thread_count.store(this->thread_count.load() + 1);
     }
 
     void Stopped()
     {
-        this->thread_count--;
+        this->thread_count.store(thread_count.load() - 1);
+    }
+
+    bool HasFinished()
+    {
+        return this->thread_count.load() <= 0;
     }
 
     void Release()

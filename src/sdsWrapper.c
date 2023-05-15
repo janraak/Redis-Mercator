@@ -42,7 +42,8 @@ rxString rxStringDup(rxString s)
 
 void rxStringFree(rxString s)
 {
-    sdsfree((sds)s);
+    if(s)
+        sdsfree((sds)s);
 }
 
 rxString *rxStringSplitLen(const char *s, ssize_t len, const char *sep, int seplen, int *count)
@@ -50,9 +51,11 @@ rxString *rxStringSplitLen(const char *s, ssize_t len, const char *sep, int sepl
     return (const char **)sdssplitlen(s, len, sep, seplen, count);
 }
 
-void rxStringFreeSplitRes(rxString *tokens, int count)
+rxString *rxStringFreeSplitRes(rxString *tokens, int count)
 {
-    sdsfreesplitres((sds *)tokens, count);
+    if(tokens)
+        sdsfreesplitres((sds *)tokens, count);
+    return NULL;
 }
 
 rxString rxStringMapChars(rxString s, const char *from, const char *to, size_t setlen)
@@ -217,7 +220,15 @@ void *rxMemAlloc(size_t size)
     return ptr;
 }
 
+extern void rxMemFreeSession(void *ptr);
+
 void rxMemFree(void *ptr)
+{
+    rxMemFreeSession(ptr);
+}
+
+
+void rxMemFreeX(void *ptr)
 {
 #ifdef RXDEBUG
     void *sz = raxFind(debugAllocated, (unsigned char *)&ptr, sizeof(void *));
@@ -241,6 +252,7 @@ void rxMemFree(void *ptr)
 #endif
     zfree(ptr);
 }
+
 size_t rxMemAllocSize(void *ptr)
 {
 #ifdef RXDEBUG

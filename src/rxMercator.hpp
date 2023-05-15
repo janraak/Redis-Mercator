@@ -20,5 +20,6 @@ extern "C"
 #ifdef __cplusplus
 }
 #endif
+#include "rxSessionMemory.hpp"
 
 #endif

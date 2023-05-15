@@ -19,14 +19,14 @@ extern "C"
 struct client;
 thread_local  rax *RedisClientPoolRegistry = NULL;
 
-void *_allocateRax(){
+void *_allocateRax(void *){
     return raxNew();
 }
 
 template <typename T>
 rax *RedisClientPool<T>::Get_ClientPool_Registry()
 {
-    rax *registry = tls_get<rax *>((const char*)"RedisClientPool", _allocateRax);
+    rax *registry = tls_get<rax *>((const char*)"RedisClientPool", _allocateRax, NULL);
     return registry;
 }
 

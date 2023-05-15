@@ -459,17 +459,21 @@ int rx_start_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
         rxString address = rxGetHashField(node_info, ADDRESS_FIELD);
         rxString role = rxGetHashField(node_info, ROLE_FIELD);
         rxString shard = rxGetHashField(node_info, ORDER_FIELD);
+        rxString index_address = NULL;
+        rxString index_port = NULL;
         rxString index_name = rxGetHashField(node_info, INDEX_FIELD);
-        void *index_node_info = rxFindHashKey(0, index_name);
-        rxString index_address = rxGetHashField(index_node_info, ADDRESS_FIELD);
-        rxString index_port = rxGetHashField(index_node_info, PORT_FIELD);
-        if (strlen(index_address) == 0)
+        if (index_name)
         {
-            index_address = rxStringDup(address);
-            index_port = rxStringDup(port);
+            void *index_node_info = rxFindHashKey(0, index_name);
+            index_address = rxGetHashField(index_node_info, ADDRESS_FIELD);
+            index_port = rxGetHashField(index_node_info, PORT_FIELD);
+            if (!index_address || strlen(index_address) == 0)
+            {
+                index_address = rxStringDup(address);
+                index_port = rxStringDup(port);
+            }
+            rxServerLog(rxLL_WARNING, "INDEX: %s %s %s\n", index_name, index_address, index_port);
         }
-        rxServerLog(rxLL_WARNING, "INDEX: %s %s %s\n", index_name, index_address, index_port);
-
         auto *config = getRxSuite();
         rxString primary_name = rxGetHashField2(node_info, PRIMARY_FIELD);
         rxServerLog(rxLL_NOTICE, ".... starting node:%s %s:%s role:%s shard:%s index_name:%s primary_name:%s \n", node, address, port, role, shard, index_name, primary_name);
@@ -479,7 +483,7 @@ int rx_start_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
             sha1,
             address, port,
             role,
-            index_address, index_port,
+            index_address ? index_address : address, index_port ? index_port : port,
             REDIS_VERSION,
             config->cdnRootUrl,
             config->startScript,
@@ -520,7 +524,7 @@ int rx_start_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int)
             start_redis(startup_command);
         }
 
-        if (strcmp(primary_name, rxStringEmpty()) != 0)
+        if (primary_name && strcmp(primary_name, rxStringEmpty()) != 0)
         {
             void *primary_node_info = rxFindHashKey(0, primary_name);
             rxString primary_address = rxGetHashField2(primary_node_info, ADDRESS_FIELD);
@@ -902,7 +906,8 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         rx_setconfig(NULL, NULL, 0);
         RedisModule_CreateCommand(ctx, "mercator.healthcheck", rx_healthcheck, "admin write", 1, 1, 0);
         libpath = getenv("LD_LIBRARY_PATH");
-        rxServerLog(rxLL_NOTICE, "3) rxMercator LD_LIBRARY_PATH=%s", libpath);
+        if(libpath)
+            rxServerLog(rxLL_NOTICE, "3) rxMercator LD_LIBRARY_PATH=%s", libpath);
     }
     else
     {

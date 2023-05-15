@@ -27,12 +27,14 @@ extern "C"
 static char RUMBLE_STRIP1[] = "AUTHOR:JAN RAAK.";
 static char RUMBLE_STRIP2[] = "2022SHORELINE,WA";
 
+extern void *rxMemAllocSession(size_t size, const char *tag);
+
 #include "tls.hpp"
-extern void *_allocateRax();
+extern void *_allocateRax(void *parm);
 
 rax *FaBlok::Get_FaBlok_Registry()
 {
-    rax *registry = tls_get<rax *>((const char *)"FaBlokCache", _allocateRax);
+    rax *registry = tls_get<rax *>((const char *)"FaBlokCache", _allocateRax, NULL);
     return registry;
 }
 
@@ -274,7 +276,7 @@ FaBlok::FaBlok(rxString sn, UCHAR value_type)
 FaBlok *FaBlok::New(const char *sn, UCHAR value_type)
 {
     int l = strlen(sn);
-    void *fabSpace = rxMemAlloc(sizeof(rax) + sizeof(FaBlok) + l + 1);
+    void *fabSpace = rxMemAllocSession(sizeof(rax) + sizeof(FaBlok) + l + 1, "FaBlok");
 
     char *s = (char *)fabSpace + sizeof(rax) + sizeof(FaBlok);
     strncpy(s, sn, l);
@@ -298,7 +300,6 @@ FaBlok *FaBlok::Delete(FaBlok *b)
     b->marked_for_deletion = 722765;
 
     rxRaxFree(b->keyset);
-    rxMemFree(b->keyset);
     return NULL;
 }
 

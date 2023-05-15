@@ -685,9 +685,14 @@ ParsedExpression::ParsedExpression(Sjiboleth *dialect)
 
 ParsedExpression::~ParsedExpression()
 {
+    // if(this->errors && !this->errors->head && !this->errors->tail){
+    //     printf("~ParsedExpression(%p) corrupted?! e=%p e->h=%p e->t=%p\n", this, this->errors, this->errors->head, this->errors->tail);
+    //     rxServerLog(rxLL_NOTICE, "~ParsedExpression(%p) corrupted?! e=%p e->h=%p e->t=%p", this, this->errors, this->errors->head, this->errors->tail);
+    //     return;
+    // }
     if (this->side_track)
         listRelease(this->side_track);
-    if(this->errors)
+    if(this->errors && this->errors->head && this->errors->tail)
         listRelease(this->errors);
 
     if(this->next != NULL){

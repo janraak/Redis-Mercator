@@ -6,6 +6,7 @@ extern "C"
 #include "version.h"
 
 #include <ctype.h>
+#include <ctype.h>
 #include <sched.h>
 #include <signal.h>
 
@@ -103,8 +104,10 @@ void *rxFindKey(int dbNo, const char *key)
         serverPanic("findKey: No REDIS DB!");
     if (!key)
         serverPanic("findKey: No key to search!");
-    robj k = {OBJ_STRING, OBJ_ENCODING_RAW, key, OBJ_SHARED_REFCOUNT};
-    dictEntry *de = dictFind(db->dict, key);
+    // robj k = {OBJ_STRING, OBJ_ENCODING_RAW, key, OBJ_SHARED_REFCOUNT};
+    sds k = sdsnew(key);
+    dictEntry *de = dictFind(db->dict, k);
+    sdsfree(k);
     if (de)
     {
         return dictGetVal(de);
@@ -122,6 +125,7 @@ void *rxFindKey(int dbNo, const char *key)
             return NULL;
         }
     }
+    return NULL;
 }
 void *rxFindSetKey(int dbNo, const char *key)
 {
@@ -360,7 +364,7 @@ rxString rxGetHashField(void *oO, const char *f)
         serverPanic("Unknown hash encoding");
     }
     rxStringFree(field);
-    return rxStringEmpty();
+    return NULL;
 }
 
 rxString rxGetHashField2(void *oO, const char *field)

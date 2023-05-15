@@ -31,7 +31,7 @@ rxString rxStringTrim(rxString s, const char *cset);
 rxString rxStringFormat(const char *fmt, ...);
 
 rxString *rxStringSplitLen(const char *s, ssize_t len, const char *sep, int seplen, int *count);
-void rxStringFreeSplitRes(rxString *tokens, int count);
+rxString *rxStringFreeSplitRes(rxString *tokens, int count);
 rxString rxStringMapChars(rxString s, const char *from, const char *to, size_t setlen);
 rxString rxStringLenMapChars(rxString s, size_t sl, const char *from, const char *to, size_t setlen);
 
@@ -55,6 +55,7 @@ void rxServerLog(int level, const char *fmt, ...);
 void rxServerLogHexDump(int level, void *value, size_t len, const char *fmt, ...);
 void *rxMemAlloc(size_t size);
 void rxMemFree(void *ptr);
+void rxMemFreeX(void *ptr);
 size_t rxMemAllocSize(void *ptr);
 
 const char *rxStringBuildRedisCommand(int argc, rxRedisModuleString **argv);

@@ -64,11 +64,66 @@ void SilNikParowy::Preload(ParsedExpression *e, SilNikParowy_Kontekst *)
     }
 }
 
+// void *SilNikParowy::CurrentException = NULL;
+
+// struct sigaction SilNikParowy::new_action;
+// struct sigaction SilNikParowy::old_action;
+//    jmp_buf SilNikParowy::env_buffer;
+
+// __sighandler_t *SilNikParowy::UpstreamExceptionHandler = NULL;
+// __sighandler_t *SilNikParowy::CurrentExceptionHandler = NULL;
+
+// void SilNikParowy::ExceptionHandler(int signal, siginfo_t *info, void *secret)
+// {
+//     printf("ExceptionHandler \: %d\n", signal);
+//     SilNikParowy::CurrentException = info;
+//     longjmp(SilNikParowy::env_buffer, "SilNikParowy::ExceptionHandler");    
+// }
+
+// bool SilNikParowy::ExceptionHandlerState = false;
+
+// bool SilNikParowy::IsExceptionHandlerActive() { return false; }
+
+// bool SilNikParowy::ExceptionHandler_Activate()
+// {
+//     if (SilNikParowy::CurrentExceptionHandler == NULL)
+//     {
+//         SilNikParowy::CurrentExceptionHandler = (__sighandler_t *)&SilNikParowy::ExceptionHandler;
+//         new_action.sa_handler = SilNikParowy::ExceptionHandler;
+//         sigemptyset(&SilNikParowy::new_action.sa_mask);
+//         sigaddset(&SilNikParowy::old_action.sa_mask, SIGSEGV);
+//         sigaddset(&SilNikParowy::old_action.sa_mask, SIGINT);
+//         sigaddset(&SilNikParowy::old_action.sa_mask, SIGFPE);
+//         sigaddset(&SilNikParowy::old_action.sa_mask, SIGTERM);
+//         SilNikParowy::new_action.sa_flags = 0;
+//         // SilNikParowy::new_action.sa_flags = SA_NODEFER | SA_RESETHAND | SA_SIGINFO;
+//         sigaction(SIGSEGV, &SilNikParowy::new_action, &SilNikParowy::old_action);
+
+//         sigaction(SIGFPE, &SilNikParowy::new_action, NULL);
+//         sigaction(SIGTERM, &SilNikParowy::new_action, NULL);
+//         sigaction(SIGINT, &SilNikParowy::new_action, NULL);
+//     }
+//     SilNikParowy::ExceptionHandlerState = true;
+//     return SilNikParowy::ExceptionHandlerState;
+// }
+// bool SilNikParowy::ExceptionHandler_Deactivate()
+// {
+//     SilNikParowy::ExceptionHandlerState = false;
+//     return SilNikParowy::ExceptionHandlerState;
+// }
+// void *SilNikParowy::GetException()
+// {
+//     return SilNikParowy::CurrentException;
+// }
+
 rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack)
 {
+    // SilNikParowy::ExceptionHandler_Activate();
     e->expression->StartHead();
     ParserToken *t;
     FaBlok *kd;
+    // setjmp( SilNikParowy::env_buffer );
+    // if(SilNikParowy::GetException() == NULL){
     while ((t = e->expression->Next()) != NULL)
     {
         switch (t->TokenType())
@@ -102,7 +157,9 @@ rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack)
             break;
         }
     }
+    // }
 end_of_loop:
+    // SilNikParowy::ExceptionHandler_Deactivate();
     // rxServerLog(rxLL_NOTICE, "\n");
     rxString error;
     rax *rx = NULL;

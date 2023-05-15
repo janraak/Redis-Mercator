@@ -253,23 +253,23 @@ int executeParseCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         if (rxStringMatchLen(q, 2, GREMLIN_PREFX, strlen(GREMLIN_PREFX), 1))
         {
             dialect_skippy = 2;
-            parser = new GremlinDialect();
+            parser = GremlinDialect::Get("GremlinDialect");
         }
         else if (rxStringMatchLen(q, 2, "j:", 2, 1))
         {
-            parser = new JsonDialect();
+            parser = JsonDialect::Get("JsonDialect");
         dialect_skippy = 2;
         }
         else if (rxStringMatchLen(q, 2, "t:", 2, 1))
         {
             dialect_skippy = 2;
-        parser = new TextDialect();
+        parser = TextDialect::Get("TextDialect");
         }
             query = rxStringFormat("%s%s%s", query, sep, q);
             sep[0] = ' ';
     }
     if (parser== NULL)
-        parser = new QueryDialect();
+        parser = QueryDialect::Get("QueryDialect");
 
     list *errors = listCreate();
     auto *t = parser->Parse(query + dialect_skippy);
@@ -337,23 +337,31 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     }
     rxUNUSED(target_setname);
     Sjiboleth *parser;
-    if (
-        rxStringMatchLen(query, 2, GREMLIN_PREFX, strlen(GREMLIN_PREFX), 1) ||
-        rxStringMatchLen(query, 2, GREMLIN_PREFIX_ALT, strlen(GREMLIN_PREFIX_ALT), 1))
+    try
     {
-        parser = new GremlinDialect();
-        dialect_skippy = strlen(GREMLIN_PREFX);
-        // ranked = false;
-    }
-    else
-        parser = new QueryDialect();
+        if (
+            rxStringMatchLen(query, 2, GREMLIN_PREFX, strlen(GREMLIN_PREFX), 1) ||
+            rxStringMatchLen(query, 2, GREMLIN_PREFIX_ALT, strlen(GREMLIN_PREFIX_ALT), 1))
+        {
+            parser = GremlinDialect::Get("GremlinDialect");
+            dialect_skippy = strlen(GREMLIN_PREFX);
+            // ranked = false;
+        }
+        else
+            parser = QueryDialect::Get("QueryDialect");
 
-    list *errors = listCreate();
-    executeQueryCommand(parser, (const char *)query + dialect_skippy, fetch_rows, ctx, errors, ranked, ranked_lower_bound, ranked_upper_bound);
-    listRelease(errors);
-    releaseParser(parser);
-    rxStringFree(query);
-    return REDISMODULE_OK;
+        list *errors = listCreate();
+        executeQueryCommand(parser, (const char *)query + dialect_skippy, fetch_rows, ctx, errors, ranked, ranked_lower_bound, ranked_upper_bound);
+        listRelease(errors);
+        releaseParser(parser);
+        rxStringFree(query);
+        return REDISMODULE_OK;
+    }
+    catch (void *)
+    {
+        RedisModule_ReplyWithSimpleString(ctx, "Pointer exception!");
+        return C_ERR;
+    }
 }
 
 int executeQueryAsyncCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
@@ -446,7 +454,7 @@ int executeLoadScriptCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int 
     }
 
     stat(path, &sb);
-    script_text = (char *)rxMemAlloc(sb.st_size);
+    script_text = (char *)rxMemAllocSession(sb.st_size, "LoadScriptCommand");
     fread(script_text, sb.st_size, 1, input_file);
     fclose(input_file);
 

@@ -9,6 +9,7 @@
 #include "sjiboleth.h"
 
 #include "graphstack.hpp"
+#include "rxSessionMemory.hpp"
 
 // class Parser;
 class ParsedExpression;
@@ -82,8 +83,9 @@ public:
 class Sjiboleth
 {
 protected:
+    static rax *Master_Registry;
     rax *registry;
-
+    static rax* Get_Master_Registry();
 private:
     // Parser *parser;
     bool is_volatile;
@@ -125,6 +127,7 @@ public:
     ParserToken *LookupToken(rxString token);
 
 public:
+    static Sjiboleth *Get(const char* dialect);
     Sjiboleth(const char *default_operator);
     Sjiboleth();
     virtual ~Sjiboleth();
@@ -240,7 +243,7 @@ public:
     ParsedExpression *Next(ParsedExpression *next);
     GraphStack<ParserToken> *RPN();
 };
-
+//                          0123456789012345
 static char type_chars[] = "SLVZH-X------IRT-";
 
 class rxIndexEntry
@@ -279,7 +282,7 @@ public:
     static void *NewAsRobj(const char *entry, double key_score)
     {
         int entry_len = strlen(entry);
-        void *o = rxMemAlloc(sizeof(rxIndexEntry) + entry_len + 2 + rxSizeofRobj());
+        void *o = rxMemAllocSession(sizeof(rxIndexEntry) + entry_len + 2 + rxSizeofRobj(), "rxIndexEntry");
 
         void *ie = o + rxSizeofRobj();
 
@@ -293,17 +296,18 @@ public:
 
     static rxIndexEntry *New(const char *entry, double key_score)
     {
-        void *ie = rxMemAlloc(sizeof(rxIndexEntry) + strlen(entry)) + 1;
+        void *ie = rxMemAllocSession(sizeof(rxIndexEntry) + strlen(entry) + 1, "rxIndexEntry");
         char *key = (char *)(ie + sizeof(rxIndexEntry));
         strcpy(key, entry);
         char *tab = strchr((char *)key, '\t');
         *tab = 0x00;
         return ((rxIndexEntry *)ie)->Init(key, tab + 1, key_score);
+        return ((rxIndexEntry *)ie)->Init(key, tab + 1, key_score);
     }
 
     static rxIndexEntry *New(const char *entry, size_t len, double key_score, void *obj)
     {
-        void *ie = rxMemAlloc(sizeof(rxIndexEntry) + strlen(entry)) + 1;
+        void *ie = rxMemAllocSession(sizeof(rxIndexEntry) + strlen(entry) + 1, "rxIndexEntry");
         char *key = (char *)(ie + sizeof(rxIndexEntry));
         strncpy(key, entry, len);
         char *tab = strchr((char *)key, '\t');
@@ -312,9 +316,19 @@ public:
             *tab = 0x00;
             ++tab;
         }
+        if (tab)
+        {
+            *tab = 0x00;
+            ++tab;
+        }
         else
             *(key + len) = 0x00;
         return ((rxIndexEntry *)ie)->Init(key, tab, key_score, obj);
+    }
+
+    static rxIndexEntry *New(const char *entry, size_t len)
+    {
+        return New(entry, len, 1.0, NULL);
     }
 
     void Write(RedisModuleCtx *ctx)

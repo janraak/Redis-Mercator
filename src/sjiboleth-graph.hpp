@@ -8,6 +8,7 @@ extern "C"
 
 #include "rax.h"
 #include "rxSuiteHelpers.h"
+#include "rxSuiteHelpers.h"
 #include "sdsWrapper.h"
 #include <stddef.h>
 #include <stdint.h>
@@ -32,7 +33,9 @@ class Graph_Leg
 {
 public:
     char *key;
+    int refCnt;
     double length;
+    double increment;
     Graph_Leg *start;
     Graph_Leg *origin;
     void *obj;
@@ -40,48 +43,81 @@ public:
 public:
     void Init(rxString key, double weight)
     {
+        this->refCnt = 1;
         this->key = (char *)((void *)this + sizeof(Graph_Leg));
         strcpy(this->key, key);
-        this->length = weight / 2;
+        this->length = weight;
         this->start = NULL;
         this->origin = NULL;
         this->obj = NULL;
     }
 
+    int Claim(){
+        this->refCnt++;
+        return this->refCnt;
+    }
+
+    static Graph_Leg *Release(Graph_Leg *here){
+        here->refCnt--;
+        if(here->refCnt <= 0){
+            //printf("-- %p %s %d\n", here, here->key, here->refCnt);
+            rxMemFree(here);
+            return NULL;
+        }
+        //printf("-  %p %s %d\n", here, here->key, here->refCnt);
+        return here;
+    }
+
     static Graph_Leg *New(rxString key, double weight)
     {
-        auto *here = (Graph_Leg *)rxMemAlloc(sizeof(Graph_Leg) + strlen(key) + 1);
+        auto *here = (Graph_Leg *)rxMemAllocSession(sizeof(Graph_Leg) + strlen(key) + 1,"Graph_Leg");
         here->Init(key, weight);
+        here->increment = weight;
+        //printf(" + %p %s %d\n", here, key, here->refCnt);
         return here;
     }
 
     static Graph_Leg *New(rxString key, double weight, Graph_Leg *origin)
     {
-        auto *here = (Graph_Leg *)rxMemAlloc(sizeof(Graph_Leg) + strlen(key) + 1);
-        here->Init(key, weight);
+        auto *here = (Graph_Leg *)rxMemAllocSession(sizeof(Graph_Leg) + strlen(key) + 1,"Graph_Leg");
+        here->Init(key, weight / 2 + origin-> length);
+        here->increment = weight / 2;
         here->origin = origin;
+        //printf("+  %p %s %d\n", here, key, here->refCnt);
         return here;
     }
 
+
     ~Graph_Leg()
     {
-    }
+            //printf("-  %p %s\n", this, this->key);
+}
 
     static int WeightOrdered(void *left, void *right, void *parm) // Comparator for priority enqueue
     {
         /*  -1 == l > r
              0 == l == r
              1 == l < r
-        */  
-        float balance = ((Graph_Leg *)left)->length - ((Graph_Leg *)right)->length;
+        */
+        int opti = (int)parm;
+        double balance = ((Graph_Leg *)left)->length - ((Graph_Leg *)right)->length;
+        ////printf("%s :: %s => %f :: %f => %f * %d ==> ", ((Graph_Leg *)left)->key, ((Graph_Leg *)right)->key, ((Graph_Leg *)left)->length, ((Graph_Leg *)right)->length, balance, opti);
+        opti = 1;
         if (balance < 0)
-            return 1 * (int)parm; // l < r
+        {
+            ////printf("1\n");
+            return 1 * opti; // l < r
+        }
         if (balance > 0)
-            return -1 * (int)parm; // l > r
+        {
+            ////printf("-1\n");
+            return -1 * opti; // l > r
+        }
+        ////printf("0\n");
         return 0; // l == r
     }
 
-    static Graph_Leg *Add(rxString key, double const weight, Graph_Leg *origin, GraphStack<Graph_Leg> *bsf_q, rax *touches, int optimization)
+    static Graph_Leg *Add(rxString key, double const weight, Graph_Leg *origin, GraphStack<Graph_Leg> *bsf_q, rax *touches, int optimization, rxString contra_key)
     {
         if (touches)
         {
@@ -91,8 +127,13 @@ public:
         }
         auto *leg = Graph_Leg::New(key, weight, origin);
         bsf_q->Enqueue(leg, WeightOrdered, (void*)optimization);
-        if (touches)
+        if (touches){
             raxInsert(touches, (UCHAR *)key, strlen(key), leg, NULL);
+            if(contra_key){
+                leg->Claim();
+                raxInsert(touches, (UCHAR *)contra_key, strlen(contra_key), leg, NULL);
+            }
+        }
         return leg;
     }
 
@@ -128,7 +169,7 @@ public:
     {
         if (strlen(object_key) == 0)
             rxServerLog(rxLL_NOTICE, "Suspicious call");
-        auto *edge = (Graph_Triplet_Edge *)rxMemAlloc(sizeof(Graph_Triplet_Edge) + strlen(object_key) + 1);
+        auto *edge = (Graph_Triplet_Edge *)rxMemAllocSession(sizeof(Graph_Triplet_Edge) + strlen(object_key) + 1, "Graph_Triplet_Edge");
         auto *ok = (char *)((void *)edge) + sizeof(Graph_Triplet_Edge);
         strcpy(ok, object_key);
         edge->object = object;
@@ -143,7 +184,7 @@ public:
     {
         if (strlen(object_key) == 0)
             rxServerLog(rxLL_NOTICE, "Suspicious call");
-        auto *edge = (Graph_Triplet_Edge *)rxMemAlloc(sizeof(Graph_Triplet_Edge) + strlen(object_key) + 1 + strlen(step) + 1);
+        auto *edge = (Graph_Triplet_Edge *)rxMemAllocSession(sizeof(Graph_Triplet_Edge) + strlen(object_key) + 1 + strlen(step) + 1, "Graph_Triplet_Edge");
         auto *ok = (char *)((void *)edge) + sizeof(Graph_Triplet_Edge);
         auto *section = ok + 1 + strlen(object_key);
         strcpy(ok, object_key);
@@ -176,13 +217,13 @@ public:
         listNode *node;
         while ((node = listNext(iter)))
         {
-            this->length += ((Graph_Leg *)node->value)->length;
+            this->length += ((Graph_Leg *)node->value)->increment;
         }
         listReleaseIterator(iter);
         return this->length;
     }
 
-    ~Graph_Triplet_Edge()
+    void Purge()
     {
         this->object = NULL;
         // rxStringFree(this->object_key);
@@ -201,37 +242,44 @@ public:
         this->path = NULL;
     }
 
+    ~Graph_Triplet_Edge()
+    {
+        this->Purge();
+    }
+
     void Show()
     {
         return;
-        if (this->object == NULL)
-        {
-            return;
-        }
-        listIter *li = listGetIterator(this->path, 0);
-        listNode *ln;
-        while ((ln = listNext(li)) != NULL)
-        {
-            rxServerLog(rxLL_NOTICE, " => %s", (char *)ln->value);
-        }
-        rxServerLog(rxLL_NOTICE, "\n");
-        if(this->path){
-              listIter *li = listGetIterator(this->path, 0);
-            listNode *ln;
-            while ((ln = listNext(li)))
-            {
-                auto *k = (Graph_Leg*)ln->value;
-                if((ln->value + sizeof(Graph_Leg)) == (void*)k->key){
-                    rxServerLog(rxLL_NOTICE,"path: %p %s %f", k, k->key, k->length);
-                }else{
-                    rxServerLog(rxLL_NOTICE,"Leg with gangreen! %p\n", k);
+        // if (this->object == NULL)
+        // {
+        // if (this->object == NULL)
+        // {
+        //     return;
+        // }
+        // listIter *li = listGetIterator(this->path, 0);
+        // listNode *ln;
+        // while ((ln = listNext(li)) != NULL)
+        // {
+        //     rxServerLog(rxLL_NOTICE, " => %s", (char *)ln->value);
+        // }
+        // rxServerLog(rxLL_NOTICE, "\n");
+        // if(this->path){
+        //       listIter *li = listGetIterator(this->path, 0);
+        //     listNode *ln;
+        //     while ((ln = listNext(li)))
+        //     {
+        //         auto *k = (Graph_Leg*)ln->value;
+        //         if((ln->value + sizeof(Graph_Leg)) == (void*)k->key){
+        //             rxServerLog(rxLL_NOTICE,"path: %p %s %f", k, k->key, k->length);
+        //         }else{
+        //             rxServerLog(rxLL_NOTICE,"Leg with gangreen! %p\n", k);
 
-                }
-            }
-            listReleaseIterator(li);
+        //         }
+        //     }
+        //     listReleaseIterator(li);
           
-        }
-        listReleaseIterator(li);
+        // }
+        // listReleaseIterator(li);
     }
 
     int Number_of_Touches(rax *steps)
@@ -289,7 +337,7 @@ public:
                 auto *k = (Graph_Leg*)ln->value;
                 if((ln->value + sizeof(Graph_Leg)) == (void*)k->key){
                     RedisModule_ReplyWithSimpleString(ctx, k->key);
-                    RedisModule_ReplyWithDouble(ctx, k->length);
+                    RedisModule_ReplyWithDouble(ctx, k->increment);
                 }else{
                     RedisModule_ReplyWithSimpleString(ctx, "Leg with gangreen!");
                     RedisModule_ReplyWithDouble(ctx, 0.0);
@@ -345,7 +393,7 @@ public:
 
     static Graph_Triplet *New(rxString subject_key, void *subject, double length)
     {
-        auto *t = (Graph_Triplet *)rxMemAlloc(sizeof(Graph_Triplet) + strlen(subject_key) + 1);
+        auto *t = (Graph_Triplet *)rxMemAllocSession(sizeof(Graph_Triplet) + strlen(subject_key) + 1, "Graph_Triplet");
         auto *sk = (char *)((void *)t) + sizeof(Graph_Triplet);
         strcpy(sk, subject_key);
 
@@ -372,7 +420,7 @@ public:
         return copy;
     }
 
-    static CGraph_Triplet *InitializeResult(int db, Graph_Leg *terminal, rxString object_key, rxString member, rxString edge)
+    static CGraph_Triplet *InitializeResult(int db, Graph_Leg *terminal, rxString object_key, rxString member, rxString edge, int optimization)
     {
         void *subject = rxFindHashKey(db, object_key);
         if (subject == NULL)
@@ -396,7 +444,9 @@ public:
                     subject_key = p->key;
                 }
                 listAddNodeHead(path, p);
-                l += p->length;
+                p->length = p->length * optimization;
+                p->increment = p->increment * optimization;
+                l += p->increment;
                 p = p->origin;
             }
         }
@@ -421,7 +471,7 @@ public:
         return t;
     }
 
-    static CGraph_Triplet *InitializeResultForMatch(int db, Graph_Leg *terminal, rxString subject_key, rxString member, rxString edge)
+    static CGraph_Triplet *InitializeResultForMatch(int db, Graph_Leg *terminal, rxString subject_key, rxString member, rxString edge, int optimization)
     {
         void *subject = rxFindHashKey(db, subject_key);
         if (subject == NULL)
@@ -435,6 +485,8 @@ public:
         double path_length = (terminal != NULL) ? terminal->length : 0.0;
         while (p)
         {
+            p->increment = p->increment * optimization;
+            p->length = p->length * optimization;
             listAddNodeHead(path, p);
             p = p->origin;
         }
@@ -465,18 +517,18 @@ public:
         return ge;
     }
 
-    static CGraph_Triplet *New(int db, Graph_Leg *terminal, rxString member, rxString edge)
+    static CGraph_Triplet *New(int db, Graph_Leg *terminal, rxString member, rxString edge, int optimization)
     {
         if ((!terminal || (terminal == terminal->start)) && !member)
             return NULL;
-        return Graph_Triplet::InitializeResult(db, terminal, terminal->key, member, edge);
+        return Graph_Triplet::InitializeResult(db, terminal, terminal->key, member, edge, optimization);
     }
 
-    static CGraph_Triplet *NewForMatch(int db, Graph_Leg *terminal, rxString member, rxString edge)
+    static CGraph_Triplet *NewForMatch(int db, Graph_Leg *terminal, rxString member, rxString edge, int optimization)
     {
         if ((!terminal || (terminal == terminal->start)) && !member)
             return NULL;
-        return Graph_Triplet::InitializeResultForMatch(db, terminal, terminal->key, member, edge);
+        return Graph_Triplet::InitializeResultForMatch(db, terminal, terminal->key, member, edge, optimization);
     }
 
     static rxString SubjectKey(CGraph_Triplet *t)
@@ -591,6 +643,7 @@ public:
                 {
                     // delete e;
                     // Todo: free path! and legs!
+                    e->Purge();
                     rxMemFree(e);
                 }
             }
@@ -599,9 +652,10 @@ public:
 
     void Show()
     {
-        // return;
+        return;
         rxServerLog(rxLL_NOTICE, "== Triplet ==\n");
         rxServerLog(rxLL_NOTICE, " %s length=%f\n", this->subject_key, this->length);
+
 
         if (this->containers.HasEntries())
         {
@@ -739,6 +793,7 @@ public:
         this->edges.RemoveLast();
         this->CalcLength();
     }
+
     void RemoveFirstEdge()
     {
         this->edges.RemoveFirst();

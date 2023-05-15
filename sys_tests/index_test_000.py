@@ -14,7 +14,7 @@ from pathlib import Path
 
 def flushall(redis_client):
     redis_client.execute_command("FLUSHALL")
-    redis_index = redis.StrictRedis('192.168.1.182', 6379, 0)
+    redis_index = redis.StrictRedis('127.0.0.1', 6379, 0)
     redis_index.execute_command("FLUSHALL")
     redis_index.close()
 
@@ -28,7 +28,7 @@ def check_server(must_flush):
     modulePath = path.parent.parent.joinpath("src").absolute()
     print(modulePath)
 
-    redis_client = redis.StrictRedis('192.168.1.180', 6379, 0)
+    redis_client = redis.StrictRedis('127.0.0.1', 6379, 0)
 
     while True:
         data =  redis_client.execute_command("info Persistence").decode('utf-8')
@@ -51,17 +51,17 @@ def check_server(must_flush):
         if m[b'name'].decode('utf-8') == "rxRule": rules_loaded= True
         if m[b'name'].decode('utf-8') == "rxMercator": mercator_loaded= True
     if not mercator_loaded:
-        redis_client.execute_command("MODULE LOAD {}/rxMercator.so RB_A 192.168.1.180 8MB 500  RB_A 192.168.1.181 8MB 500  RB_A 192.168.1.182 8MB 500 ".format(modulePath))
+        redis_client.execute_command("MODULE LOAD {}/rxMercator.so RB_A 127.0.0.1 8MB 500  RB_A 127.0.0.1 8MB 500  RB_A 127.0.0.1 8MB 500 ".format(modulePath))
     if not indexer_loaded:
-        redis_client.execute_command("MODULE LOAD {}/rxIndexer.so 192.168.1.182 6379".format(modulePath))
+        redis_client.execute_command("MODULE LOAD {}/rxIndexer.so 127.0.0.1 6379".format(modulePath))
     if not query_loaded:
-        data = redis_client.execute_command("MODULE LOAD {}/rxQuery.so  192.168.1.182 6379 &".format(modulePath))
+        data = redis_client.execute_command("MODULE LOAD {}/rxQuery.so  127.0.0.1 6379 &".format(modulePath))
     if not rules_loaded:
         data = redis_client.execute_command("MODULE LOAD {}/rxRule.so".format(modulePath))
     if not graphdb_loaded:
         redis_client.execute_command("MODULE LOAD {}/rxGraphdb.so ".format(modulePath))
 
-    redis_index = redis.StrictRedis('192.168.1.182', 6379, 0)
+    redis_index = redis.StrictRedis('127.0.0.1', 6379, 0)
     data = redis_index.execute_command("MODULE LIST")
     fetcher_loaded = False
     print(data)

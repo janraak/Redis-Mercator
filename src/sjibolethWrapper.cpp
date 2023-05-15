@@ -15,6 +15,8 @@ extern "C"
 #define REDISMODULE_EXPERIMENTAL_API
 #include "../../src/redismodule.h"
 
+#include "zmalloc.h"
+
 #ifdef __cplusplus
 }
 #endif
@@ -33,6 +35,7 @@ const char *OK = "OK";
 #define HASHTYPE 'H'
 #define STRINGTYPE 'S'
 #define LISTTYPE 'L'
+#define TRIPLET 'T'
 #define TRIPLET 'T'
 
 CSjiboleth *newQueryEngine()
@@ -103,10 +106,10 @@ CParsedExpression *releaseQuery(CParsedExpression *s)
     return NULL;
 }
 
-CSjiboleth *releaseParser(CSjiboleth *s)
+CSjiboleth *releaseParser(CSjiboleth */*s*/)
 {
-    Sjiboleth *so = (Sjiboleth *)s;
-    delete so;
+    // Sjiboleth *so = (Sjiboleth *)s;
+    // delete so;
     return NULL;
 }
 
@@ -254,11 +257,12 @@ std::vector<rxIndexEntry *> FilterAndSortResults(rax *result, bool ranked, doubl
         }
         else
         {
-            ro = rxIndexEntry::New((const char *)resultsIterator.key, resultsIterator.key_len, 1.0, NULL);
+            ro = rxIndexEntry::New((const char *)resultsIterator.key, resultsIterator.key_len);
             ro->key_type = rxGetObjectType(o); // type_chars[rxGetObjectType(o)];
             ro->key_type = rxGetObjectType(o);
             ranked = false; // Traversal objects are not sorted!
         }
+        if(ro != NULL)
         if(ro != NULL)
             vec.push_back(ro);
     }
@@ -273,9 +277,18 @@ std::vector<rxIndexEntry *> FilterAndSortResults(rax *result, bool ranked, doubl
 
 int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *, bool ranked, double ranked_lower_bound, double ranked_upper_bound, CGraphStack *fieldSelector, CGraphStack * /*sortSelector*/)
 {
-    auto resultsFilteredAndSort = FilterAndSortResults(result, ranked, ranked_lower_bound, ranked_upper_bound);
-    RedisModule_ReplyWithArray(ctx, resultsFilteredAndSort.size());
 
+    std::vector<rxIndexEntry *> resultsFilteredAndSort;
+    try
+    {
+        resultsFilteredAndSort = FilterAndSortResults(result, ranked, ranked_lower_bound, ranked_upper_bound);
+        RedisModule_ReplyWithArray(ctx, resultsFilteredAndSort.size());
+    }
+    catch (void *)
+    {
+        RedisModule_ReplyWithSimpleString(ctx, "Pointer exception!");
+        return C_ERR;
+    }
     RedisModuleCallReply *reply = NULL;
 
     for (auto r : resultsFilteredAndSort)
@@ -321,6 +334,7 @@ int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *,
                 case rxOBJ_HASH:
                 case HASHTYPE:
                     if (fieldSelector == NULL)
+                    if (fieldSelector == NULL)
                     reply = RedisModule_Call(ctx, REDIS_CMD_HGETALL, "c", (char *)r->key);
                     else
                     {
@@ -338,7 +352,7 @@ int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *,
                             {
                                 auto *v = rxGetHashField(o, f);
                                 RedisModule_ReplyWithSimpleString(ctx, f);
-                                RedisModule_ReplyWithSimpleString(ctx, v);
+                                RedisModule_ReplyWithSimpleString(ctx, v ? v : "");
                             }
                         }
                     }
@@ -372,18 +386,26 @@ int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *,
 
 void FreeResultObject(void *o)
 {
-    if (rxGetObjectType(o) == rxOBJ_TRIPLET)
+    switch (rxGetObjectType(o))
+    {
+    case rxOBJ_TRIPLET:
     {
         auto *t = (Graph_Triplet *)rxGetContainedObject(o);
         if (t != NULL)
         {
-            if (t->DecrRefCnt() <= 1)
-            {
-                //TODO: Delete object content!;
-                rxMemFree(t);
-                rxMemFree(o);
-            }
+                if (t->DecrRefCnt() <= 1)
+                {
+                    delete t;
+                    rxMemFree(o);
+                }
         }
+    }
+    break;
+    case rxOBJ_INDEX_ENTRY:
+    {
+        auto *t = (Graph_Triplet *)rxGetContainedObject(o);
+    }
+    break;
     }
 }
 
