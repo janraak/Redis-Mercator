@@ -42,6 +42,16 @@ rax *SilNikParowy_Kontekst::Execute(ParsedExpression *e, const char *key)
     return engine->Execute(e, this, key);
 }
 
+
+void *SilNikParowy_Kontekst::Execute(ParsedExpression *e, void *data)
+{
+    SilNikParowy *engine = e->GetEngine();
+    if(engine == NULL)
+        rxModulePanic((char *)"Engine expected");
+    this->expression = e;
+    return engine->Execute(e, this, data);
+}
+
 list *SilNikParowy_Kontekst::Errors()
 {
     return this->expression->errors;

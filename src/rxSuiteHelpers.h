@@ -148,6 +148,7 @@ extern "C"
 
     unsigned long long mem_avail();
 
+    typedef double rxComputeProc(const char *l, int ll, const char *r);
     typedef int rxComparisonProc(const char *l, int ll, const char *r);
     typedef int rxComparisonProc2(const char *l, int ll, const char *r, const char *h);
     void rxInitComparisonsProcs();

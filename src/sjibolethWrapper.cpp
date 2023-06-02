@@ -333,9 +333,9 @@ int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *,
                 {
                 case rxOBJ_HASH:
                 case HASHTYPE:
-                    if (fieldSelector == NULL)
-                    if (fieldSelector == NULL)
-                    reply = RedisModule_Call(ctx, REDIS_CMD_HGETALL, "c", (char *)r->key);
+                    if (fieldSelector == NULL){
+                        reply = RedisModule_Call(ctx, REDIS_CMD_HGETALL, "c", (char *)r->key);
+                    }
                     else
                     {
                         reply = NULL;
@@ -403,7 +403,8 @@ void FreeResultObject(void *o)
     break;
     case rxOBJ_INDEX_ENTRY:
     {
-        auto *t = (Graph_Triplet *)rxGetContainedObject(o);
+        //TODO: free properly
+        // auto *t = (Graph_Triplet *)rxGetContainedObject(o);
     }
     break;
     }

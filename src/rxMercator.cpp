@@ -777,7 +777,15 @@ int rx_add_server(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         char *node_name = (char *)RedisModule_StringPtrLen(argv[j], &arg_len);
         char *node_ip = (char *)RedisModule_StringPtrLen(argv[j + 1], &arg_len);
         char *node_mem = (char *)RedisModule_StringPtrLen(argv[j + 2], &arg_len);
+        int node_base_port = 6400;
         char *node_ports = (char *)RedisModule_StringPtrLen(argv[j + 3], &arg_len);
+        if (rxStringMatch(node_ports, "BASE", MATCH_IGNORE_CASE))
+        {
+            node_ports = (char *)RedisModule_StringPtrLen(argv[j + 3 + 1], &arg_len);
+            node_base_port = atoi(node_ports);
+            node_ports = (char *)RedisModule_StringPtrLen(argv[j + 3 + 2], &arg_len);
+            j += 2;
+        }
         rxString key = rxStringNew("__MERCATOR__SERVER__");
         key = rxStringFormat("%s%s", key, node_name);
         rxString key2 = rxStringNew("__MERCATOR__SERVER__");
@@ -791,7 +799,7 @@ int rx_add_server(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         RedisModule_FreeCallReply(
             RedisModule_Call(ctx, "SADD", "cc", (char *)"__MERCATOR__SERVERS__", key));
         int nr_of_ports = atoi(node_ports);
-        for (long long int p = 6400 + nr_of_ports - 1; p >= 6400; --p)
+        for (long long int p = node_base_port + nr_of_ports - 1; p >= node_base_port; --p)
         {
             RedisModule_FreeCallReply(
                 RedisModule_Call(ctx, "SADD", "cl", (char *)key2, p));

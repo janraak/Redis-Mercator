@@ -23,9 +23,9 @@ extern "C"
 }
 #endif
 
-#define rxUNUSED(x) (void)(x)
+#include <math.h> 
 
-long long rust_helper_cron = -1;
+#define rxUNUSED(x) (void)(x)
 
 extern rxString hashTypeGetFromHashTable(robj *o, rxString field);
 extern int hashTypeGetValue(robj *o, rxString field, unsigned char **vstr, POINTER *vlen, long long *vll);
@@ -58,12 +58,6 @@ void installInterceptors(interceptRule *commandTable, int no_of_commands, timePr
             commandTable[j].no_of_failure_intercepts = 0;
             commandTable[j].no_of_fallback_intercepts = 0;
         }
-    }
-
-    if (rust_helper_cron == -1)
-    {
-        rust_helper_cron = aeCreateTimeEvent(server.el, 1, (aeTimeProc *)cron_proc, NULL, NULL);
-        cron_proc(NULL, 0, NULL);
     }
 }
 
@@ -879,6 +873,87 @@ int compareNotEquals(const char *l, int ll, const char *r)
         return strncmp(l, r, ll) != 0;
 }
 
+// TODO: Float arithmetic
+
+double computeAdd(const char *l, int ll, const char *r)
+{
+    if (isdigit(*l) || isdigit(*r))
+    {
+        double v = atof(l);
+        double t = atof(r);
+        return v + t;
+    }
+    else
+        return 0;
+}
+
+double computeSubtract(const char *l, int ll, const char *r)
+{
+    if (isdigit(*l) || isdigit(*r))
+    {
+        double v = atof(l);
+        double t = atof(r);
+        return v - t;
+    }
+    else
+        return 0;
+}
+
+double computeMultiply(const char *l, int ll, const char *r)
+{
+    if (isdigit(*l) || isdigit(*r))
+    {
+        double v = atof(l);
+        double t = atof(r);
+        return v * t;
+    }
+    else
+        return 0;
+}
+
+double computeDivide(const char *l, int ll, const char *r)
+{
+    if (isdigit(*l) || isdigit(*r))
+    {
+        double v = atof(l);
+        double t = atof(r);
+        return v / t;
+    }
+    else
+        return 0;
+}
+
+double computeModulus(const char *l, int ll, const char *r)
+{
+    // if (isdigit(*l) || isdigit(*r))
+    // {
+    //     double v = atof(l);
+    //     double t = atof(r);
+    //     return modulus(v, t);
+    // }
+    // else
+        return 0;
+}
+
+
+double computePower(const char *l, int ll, const char *r)
+{
+    if (isdigit(*l) || isdigit(*r))
+    {
+        double v = atof(l);
+        double t = atof(r);
+        return pow(v, t);
+    }
+    else
+        return 0;
+}
+
+int calcSqrtInRange(const char *l, int ll)
+{
+    double v = atof(l);
+    return sqrt(v);
+}
+
 int compareContains(const char *l, int ll, const char *r)
 {
     rxUNUSED(ll);
@@ -905,8 +980,15 @@ void rxInitComparisonsProcs()
 
     void *old;
 
+    raxTryInsert(rxComparisonsMap, (unsigned char *)"+", 1, (void *)computeAdd, &old);
+    raxTryInsert(rxComparisonsMap, (unsigned char *)"-", 1, (void *)computeSubtract, &old);
+    raxTryInsert(rxComparisonsMap, (unsigned char *)"*", 1, (void *)computeMultiply, &old);
+    raxTryInsert(rxComparisonsMap, (unsigned char *)"/", 1, (void *)computeDivide, &old);
+    raxTryInsert(rxComparisonsMap, (unsigned char *)"%", 1, (void *)computeModulus, &old);
     raxTryInsert(rxComparisonsMap, (unsigned char *)"=", 1, (void *)compareEquals, &old);
-    raxTryInsert(rxComparisonsMap, (unsigned char *)"==", 2, (void *)compareEquals, &old);
+    raxTryInsert(rxComparisonsMap, (unsigned char *)"pow", 3, (void *)computePower, &old);
+    raxTryInsert(rxComparisonsMap, (unsigned char *)"POW", 3, (void *)computePower, &old);
+   raxTryInsert(rxComparisonsMap, (unsigned char *)"==", 2, (void *)compareEquals, &old);
     raxTryInsert(rxComparisonsMap, (unsigned char *)">=", 2, (void *)compareGreaterEquals, &old);
     raxTryInsert(rxComparisonsMap, (unsigned char *)"<=", 2, (void *)compareLessEquals, &old);
     raxTryInsert(rxComparisonsMap, (unsigned char *)">", 1, (void *)compareGreater, &old);
@@ -921,6 +1003,7 @@ void rxInitComparisonsProcs()
     raxTryInsert(rxComparisonsMap, (unsigned char *)"LT", 2, (void *)compareLess, &old);
     raxTryInsert(rxComparisonsMap, (unsigned char *)"CONTAINS", 8, (void *)compareContains, &old);
     raxTryInsert(rxComparisonsMap, (unsigned char *)"BETWEEN", 7, (void *)compareInRange, &old);
+    raxTryInsert(rxComparisonsMap, (unsigned char *)"SQRT", 4, (void *)calcSqrtInRange, &old);
 
     raxTryInsert(rxComparisonsMap, (unsigned char *)"eq", 2, (void *)compareEquals, &old);
     raxTryInsert(rxComparisonsMap, (unsigned char *)"ne", 2, (void *)compareEquals, &old);
@@ -930,6 +1013,7 @@ void rxInitComparisonsProcs()
     raxTryInsert(rxComparisonsMap, (unsigned char *)"lt", 2, (void *)compareLess, &old);
     raxTryInsert(rxComparisonsMap, (unsigned char *)"contains", 8, (void *)compareContains, &old);
     raxTryInsert(rxComparisonsMap, (unsigned char *)"between", 7, (void *)compareInRange, &old);
+    raxTryInsert(rxComparisonsMap, (unsigned char *)"sqrt", 4, (void *)calcSqrtInRange, &old);
 }
 
 rxComparisonProc *rxFindComparisonProc(const char *op)

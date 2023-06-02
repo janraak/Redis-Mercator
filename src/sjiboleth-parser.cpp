@@ -1,17 +1,22 @@
 #include "sjiboleth.h"
 #include "sjiboleth.hpp"
 #include "stdio.h"
+#include "uuid.hpp"
 #include <cstring>
 
 #define semicolon rxStringNew(";")
 
+std::string generate_uuid(){
+    return uuid::generate_uuid_v4();
+}
+
 ParserToken *Sjiboleth::FindToken(const char *token, size_t len)
 {
     ParserToken *t = NULL;
-        t = (ParserToken *)raxFind(this->registry, (UCHAR *)token, len);
-        if (t != raxNotFound)
-            return ParserToken::Copy(t, 722764031);
-        return NULL;
+    t = (ParserToken *)raxFind(this->registry, (UCHAR *)token, len);
+    if (t != raxNotFound)
+        return ParserToken::Copy(t, 722764031);
+    return NULL;
 }
 
 ParserToken *Sjiboleth::NewToken(eTokenType token_type, const char *token, size_t len)
@@ -24,12 +29,12 @@ ParserToken *Sjiboleth::NewToken(eTokenType token_type, const char *token, size_
         {
             if (t->Priority() == priBreak)
                 return NULL;
-            return ParserToken::Copy(t,722764032);
+            return ParserToken::Copy(t, 722764032);
         }
-        if(token_type == _operator)
+        if (token_type == _operator)
             token_type = _literal;
     }
-    t = ParserToken::New(token_type, token, len);
+    t = ParserToken::New(token_type, token, len, PARSER_OPTION_NONE);
     // t->keyset = NULL;
     switch (token_type)
     {
@@ -65,9 +70,12 @@ ParserToken *Sjiboleth::NewToken(eTokenType token_type, const char *token, size_
 
 ParsedExpression *Sjiboleth::Parse(const char *query)
 {
+    int object_expression_treatment = 0;
+    int object_expression_treatment_level = 0;
+
     auto *expression = new ParsedExpression(this);
     auto *root_expression = expression;
-    if(!query)
+    if (!query)
         return root_expression;
     char *head = (char *)query;
     while (*head && IsSpace(*head))
@@ -131,10 +139,11 @@ ParsedExpression *Sjiboleth::Parse(const char *query)
                 }
                 else
                     expression->park(token);
-                if(token->Priority() == priBreak){
+                if (token->Priority() == priBreak)
+                {
                     expression->flushSideTrack();
                     auto *flush_token = FindToken("~~~=~~~", 7);
-                    if(flush_token != NULL)
+                    if (flush_token != NULL)
                         expression->emitFinal(flush_token);
                     expression = expression->Next(new ParsedExpression(this));
                 }
@@ -151,6 +160,7 @@ ParsedExpression *Sjiboleth::Parse(const char *query)
                 {
                     if (expression->hasParkedTokens())
                     {
+
                         while (expression->hasParkedTokens())
                         {
                             ParserToken *head_token = expression->peekParked();
@@ -165,6 +175,28 @@ ParsedExpression *Sjiboleth::Parse(const char *query)
                                 expression->unpark();
                             }
                         }
+                        if (token->IsObjectExpression())
+                        {
+                            token->ObjectExpression(expression);
+                            auto *lastToken = expression->Last();
+                            if (lastToken->Is("="))
+                            {
+                                lastToken = expression->Pop_Last();
+                                token->BracketResult(expression->Pop());
+                            }
+                            else
+                            {
+                                auto tmp = generate_uuid();
+                                token->BracketResult(ParserToken::New(_literal, tmp.c_str(), strlen(tmp.c_str()), PARSER_OPTION_NONE));
+                            }
+                            expression = expression->Bracket();
+                            expression->emitFinal(token);
+                            token->AddOptions(object_expression_treatment);
+                        }
+                        if(expression->sideTrackLength() == object_expression_treatment_level){
+                            object_expression_treatment = PARSER_OPTION_NONE;
+                            object_expression_treatment_level = 0;
+                        }
                     }
                     else
                         expression->AddError(rxStringNew("unbalanced brackets"));
@@ -177,6 +209,11 @@ ParsedExpression *Sjiboleth::Parse(const char *query)
                 }
                 else
                 {
+                    if (token->IsObjectExpression())
+                    {
+                        expression = new ParsedExpression(this, expression);
+                    }
+
                     if (this->object_and_array_controls)
                     {
                         expression->emitFinal(token);
@@ -208,6 +245,10 @@ ParsedExpression *Sjiboleth::Parse(const char *query)
         else
         {
             token = ScanIdentifier(head, &tail);
+            if((token->Options() && PARSER_OPTION_DELAY_OBJECT_EXPRESSION) == PARSER_OPTION_DELAY_OBJECT_EXPRESSION){
+                object_expression_treatment = PARSER_OPTION_DELAY_OBJECT_EXPRESSION;
+                object_expression_treatment_level = expression->sideTrackLength();
+            }
             if (token->HasParserContextProc())
             {
                 parserContextProc *pcp = token->ParserContextProc();
@@ -236,9 +277,9 @@ ParsedExpression *Sjiboleth::Parse(const char *query)
         last_token = token;
     }
     expression->flushSideTrack();
-                auto *flush_token = FindToken("~~~=~~~", 7);
-                if (flush_token != NULL)
-                    expression->emitFinal(flush_token);
+    auto *flush_token = FindToken("~~~=~~~", 7);
+    if (flush_token != NULL)
+        expression->emitFinal(flush_token);
     return root_expression;
 }
 
@@ -249,7 +290,12 @@ void ParsedExpression::Write(RedisModuleCtx *ctx)
     ParserToken *t;
     while ((t = this->expression->Next()) != NULL)
     {
-        RedisModule_ReplyWithSimpleString(ctx, t->Token());
+        if (t->ObjectExpression())
+        {
+            t->ObjectExpression()->Write(ctx);
+        }
+        else
+            RedisModule_ReplyWithSimpleString(ctx, t->Token());
     }
 }
 
@@ -294,11 +340,13 @@ void ParsedExpression::Show(const char *query)
     while ((t = this->expression->Next()) != NULL)
     {
         auto tt = t->TokenType();
-        if(tt >= _operand && tt <= _immediate_operator){
-        rxServerLog(rxLL_NOTICE, "Parse: %d %d %s", j, t->TokenType(), t->Token());
-        }else{
-        rxServerLog(rxLL_NOTICE, "Corrupt token: %d %d", j, tt);
-
+        if (tt >= _operand && tt <= _immediate_operator)
+        {
+            rxServerLog(rxLL_NOTICE, "Parse: %d %d %s", j, t->TokenType(), t->Token());
+        }
+        else
+        {
+            rxServerLog(rxLL_NOTICE, "Corrupt token: %d %d", j, tt);
         }
         ++j;
     }
@@ -406,27 +454,33 @@ bool Sjiboleth::IsBracket(char *aChar, char **newPos)
     case ';':
         return true;
     case 0xe2: // Unicode
-        if(*(aChar+1) == 0x80 && *(aChar+2) == 0x9c){
+        if (*(aChar + 1) == 0x80 && *(aChar + 2) == 0x9c)
+        {
             *newPos = aChar + 2;
             return true;
         }
-        if(*(aChar+1) == 0x80 && *(aChar+2) == 0x98){
+        if (*(aChar + 1) == 0x80 && *(aChar + 2) == 0x98)
+        {
             *newPos = aChar + 2;
             return true;
         }
-        if(*(aChar+1) == 0x20 && *(aChar+2) == 0x39){
+        if (*(aChar + 1) == 0x20 && *(aChar + 2) == 0x39)
+        {
             *newPos = aChar + 2;
             return true;
         }
-        if(*(aChar+1) == 0x80 && *(aChar+2) == 0x9d){
+        if (*(aChar + 1) == 0x80 && *(aChar + 2) == 0x9d)
+        {
             *newPos = aChar + 2;
             return true;
         }
-        if(*(aChar+1) == 0x80 && *(aChar+2) == 0x99){
+        if (*(aChar + 1) == 0x80 && *(aChar + 2) == 0x99)
+        {
             *newPos = aChar + 2;
             return true;
         }
-        if(*(aChar+1) == 0x20 && *(aChar+2) == 0x3a){
+        if (*(aChar + 1) == 0x20 && *(aChar + 2) == 0x3a)
+        {
             *newPos = aChar + 2;
             return true;
         }
@@ -447,27 +501,33 @@ bool Sjiboleth::IsBracketOpen(char *aChar, char **newPos)
     case ';':
         return true;
     case 0xe2: // Unicode
-        if(*(aChar+1) == 0x80 && *(aChar+2) == 0x9c){
+        if (*(aChar + 1) == 0x80 && *(aChar + 2) == 0x9c)
+        {
             *newPos = aChar + 2;
             return true;
         }
-        if(*(aChar+1) == 0x80 && *(aChar+2) == 0x98){
+        if (*(aChar + 1) == 0x80 && *(aChar + 2) == 0x98)
+        {
             *newPos = aChar + 2;
             return true;
         }
-        if(*(aChar+1) == 0x20 && *(aChar+2) == 0x39){
+        if (*(aChar + 1) == 0x20 && *(aChar + 2) == 0x39)
+        {
             *newPos = aChar + 2;
             return true;
         }
-        if(*(aChar+1) == 0x80 && *(aChar+2) == 0x9d){
+        if (*(aChar + 1) == 0x80 && *(aChar + 2) == 0x9d)
+        {
             *newPos = aChar + 2;
             return true;
         }
-        if(*(aChar+1) == 0x80 && *(aChar+2) == 0x99){
+        if (*(aChar + 1) == 0x80 && *(aChar + 2) == 0x99)
+        {
             *newPos = aChar + 2;
             return true;
         }
-        if(*(aChar+1) == 0x20 && *(aChar+2) == 0x3a){
+        if (*(aChar + 1) == 0x20 && *(aChar + 2) == 0x3a)
+        {
             *newPos = aChar + 2;
             return true;
         }
@@ -476,7 +536,6 @@ bool Sjiboleth::IsBracketOpen(char *aChar, char **newPos)
         return false;
     }
 }
-
 
 char *Sjiboleth::GetFence(char *aChar)
 {
@@ -489,17 +548,17 @@ char *Sjiboleth::GetFence(char *aChar)
     case '[':
         return "]";
     case 0xe2: // Unicode
-        if(*(aChar+1) == 0x80 && *(aChar+2) == 0x9c)
+        if (*(aChar + 1) == 0x80 && *(aChar + 2) == 0x9c)
             return "\xe2\x80\x9d";
-        if(*(aChar+1) == 0x80 && *(aChar+2) == 0x98)
+        if (*(aChar + 1) == 0x80 && *(aChar + 2) == 0x98)
             return "\xe2\x80\x99";
-        if(*(aChar+1) == 0x20 && *(aChar+2) == 0x39)
+        if (*(aChar + 1) == 0x20 && *(aChar + 2) == 0x39)
             return "\xe2\x20\x3a";
         return aChar;
     default:
         return aChar;
     }
-        return aChar;
+    return aChar;
 }
 
 bool Sjiboleth::IsSpace(char aChar)
@@ -587,7 +646,7 @@ ParserToken *Sjiboleth::ScanIdentifier(char *head, char **tail)
     rxStringFree(op);
     if (t != raxNotFound)
     {
-        return ParserToken::Copy(t,722764030);
+        return ParserToken::Copy(t, 722764030);
     }
     return NewToken(_operand, head, *tail - head);
 }
@@ -615,9 +674,16 @@ ParserToken *Sjiboleth::ScanBracket(char *head, char **tail)
 {
     *tail = head + 1;
     eTokenType token_type = (IsBracketOpen(head, tail))
-                                ?_open_bracket: _close_bracket;
+                                ? _open_bracket
+                                : _close_bracket;
     *tail = *tail + 1;
-    return NewToken(token_type, head, *tail - head);
+    auto *token = NewToken(token_type, head, *tail - head);
+    if (token->TokenType() != token_type)
+    {
+        token->TokenType(token_type);
+        token->Priority(50);
+    }
+    return token;
 }
 
 ParserToken *Sjiboleth::ScanNumber(char *head, char **tail)
@@ -681,6 +747,18 @@ ParsedExpression::ParsedExpression(Sjiboleth *dialect)
     this->side_track = listCreate();
     this->errors = listCreate();
     this->next = NULL;
+    this->bracket = NULL;
+};
+
+ParsedExpression::ParsedExpression(Sjiboleth *dialect, ParsedExpression *bracket)
+    : ParsedExpression(dialect)
+{
+    this->bracket = bracket;
+};
+
+ParsedExpression *ParsedExpression::Bracket()
+{
+    return this->bracket;
 };
 
 ParsedExpression::~ParsedExpression()
@@ -692,14 +770,20 @@ ParsedExpression::~ParsedExpression()
     // }
     if (this->side_track)
         listRelease(this->side_track);
-    if(this->errors && this->errors->head && this->errors->tail)
+    if (this->errors && this->errors->head && this->errors->tail)
         listRelease(this->errors);
 
-    if(this->next != NULL){
+    if (this->bracket != NULL)
+    {
+        delete this->bracket;
+    }
+    if (this->next != NULL)
+    {
         delete this->next;
     }
 
-    while(this->expression->HasEntries()){
+    while (this->expression->HasEntries())
+    {
         auto *t = this->expression->Pop();
         ParserToken::Purge(t);
     }
@@ -733,7 +817,7 @@ SilNikParowy *ParsedExpression::GetEngine()
 
 void ParsedExpression::AddError(rxString msg)
 {
-    listAddNodeTail(this->errors, (void*)msg);
+    listAddNodeTail(this->errors, (void *)msg);
 }
 
 bool ParsedExpression::HasErrors()
@@ -757,4 +841,17 @@ int ParsedExpression::writeErrors(RedisModuleCtx *ctx)
 ParserToken *ParsedExpression::peekParked()
 {
     return this->tokenAt(this->side_track, 0);
+}
+
+ParserToken *ParsedExpression::Last()
+{
+    return expression->Last();
+}
+ParserToken *ParsedExpression::Pop()
+{
+    return expression->Pop();
+}
+ParserToken *ParsedExpression::Pop_Last()
+{
+    return expression->Pop_Last();
 }

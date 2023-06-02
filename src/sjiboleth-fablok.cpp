@@ -225,7 +225,18 @@ FaBlok *FaBlok::Init(void *r)
     this->parameter_list = NULL;
     memcpy(this->rumble_strip1, RUMBLE_STRIP1, sizeof(this->rumble_strip1));
     memcpy(this->rumble_strip2, RUMBLE_STRIP2, sizeof(this->rumble_strip2));
+    this->objectExpression = NULL;
     return this;
+}
+
+void FaBlok::ObjectExpression(ParserToken *expr)
+{
+    this->objectExpression = expr;
+}
+
+ParserToken *FaBlok::ObjectExpression()
+{
+    return this->objectExpression;
 }
 
 void FaBlok::InitKeyset(void *r, bool withRootNode)

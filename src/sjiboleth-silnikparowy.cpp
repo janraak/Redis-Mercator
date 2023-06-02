@@ -7,9 +7,9 @@ extern "C"
 #endif
 #include <cstdlib>
 
-#include "string.h"
-#include "sdsWrapper.h"
 #include "../../deps/hiredis/hiredis.h"
+#include "sdsWrapper.h"
+#include "string.h"
 
 #include "rax.h"
 #include "rxSuiteHelpers.h"
@@ -19,6 +19,8 @@ extern "C"
 }
 #endif
 
+#include <cstring>
+extern std::string generate_uuid();
 #include "client-pool.hpp"
 #include "sjiboleth-fablok.hpp"
 #include "sjiboleth-graph.hpp"
@@ -77,7 +79,7 @@ void SilNikParowy::Preload(ParsedExpression *e, SilNikParowy_Kontekst *)
 // {
 //     printf("ExceptionHandler \: %d\n", signal);
 //     SilNikParowy::CurrentException = info;
-//     longjmp(SilNikParowy::env_buffer, "SilNikParowy::ExceptionHandler");    
+//     longjmp(SilNikParowy::env_buffer, "SilNikParowy::ExceptionHandler");
 // }
 
 // bool SilNikParowy::ExceptionHandlerState = false;
@@ -116,7 +118,7 @@ void SilNikParowy::Preload(ParsedExpression *e, SilNikParowy_Kontekst *)
 //     return SilNikParowy::CurrentException;
 // }
 
-rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack)
+rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, void *data)
 {
     // SilNikParowy::ExceptionHandler_Activate();
     e->expression->StartHead();
@@ -126,35 +128,56 @@ rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack)
     // if(SilNikParowy::GetException() == NULL){
     while ((t = e->expression->Next()) != NULL)
     {
+        if (t->IsObjectExpression())
+        {
+            t->TokenType(_operator);
+        }
+
         switch (t->TokenType())
         {
         case _operand:
-            kd = FaBlok::Get(t->Token(), KeysetDescriptor_TYPE_SINGULAR);
-            kd->IsValid();
-            stack->Push(kd);
-            break;
         case _literal:
-            kd = FaBlok::Get(t->Token(), KeysetDescriptor_TYPE_SINGULAR);
+            if (data && rxGetObjectType(data) == rxOBJ_HASH)
+            {
+                rxString propertyValue = rxGetHashField(data, t->Token());
+                if (propertyValue)
+                    kd = FaBlok::Get(propertyValue, KeysetDescriptor_TYPE_SINGULAR);
+                else
+                    kd = FaBlok::Get(t->Token(), KeysetDescriptor_TYPE_SINGULAR);
+            }
+            else
+                kd = FaBlok::Get(t->Token(), KeysetDescriptor_TYPE_SINGULAR);
             kd->IsValid();
             stack->Push(kd);
             break;
         case _operator:
-            if (t->HasExecutor())
+            if (t->IsObjectExpression() 
+            && ((t->Options() && PARSER_OPTION_DELAY_OBJECT_EXPRESSION) == PARSER_OPTION_DELAY_OBJECT_EXPRESSION))
             {
-                if (t->Execute(stack) == C_ERR)
+                auto tmp = generate_uuid();
+                kd = FaBlok::Get(tmp.c_str(), KeysetDescriptor_TYPE_OBJECT_EXPRESSION);
+                kd->ObjectExpression(t);
+                stack->Push(kd);
+            }
+            else
+            {
+                if (t->HasExecutor())
                 {
-                    goto end_of_loop;
+                    if (t->Execute(stack) == C_ERR)
+                    {
+                        goto end_of_loop;
+                    }
                 }
+                else if (t->Priority() > priImmediate)
+                {
+                    char msg[256];
+                    snprintf(msg, sizeof(msg), "%d Invalid operation %s\n", t->Priority(), t->Token());
+                    e->AddError(msg);
+                }
+                break;
+            default:
+                break;
             }
-            else if (t->Priority() > priImmediate)
-            {
-                char msg[256];
-                snprintf(msg, sizeof(msg), "%d Invalid operation %s\n", t->Priority(), t->Token());
-                e->AddError(msg);
-            }
-            break;
-        default:
-            break;
         }
     }
     // }
@@ -197,6 +220,8 @@ end_of_loop:
             }
             break;
         case 1:
+            if (data)
+                return NULL;
             r = stack->Pop();
             if (r->IsValueType(KeysetDescriptor_TYPE_MONITORED_SET))
                 stack->RetainResult();
@@ -249,6 +274,11 @@ end_of_loop:
         }
     }
     return NULL;
+}
+
+rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack)
+{
+    return Execute(e, stack, (void *)NULL);
 }
 
 SilNikParowy::SilNikParowy()

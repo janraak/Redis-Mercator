@@ -553,7 +553,15 @@ eu_connections = [
 ]
 
 
-route_types = ["", "w", "time", "costs", "km", "trees",]  # ["trees"] #
+route_types = ["{ll=SQRT( pow(costs,2)+pow(km,2) ) }",
+"", "w", "time", "costs", "km", "trees",
+"{SQRT( pow(costs,2)+pow(time,2) ) }",
+"{SQRT( pow(costs,2)+pow(trees,2) ) }",
+"{SQRT( pow(trees,2)+pow(time,2) ) }",
+"{SQRT( pow(costs,2)+pow(km,2)+pow(time,2) )}",
+"{SQRT( pow(trees,2)+pow(km,2)+pow(time,2) )}",
+"{SQRT( pow(costs,2)+pow(km,2)+pow(time,2)+pow(trees,2) )}",
+]  # ["trees"] #
 
 
 def gremlin_match(cluster_id, controller, data, index):
@@ -587,6 +595,7 @@ def gremlin_match(cluster_id, controller, data, index):
         print(data.execute_command("RXQUERY", addE))
     print(data.info("memory"))
     # pdb.set_trace()
+    # exit()
     for a in eu_capitals[0:]:
         for b in eu_capitals[0:]:
             for t in route_types:

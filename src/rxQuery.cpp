@@ -207,7 +207,6 @@ void executeQueryCommand(Sjiboleth *parser, const char *cmd, int fetch_rows, Red
         writeParsedErrors(t, ctx);
         return;
     }
-    t->Show(cmd);    
     auto *e = (SilNikParowy_Kontekst *)data_config->executor;
     if(e){
         if (e->fieldSelector)

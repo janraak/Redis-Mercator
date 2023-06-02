@@ -69,7 +69,7 @@ def get_redis_path(redis_client):
 
 
 def prepare_controller():
-    redis_client = redis.StrictRedis('localhost', 6379, 0)
+    redis_client = redis.StrictRedis('localhost', 6380, 0)
     redis_path = get_redis_path(redis_client)
 
     module_config = which_mercator_modules_has_been_loaded(redis_client)
@@ -78,7 +78,7 @@ def prepare_controller():
             "MODULE LOAD {}/extensions/src/rxMercator.so".format(redis_path))
         print("rxMercator loaded")
         r = redis_client.execute_command(
-            "mercator.add.server localhost 127.0.0.1 6GB 2")
+            "mercator.add.server localhost 127.0.0.1 6GB BASE 6381 2")
         print("rxMercator server added")
     return redis_client
 

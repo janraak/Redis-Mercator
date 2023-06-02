@@ -11,9 +11,16 @@
 #include "graphstack.hpp"
 #include "rxSessionMemory.hpp"
 
+#include <cstring>
+
+std::string generate_uuid();
+
 // class Parser;
 class ParsedExpression;
 class SilNikParowy;
+
+#define PARSER_OPTION_NONE 0
+#define PARSER_OPTION_DELAY_OBJECT_EXPRESSION 1
 class ParserToken
 {
 protected:
@@ -28,33 +35,41 @@ protected:
     operationProc *opf;
     parserContextProc *pcf;
     ParserToken *copy_of;
+    ParserToken *bracketResult;
     long reference;
-
+    ParsedExpression *objectExpression;
     // longjmp/setjmp control
     static int ExecuteExceptionReturn;
+    // Parser options
+    int options;
 
 public:
     ParserToken();
     static ParserToken *New(eTokenType token_type,
                             const char *op,
-                            int op_len);
+                            int op_len, int options);
     static ParserToken *New(const char *op,
                             eTokenType token_type,
                             short token_priority,
                             short no_of_stack_entries_consumed,
-                            short no_of_stack_entries_produced);
+                            short no_of_stack_entries_produced, int options);
     static ParserToken *New(const char *op,
                             eTokenType token_type,
                             short token_priority,
                             short no_of_stack_entries_consumed,
                             short no_of_stack_entries_produced,
-                            operationProc *opf);
-    static ParserToken *New(const char *op, short token_priority, operationProc *opf);
-    ParserToken *Init(eTokenType token_type, const char *op, int op_len);
+                            operationProc *opf, int options);
+    void ObjectExpression(ParsedExpression *objectExpression);
+    ParsedExpression *ObjectExpression();
+    static ParserToken *New(const char *op, short token_priority, operationProc *opf, int options);
+    ParserToken *Init(eTokenType token_type, const char *op, int op_len, int options);
     static ParserToken *Copy(ParserToken *base, long reference);
     ~ParserToken();
     static void Purge(ParserToken *token);
     ParserToken *Copy(long reference);
+
+    ParserToken *BracketResult();
+    void BracketResult(ParserToken *t);
 
     void ParserContextProc(parserContextProc *pcf);
     bool HasParserContextProc();
@@ -66,6 +81,8 @@ public:
     eTokenType TokenType();
     void TokenType(eTokenType tt);
 
+    bool IsObjectExpression();
+
     const char *Token();
     const char *TokenAsSds();
     bool Is(const char *aStr);
@@ -73,6 +90,9 @@ public:
 
     short Priority();
     void Priority(short token_priority);
+
+    int Options();
+    int AddOptions(int object_expression_treatment);
 
     bool IsVolatile();
     bool HasExecutor();
@@ -136,6 +156,8 @@ public:
 
     bool RegisterSyntax(const char *op, short token_priority, int inE, int outE, operationProc *opf);
     bool RegisterSyntax(const char *op, short token_priority, int inE, int outE, operationProc *opf, parserContextProc *pcf);
+    bool RegisterSyntax(const char *op, short token_priority, int inE, int outE, operationProc *opf, int options);
+    bool RegisterSyntax(const char *op, short token_priority, int inE, int outE, operationProc *opf, parserContextProc *pcf, int options);
 
     bool DeregisterSyntax(const char *op);
 
@@ -203,6 +225,11 @@ protected:
     list *errors;
     list *side_track;
 
+    // A dialect can request a bracketed sub expression as object expression which will be executed on a single object by the handler rather than a set
+    // E.g. an expression is needed to add derived properties to each vertex or edge
+    ParsedExpression *bracket;
+    // The parser may breakup a series of expressions.
+    // E.g. A text contains many sentences. Each sentence can become an expression allowing sentence level relevance calculations.
     ParsedExpression *next;
 
 public:
@@ -210,9 +237,11 @@ public:
     ParserToken *lastInstruction();
     friend class SilNikParowy;
     friend class SilNikParowy_Kontekst;
-    /* Parser methods */
     ParserToken *tokenAt(list *list, int ix);
     ParserToken *peekParked();
+    ParserToken *Last();
+    ParserToken *Pop();
+    ParserToken *Pop_Last();
     ParserToken *removeTokenAt(list *list, int ix);
     void stashToken(Sjiboleth *p, ParserToken *token, ParserToken *last_token);
     void emitFinal(ParserToken *token);
@@ -233,7 +262,10 @@ public:
     void show(const char *query);
     void Show(const char *query);
     ParsedExpression(Sjiboleth *dialect);
+    ParsedExpression(Sjiboleth *dialect, ParsedExpression *bracket);
     ~ParsedExpression();
+
+    ParsedExpression *Bracket();
 
     SilNikParowy *GetEngine();
 
@@ -301,7 +333,6 @@ public:
         strcpy(key, entry);
         char *tab = strchr((char *)key, '\t');
         *tab = 0x00;
-        return ((rxIndexEntry *)ie)->Init(key, tab + 1, key_score);
         return ((rxIndexEntry *)ie)->Init(key, tab + 1, key_score);
     }
 

@@ -1,6 +1,6 @@
 #include "sjiboleth.hpp"
-#include "sjiboleth.h"
 #include "sjiboleth-fablok.hpp"
+#include "sjiboleth.h"
 
 #include <cstring>
 
@@ -11,7 +11,7 @@
 extern "C"
 {
 #endif
-    #include "sdsWrapper.h"
+#include "sdsWrapper.h"
 #ifdef __cplusplus
 }
 #endif
@@ -21,12 +21,13 @@ void *rxMemAllocSession(size_t size, const char *tag);
 
 ParserToken::ParserToken()
 {
-    this->Init(eTokenType::_immediate_operator, NULL, 0);
+    this->Init(eTokenType::_immediate_operator, NULL, 0, 0);
 }
 
 ParserToken *ParserToken::Init(eTokenType token_type,
-                         const char *op,
-                         int op_len)
+                               const char *op,
+                               int op_len,
+                               int options)
 {
     this->op = NULL;
     this->op_len = 0;
@@ -41,28 +42,33 @@ ParserToken *ParserToken::Init(eTokenType token_type,
     this->token_type = token_type;
     this->no_of_stack_entries_consumed = 0;
     this->no_of_stack_entries_produced = 1;
+    this->objectExpression = NULL;
+    this->bracketResult = NULL;
+    this->options = options;
     return this;
 }
 
 ParserToken *ParserToken::New(eTokenType token_type,
-                         const char *op,
-                         int op_len)
+                              const char *op,
+                              int op_len,
+                               int options)
 {
     auto *token = (ParserToken *)rxMemAlloc(sizeof(ParserToken) + op_len + 1);
     char *s = (char *)token + sizeof(ParserToken);
     strncpy(s, op, op_len);
     s[op_len] = 0x00;
-    token->Init(token_type, s, op_len);
+    token->Init(token_type, s, op_len, options);
     return token;
 }
 
 ParserToken *ParserToken::New(const char *aOp,
-                         eTokenType aToken_type,
-                         short aToken_priority,
-                         short aNo_of_stack_entries_consumed,
-                         short aNo_of_stack_entries_produced)
+                              eTokenType aToken_type,
+                              short aToken_priority,
+                              short aNo_of_stack_entries_consumed,
+                              short aNo_of_stack_entries_produced,
+                               int options)
 {
-    auto *token = ParserToken::New(aToken_type, aOp, strlen(aOp));
+    auto *token = ParserToken::New(aToken_type, aOp, strlen(aOp), options);
     rxStringToUpper(token->op);
     token->token_priority = aToken_priority;
     token->no_of_stack_entries_consumed = aNo_of_stack_entries_consumed;
@@ -72,43 +78,66 @@ ParserToken *ParserToken::New(const char *aOp,
 
 ParserToken *ParserToken::Copy(ParserToken *base, long reference)
 {
-    auto *token = ParserToken::New(base->token_type, base->op, base->op_len);
+    auto *token = ParserToken::New(base->token_type, base->op, base->op_len, base-> options);
     token->token_priority = base->token_priority;
     token->no_of_stack_entries_consumed = base->no_of_stack_entries_consumed;
     token->no_of_stack_entries_produced = base->no_of_stack_entries_produced;
-    token->opf= base->opf;
-    token->pcf= base->pcf;
+    token->opf = base->opf;
+    token->pcf = base->pcf;
+    token->options = base->options;
     token->is_volatile = true;
-    token->crlftab_as_operator= base->crlftab_as_operator;
+    token->crlftab_as_operator = base->crlftab_as_operator;
     token->copy_of = base;
     token->reference = reference;
     return token;
 }
 
+void ParserToken::ObjectExpression(ParsedExpression *objectExpression)
+{
+    this->objectExpression = objectExpression;
+}
+
+ParsedExpression *ParserToken::ObjectExpression()
+{
+    return this->objectExpression;
+}
+
+ParserToken *ParserToken::BracketResult()
+{
+    return this->bracketResult;
+}
+
+void ParserToken::BracketResult(ParserToken *t)
+{
+    this->bracketResult = t;
+}
+
 ParserToken *ParserToken::Copy(long reference)
 {
-    ParserToken* out = ParserToken::New(this->Token(), this->TokenType(), this->Priority(), this->no_of_stack_entries_consumed, this->no_of_stack_entries_produced);
+    ParserToken *out = ParserToken::New(this->Token(), this->TokenType(), this->Priority(), this->no_of_stack_entries_consumed, this->no_of_stack_entries_produced, this-> options);
 
-    out->opf= this->opf;
-    out->pcf=this->pcf;
+    out->opf = this->opf;
+    out->pcf = this->pcf;
     out->copy_of = this;
     out->reference = reference;
     return out;
 }
 
 ParserToken *ParserToken::New(const char *op,
-                         eTokenType token_type,
-                         short token_priority,
-                         short no_of_stack_entries_consumed,
-                         short no_of_stack_entries_produced,
-                         operationProc *opf)
+                              eTokenType token_type,
+                              short token_priority,
+                              short no_of_stack_entries_consumed,
+                              short no_of_stack_entries_produced,
+                              operationProc *opf,
+                               int options)
 {
-    auto *token =  ParserToken::New(op, token_type, token_priority, no_of_stack_entries_consumed, no_of_stack_entries_produced);
+    auto *token = ParserToken::New(op, token_type, token_priority, no_of_stack_entries_consumed, no_of_stack_entries_produced, options);
     token->opf = opf;
     return token;
 }
 
-void ParserToken::Purge(ParserToken *token){
+void ParserToken::Purge(ParserToken *token)
+{
     auto *t = token;
     if (t->copy_of)
     {
@@ -125,9 +154,9 @@ void ParserToken::Purge(ParserToken *token){
         }
     }
 
-    if(t->copy_of != NULL)
-    // if((void *)(token->op) == (void *)token + sizeof(ParserToken))
-        rxMemFree(token);    
+    if (t->copy_of != NULL)
+        // if((void *)(token->op) == (void *)token + sizeof(ParserToken))
+        rxMemFree(token);
 }
 void ParserToken::ParserContextProc(parserContextProc *pcf)
 {
@@ -161,6 +190,11 @@ UCHAR *ParserToken::Operation()
 int ParserToken::OperationLength()
 {
     return this->op_len;
+}
+
+bool ParserToken::IsObjectExpression()
+{
+    return this->no_of_stack_entries_consumed == -1 && this->no_of_stack_entries_produced == -1;
 }
 
 void ParserToken::TokenType(eTokenType tt)
@@ -199,7 +233,7 @@ jmp_buf ExecuteExceptionReturnMark; // Address for long jump to jump to
 #ifdef __cplusplus
 extern "C"
 {
-void fphandler(int sig);
+    void fphandler(int sig);
 }
 #endif
 
@@ -215,7 +249,7 @@ int ParserToken::Execute(CStack *stackO)
     // signal(SIGFPE, (void (*)(int))fphandler);
     // signal(SIGILL, (void (*)(int))fphandler);
     // signal(SIGSEGV, (void (*)(int))fphandler);
-    
+
     // ParserToken::ExecuteExceptionReturn = 0;
     // ParserToken::ExecuteExceptionReturn = setjmp(ExecuteExceptionReturnMark);
 
@@ -224,7 +258,8 @@ int ParserToken::Execute(CStack *stackO)
     //     ParserToken::ExecuteExceptionReturn = 0;
     auto *t = this;
     // rxServerLog(rxLL_NOTICE, "Token %p %s opf:%p copy_of:%p reference:%ld", t, t->TokenAsSds(), t->opf, t->copy_of, t->reference );
-    if(t->copy_of){
+    if (t->copy_of)
+    {
         auto *c = t->copy_of;
         if (t->opf != c->opf)
         {
@@ -273,6 +308,16 @@ bool ParserToken::IsVolatile()
     return this->is_volatile;
 }
 
+    int ParserToken::Options(){
+    return this->options;
+}
+
+int ParserToken::AddOptions(int object_expression_treatment){
+    int o = this->options;
+    this->options |= object_expression_treatment;
+    return o;
+}
+
 int ParserToken::CompareToken(const char *aStr)
 {
     return strcmp(this->op, aStr);
@@ -281,7 +326,7 @@ int ParserToken::CompareToken(const char *aStr)
 bool ParserToken::Is(const char *aStr)
 {
     const char *tok = this->Token();
-    if(tok == NULL)
+    if (tok == NULL)
         return false;
     while (*tok && *aStr)
     {
@@ -298,46 +343,58 @@ bool Sjiboleth::ResetSyntax()
     return false;
 }
 
-bool Sjiboleth::RegisterSyntax(const char *op, short token_priority, int inE, int outE, operationProc *opf)
+bool Sjiboleth::RegisterSyntax(const char *op, short token_priority, int inE, int outE, operationProc *opf, int options)
 {
-    auto *t = ParserToken::New(op, _operator, token_priority, inE, outE, opf);
+    auto *t = ParserToken::New(op, _operator, token_priority, inE, outE, opf, options);
     void *old = NULL;
     raxRemove(this->registry, t->Operation(), t->OperationLength(), &old);
     raxInsert(this->registry, t->Operation(), t->OperationLength(), t, NULL);
 
-    if(old != NULL)
+    if (old != NULL)
         FreeSyntax(old);
     return true;
 }
 
-bool Sjiboleth::RegisterSyntax(const char *op, short token_priority, int inE, int outE, operationProc *opf, parserContextProc *pcf)
+bool Sjiboleth::RegisterSyntax(const char *op, short token_priority, int inE, int outE, operationProc *opf, parserContextProc *pcf, int options)
 {
-    auto *t = ParserToken::New(op, _operator, token_priority, inE, outE, opf);
+    auto *t = ParserToken::New(op, _operator, token_priority, inE, outE, opf, options);
     void *old = NULL;
     raxRemove(this->registry, t->Operation(), t->OperationLength(), &old);
     t->ParserContextProc(pcf);
     raxInsert(this->registry, t->Operation(), t->OperationLength(), t, NULL);
-    if(old != NULL)
+    if (old != NULL)
         FreeSyntax(old);
     return true;
 }
 
-bool Sjiboleth::DeregisterSyntax(const char *op)
+bool Sjiboleth::RegisterSyntax(const char *op, short token_priority, int inE, int outE, operationProc *opf)
+{
+    return Sjiboleth::RegisterSyntax(op, token_priority, inE, outE, opf, 0);
+}
+
+bool Sjiboleth::RegisterSyntax(const char *op, short token_priority, int inE, int outE, operationProc *opf, parserContextProc *pcf)
+{
+    
+    return Sjiboleth::RegisterSyntax(op, token_priority, inE, outE, opf, pcf, 0);
+}
+
+bool Sjiboleth::DeregisterSyntax(const char *)
 {
     // void *old = NULL;
     // raxRemove(this->registry, (UCHAR *)op, strlen(op), &old);
 
-    // //TODO: have a global syntax registry per dialect 
+    // //TODO: have a global syntax registry per dialect
     // //TODO: deregister safely for used tokens
     // // if(old != NULL)
     // //     FreeSyntax(old);
     return true;
 }
 
-
-ParserToken *Sjiboleth::LookupToken(rxString token){
-	ParserToken *referal_token = (ParserToken *)raxFind(this->registry, (UCHAR *)token, strlen(token));
-	if (referal_token != raxNotFound){
+ParserToken *Sjiboleth::LookupToken(rxString token)
+{
+    ParserToken *referal_token = (ParserToken *)raxFind(this->registry, (UCHAR *)token, strlen(token));
+    if (referal_token != raxNotFound)
+    {
         return referal_token;
     }
     return NULL;
@@ -354,7 +411,7 @@ rax *Sjiboleth::Get_Master_Registry()
 Sjiboleth::Sjiboleth()
 {
     this->default_operator = rxStringNew("|");
-        this->registry = raxNew();
+    this->registry = raxNew();
     this->RegisterDefaultSyntax();
     this->object_and_array_controls = false;
     this->crlftab_as_operator = false;
@@ -368,8 +425,8 @@ Sjiboleth::Sjiboleth(const char *default_operator)
 
 Sjiboleth::~Sjiboleth()
 {
-    //TODO: Separate syntax rules as globals!
-    if(this->registry == NULL)
+    // TODO: Separate syntax rules as globals!
+    if (this->registry == NULL)
         return;
     // if (raxSize(this->registry) > 0)
     // {
@@ -392,24 +449,26 @@ Sjiboleth::~Sjiboleth()
     // this->registry = NULL;
 }
 
-
-void *_allocateDialect(void *){
+void *_allocateDialect(void *)
+{
     return raxNew();
 }
 
-Sjiboleth *Sjiboleth::Get(const char* dialect){
-    auto *master = tls_get<rax *>((const char*)"Sjiboleth", _allocateDialect, NULL);
+Sjiboleth *Sjiboleth::Get(const char *dialect)
+{
+    auto *master = tls_get<rax *>((const char *)"Sjiboleth", _allocateDialect, NULL);
     // auto *master = Sjiboleth::Get_Master_Registry();
     size_t dialect_len = strlen(dialect);
-    auto *parser = (Sjiboleth*)raxFind(master, (UCHAR *)dialect, dialect_len);
-    if(parser == raxNotFound){
-        if(rxStringMatch(dialect,"QueryDialect", 1))
+    auto *parser = (Sjiboleth *)raxFind(master, (UCHAR *)dialect, dialect_len);
+    if (parser == raxNotFound)
+    {
+        if (rxStringMatch(dialect, "QueryDialect", 1))
             parser = new QueryDialect();
-        else if(rxStringMatch(dialect,"GremlinDialect", 1))
+        else if (rxStringMatch(dialect, "GremlinDialect", 1))
             parser = new GremlinDialect();
-        else if(rxStringMatch(dialect,"JsonDialect", 1))
+        else if (rxStringMatch(dialect, "JsonDialect", 1))
             parser = new JsonDialect();
-        else if(rxStringMatch(dialect,"TextDialect", 1))
+        else if (rxStringMatch(dialect, "TextDialect", 1))
             parser = new TextDialect();
         raxInsert(master, (UCHAR *)dialect, dialect_len, parser, NULL);
     }
@@ -426,27 +485,28 @@ const char *Sjiboleth::defaultOperator()
     return this->default_operator;
 }
 
-SilNikParowy *Sjiboleth::GetEngine(){
+SilNikParowy *Sjiboleth::GetEngine()
+{
     // FOR NOW!
     return new SilNikParowy();
 }
 
-SilNikParowy *GremlinDialect::GetEngine(){
+SilNikParowy *GremlinDialect::GetEngine()
+{
     return new SilNikParowy();
 }
 
-SilNikParowy *QueryDialect::GetEngine(){
+SilNikParowy *QueryDialect::GetEngine()
+{
     return new SilNikParowy();
 }
 
-
-SilNikParowy *JsonDialect::GetEngine(){
+SilNikParowy *JsonDialect::GetEngine()
+{
     return new SilNikParowy();
 }
 
-
-SilNikParowy *TextDialect::GetEngine(){
+SilNikParowy *TextDialect::GetEngine()
+{
     return new SilNikParowy();
 }
-
-

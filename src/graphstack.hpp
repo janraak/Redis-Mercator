@@ -63,7 +63,7 @@ public:
 
     void Push(T *t)
     {
-        listAddNodeHead(this->sequencer, t);
+        listAddNodeHead(this->sequencer, (void *)t);
     }
 
     void Add(T *t)

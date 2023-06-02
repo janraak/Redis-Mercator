@@ -45,6 +45,7 @@ extern "C"
 #define KeysetDescriptor_TYPE_GREMLIN_VERTEX_SET (UCHAR)0x20
 #define KeysetDescriptor_TYPE_GREMLIN_EDGE_SET (UCHAR)0x40
 #define KeysetDescriptor_TYPE_GREMLIN_AS_SET (UCHAR)0x80
+#define KeysetDescriptor_TYPE_OBJECT_EXPRESSION (UCHAR)0x00
 
 #define GENERIC_SET (UCHAR)0x0
 #define VERTEX_SET (UCHAR)0x2
@@ -85,6 +86,7 @@ public:
       char rumble_strip2[16];
       FaBlok *left;
       FaBlok *right;
+      ParserToken *objectExpression;
 
   public:
       int is_temp;
@@ -154,7 +156,9 @@ public:
 
       static FaBlok *New(const char *sn, UCHAR value_type);
       static FaBlok *Delete(FaBlok *b);
-      
+
+      void ObjectExpression(ParserToken *expr);
+      ParserToken *ObjectExpression();
 };
 
 /*
@@ -180,6 +184,7 @@ protected:
 
         virtual rax *Execute(ParsedExpression *e);
         virtual rax *Execute(ParsedExpression *e, const char *key);
+        virtual void *Execute(ParsedExpression *e, void *data);
 
         GraphStack<const char> *fieldSelector;
         GraphStack<const char> *sortSelector;
@@ -223,6 +228,7 @@ class SilNikParowy
 public:
     static void Preload(ParsedExpression *e, SilNikParowy_Kontekst *ctx);
     static rax *Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack);
+    static rax *Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, void *data);
     static rax *Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, const char *key);
 
     SilNikParowy();
@@ -291,6 +297,7 @@ public:
 
 #define UNWRAP_SJIBOLETH_HANDLER_PARAMETERS()       \
     auto *t = (ParserToken *)tO;                    \
+    rxUNUSED(t);                                    \
     auto *stack = (SilNikParowy_Kontekst *)stackO;  
 
 #endif
