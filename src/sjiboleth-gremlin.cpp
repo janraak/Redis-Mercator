@@ -367,7 +367,7 @@ int executeSingleMatch(const char *first_key, const char *second_key, SilNikParo
     from->InsertKey(first_key, rxFindKey(0, first_key));
     to->InsertKey(second_key, rxFindKey(0, second_key));
 
-    int this_matches = breadthFirstSearch(from, NULL, to->keyset, parms);
+    int this_matches = breadthFirstSearch(from, result, to->keyset, parms);
 
     if (this_matches == 0)
     {
@@ -1695,6 +1695,7 @@ int executeGremlinTraverse(SilNikParowy_Kontekst *stack, MatchParameters *parms)
     PushResult(kd, stack);
     listRelease(patterns);
     rxStringFree(set_name);
+    MatchParameters::Delete(stack);
     return C_OK;
 }
 

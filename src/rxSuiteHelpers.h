@@ -187,6 +187,7 @@ extern "C"
     } rxClientInfo;
 
     rxClientInfo rxGetClientInfo();
+    double rxGetMemoryUsedPercentage();
 
 #ifdef __cplusplus
 }

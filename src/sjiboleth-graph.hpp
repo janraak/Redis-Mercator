@@ -619,8 +619,7 @@ public:
         source->Unlink(c);
     }
 
-    ~Graph_Triplet()
-    {
+    void Clear(){
         if (this->subject != NULL)
         {
             // this->Show();
@@ -648,6 +647,12 @@ public:
                 }
             }
         }
+
+    }
+
+    ~Graph_Triplet()
+    {
+        this->Clear();
     }
 
     void Show()

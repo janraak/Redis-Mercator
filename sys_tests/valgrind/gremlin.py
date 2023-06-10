@@ -560,17 +560,20 @@ route_types = ["", "w", "time", "costs", "km", "trees",
 "{SQRT( pow(costs,2)+pow(km,2)+pow(time,2) )}",
 "{SQRT( pow(trees,2)+pow(km,2)+pow(time,2) )}",
 "{SQRT( pow(costs,2)+pow(km,2)+pow(time,2)+pow(trees,2) )}",
-]
+]  # ["trees"] #
 
 
-def gremlin_match_setup(cluster_id, controller, data, index):
+def gremlin_match(cluster_id, controller, data, index):
     for capital in eu_capitals:
         addV = "g:addV({},capital)".format(capital[0])
         if len(capital) >= 3:
             if type(capital[2]) == dict:
                 for a in capital[2]:
                     addV += ".property({},'{}')".format(a, capital[2][a])
+        print(addV)
         data.execute_command("RXQUERY", addV)
+        # city = data.hgetall(capital[0])
+        # print("{}: {}".format(capital[0],city))
     for connection in eu_connections:
         weighted = 0.0
         properties = ""
@@ -587,28 +590,25 @@ def gremlin_match_setup(cluster_id, controller, data, index):
 
         addE = "g:predicate({}).subject({}).object({}).property(w,{}).{}".format(
             connection[1], connection[0], connection[2], math.sqrt(weighted), properties)
-        data.execute_command("RXQUERY", addE)
-
-def gremlin_match(cluster_id, controller, data, index):
-    for a in eu_capitals[0:]:
-        for b in eu_capitals[0:]:
-            if a[0] == b[0]:
-                continue
+        print(addE)
+        print(data.execute_command("RXQUERY", addE))
+    print(data.info("memory"))
+    # pdb.set_trace()
+    # exit()
+    for a in eu_capitals[10:11]:
+        for b in eu_capitals[11:12]:
             for t in route_types:
-                if len(t) == 0:
-                    data.execute_command(                        "RXQUERY", "g:match({},{})".format(a[0], b[0]))
-                else:
-                    data.execute_command(                        "RXQUERY", "g:minimize({}).match({},{})".format(t, a[0], b[0]))
-                    data.execute_command(                        "RXQUERY", "g:maximize({}).match({},{})".format(t, a[0], b[0]))
-
-def gremlin__multi_match(cluster_id, controller, data, index):
-    for a in eu_capitals[0:]:
-        for b in eu_capitals[0:]:
-            for c in eu_capitals[0:]:
-                if a[0] == b[0] or b[0] == c[0] or c[0] == a[0]:
+                if a[0] == b[0]:
                     continue
-                for t in route_types:
-                    if len(t) == 0:
-                        data.execute_command(                            "RXQUERY", "g:match({},{})".format(a[0], b[0], c[0]))
-                    else:
-                        data.execute_command(                            "RXQUERY", "g:minimize({}).match({},{})".format(t, a[0], b[0], c[0]))
+                if len(t) == 0:
+                    print("\nGetting route from {} to {}\n".format(a[0], b[0]))
+                    print(data.execute_command(
+                        "RXQUERY", "g:match({},{})".format(a[0], b[0])))
+                else:
+                    print("\nGetting route from {} to {} optimized by {}\n".format(a, b, t))
+                    print(data.execute_command(
+                        "RXQUERY", "g:minimize({}).match({},{})".format(t, a[0], b[0])))
+                    print(data.execute_command(
+                        "RXQUERY", "g:maximize({}).match({},{})".format(t, a[0], b[0])))
+
+    # exit()

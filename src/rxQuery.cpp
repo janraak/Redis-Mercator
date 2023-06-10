@@ -286,6 +286,11 @@ int executeParseCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 
 int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
+    if(rxGetMemoryUsedPercentage() > 95.0)    {
+        RedisModule_ReplyWithSimpleString(ctx, "Short on memory! Query command not executed.");
+        return C_ERR;
+    }
+
     rxString cmd = (char *)rxGetContainedObject(argv[0]);
     const char *target_setname = NULL;
     rxStringToUpper(cmd);

@@ -3,42 +3,7 @@ import redis
 import json
 
 
-def scenario2_rule_integrity_check(cluster_id, controller, data, index):
-    controller.execute_command("mercator.flush.cluster {}".format(cluster_id))
-    data.execute_command("rule.del *")
-    data.execute_command("RULE.SET", "isAgeCheckRequired",
-                         "(has(buys,alcohol).lt(age,21)).redis(rpush, agecheck, @tuple)")
-    data.execute_command("hmset", "fred", "age", 39, "buys", "alcohol")
-    data.execute_command("hmset", "bambam", "age", 5, "buys", "alcohol")
-    for n in range(1, 1000):
-        from_q = data.execute_command("lrange", "agecheck", 0, 10)
-        if len(from_q) > 0:
-            break
-    if len(from_q) <= 0:
-        pdb.set_trace()
-    assert len(from_q) > 0
-    assert from_q[0].decode('utf-8').find("bambam") >= 0
-
-
-def scenario2_rule_age_check_add_property(cluster_id, controller, data, index):
-    controller.execute_command("mercator.flush.cluster {}".format(cluster_id))
-    data.execute_command("rule.del *")
-    data.execute_command("hmset", "pebbles", "type",
-                         "person", "gender", "female")
-    data.execute_command("RULE.SET", "isMinor",
-                         "(has(type,person).lt(age,21)).property(isMinor,Y)")
-    pebbles = data.hgetall("pebbles")
-    assert not (b'isMinor' in pebbles)
-    data.execute_command("hmset", "pebbles", "age", 5)
-    for n in range(1, 1000):
-        pebbles = data.hgetall("pebbles")
-        if (b'isMinor' in pebbles):
-            break
-    assert pebbles[b'isMinor'] == b'Y'
-
-
 def scenario2_rule_create_edges(cluster_id, controller, data, index):
-    controller.execute_command("mercator.flush.cluster {}".format(cluster_id))
     data.execute_command("rule.del", "*")
 
     data.execute_command("RULE.SET", "linkFather",

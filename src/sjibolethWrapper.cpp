@@ -395,7 +395,11 @@ void FreeResultObject(void *o)
         {
                 if (t->DecrRefCnt() <= 1)
                 {
-                    delete t;
+                    if (t->subject != NULL && t->edges.sequencer != NULL)
+                    {
+                        t->Clear();
+                        rxMemFree(t);
+                    }
                     rxMemFree(o);
                 }
         }

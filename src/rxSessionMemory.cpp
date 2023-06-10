@@ -72,16 +72,16 @@ void *rxMemAllocSession(size_t size, const char *tag)
 }
 
 void rxMemFreeSession(void *ptr){
-    // Check if a session block is freed.
-    auto *allocation = (_Session_Allocation *)(ptr - sizeof(_Session_Allocation));
-    if(ptr == allocation->ptr){
-        allocation->here->released_slots++;
-        allocation->slot->tag = NULL;
-        allocation->slot->alloc = NULL;
-        rxMemFreeX(allocation->slot->alloc);
-    }
-    else
-    {
+    // // Check if a session block is freed.
+    // auto *allocation = (_Session_Allocation *)(ptr - sizeof(_Session_Allocation));
+    // if(ptr == allocation->ptr){
+    //     allocation->here->released_slots++;
+    //     allocation->slot->tag = NULL;
+    //     allocation->slot->alloc = NULL;
+    //     rxMemFreeX(allocation->slot->alloc);
+    // }
+    // else
+    // {
         rxMemFreeX(ptr);
-    }
+    // }
 }

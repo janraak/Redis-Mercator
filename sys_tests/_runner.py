@@ -18,12 +18,45 @@ from inspect import getmembers, isfunction
 global redis_path
 global dataset1
 global dataset1ref
+global filter
+filter = {"folder":"scenarios", "runs":2}
 
 import glob, importlib, os, pathlib, sys
-def load_scenarios():
-    all_methods = []
+parameter_names = ["testset", "include", "exclude", "runs"]
+def parse_arguments(argv):
+    n = 0
+    folder = "scenarios"
+    includes = []
+    excludes = []
+    runs = 10
+    if len(argv) > 1:
+        #[testset %folder] [include %filename, ...] [exclude %filename, ...]
+        while n < len(argv):
+            if argv[n] =="testset":
+                folder = argv[n + 1]
+                n += 1
+            elif argv[n] =="runs":
+                runs = int(argv[n + 1])
+                n += 1
+            elif argv[n] =="include":
+                n += 1
+                while n < len(argv) and not argv[n] in parameter_names:
+                    includes.append(argv[n])
+                    n += 1
+            elif argv[n] == "exclude":
+                n += 1
+                while n < len(argv) and not argv[n] in parameter_names:
+                    excludes.append(argv[n])
+                    n += 1
+            n += 1
+    return {"folder":folder, "includes":includes, "excludes":excludes, "runs":runs}
+
+def load_scenarios(argv):
+    filter = parse_arguments(argv)
+    all_files = []
     dir_path = os.path.dirname(os.path.realpath(__file__))
-    MODULE_DIR = "{}/{}".format(dir_path, "scenarios")
+    MODULE_DIR = "{}/{}".format(dir_path, filter["folder"])
+    # pdb.set_trace()
     # The directory containing your modules needs to be on the search path.
     sys.path.append(MODULE_DIR)
 
@@ -32,13 +65,28 @@ def load_scenarios():
     # the required function.
     py_files = glob.glob(os.path.join(MODULE_DIR, '*.py'))
     for py_file in py_files:
+        if type(filter["excludes"]) == type(list):
+            for e in filter["excludes"]:
+                if e in py_file:
+                    continue
+        all_methods = []
         module_name = pathlib.Path(py_file).stem
         module = importlib.import_module(module_name)
         callables = getmembers(module, isfunction)
         for t in callables:
-            all_methods.append(t)
+            if str(inspect.signature(t[1])) != "(cluster_id, controller, data, index)":
+                print("ignored: {} signature: {}".format(t[0], inspect.signature(t[1])))
+                # pdb.set_trace()
+                continue
+            if type(filter["includes"]) == type(list):
+                for i in filter["includes"]:
+                    if i in t[0]:
+                        all_methods.append(t)
+            else:
+                all_methods.append(t)
+        all_files.append(all_methods)
             
-    return all_methods
+    return all_files
 
 
 def which_mercator_modules_has_been_loaded(redis_client):
@@ -103,29 +151,30 @@ def create_cluster(redis_client):
 
 
 def download_testdata(redis_client, fname):
-    redis_client.execute_command("g.wget", "https://roxoft.dev/assets/{}".format(fname))
+    # redis_client.execute_command("g.wget", "https://roxoft.dev/assets/{}".format(fname))
+    pass
 
 ignores = 'abspath'
-def run_test(scenario, cluster_id, controller, data_node, index_node):
+def run_test(scenario, cluster_id, controller, data_node, index_node, flushall = True):
     fname = scenario[0]
     if type(fname) != str:
         print(fname)
-        pdb.set_trace()
         return
     if fname in ignores:
         return
     fnc = scenario[1]
     print("{} ... ".format(fname), end="")    
-    controller.execute_command("mercator.flush.cluster {}".format(cluster_id))
-    data_node.flushall()
-    index_node.flushall()
+    if flushall:
+        controller.execute_command("mercator.flush.cluster {}".format(cluster_id))
+        data_node.flushall()
+        index_node.flushall()
+        print(" database flushed ", end="")    
     try:
         # fnc = globals()[scenario]
         fnc(cluster_id, controller, data_node, index_node)   
         print("succeded")    
     except Exception as ex:
-        print(" failed, error: {}".format(ex.message))
-        pdb.set_trace()
+        print(" failed, error: {}".format(ex))
 
 def my_import(name):    
     components = name.split('.')
@@ -134,8 +183,8 @@ def my_import(name):
         mod = getattr(mod, comp)
     return mod
 
-def main():
-    scenarios = load_scenarios();
+def main(argv):
+    scenarios = load_scenarios(argv);
     # scenarios = [method_name for method_name in globals()
     #               if "scenario" in method_name]
 
@@ -146,12 +195,23 @@ def main():
 
     dataset1 = download_testdata(data_node, "dataset1.txt")
     cluster_id = cluster_info["cluster_id"].decode('utf-8')
-    for n in range(0,10):
+    for n in range(0,filter["runs"]):
         print("------ run {}".format(n))
-        for scenario in scenarios:
-            # system('clear')
-            run_test(scenario, cluster_id, controller,
-                                data_node, index_node)
+        flushall = True
+        for file in scenarios:
+            for scenario in file:
+                print("setup: {}", scenario[0])
+                if "setup" in scenario[0]:
+                    print("execute setup: {}", scenario[0])
+                    run_test(scenario, cluster_id, controller,
+                                        data_node, index_node, False)
+                    flushall = False
+            for scenario in file:
+                print("test: {}", scenario[0])
+                if not ("setup" in scenario[0]):
+                    print("execute test: {}", scenario[0])
+                    run_test(scenario, cluster_id, controller,
+                                        data_node, index_node, flushall)
 
     index_node.close()
     data_node.close()
@@ -161,4 +221,6 @@ def main():
 if __name__ == "__main__":
     has_exception = False
     nfails = 0
-    main()
+    main(sys.argv)
+else:
+    print("Must be run using python3\n\npython3 _runner.py [testset %folder] [include %filename, ...] [exclude %filename, ...]")

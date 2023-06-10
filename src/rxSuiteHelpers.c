@@ -1041,6 +1041,11 @@ void rxRaxFree(rax *rax)
         rxRaxFreeWithCallback(rax, NULL);
 }
 
+double rxGetMemoryUsedPercentage()
+{
+    return zmalloc_used_memory() * 100.0 / server.maxmemory;
+}
+
 rxClientInfo rxGetClientInfo()
 {
     size_t maxin, maxout;
