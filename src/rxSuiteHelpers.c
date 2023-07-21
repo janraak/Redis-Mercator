@@ -6,7 +6,6 @@ extern "C"
 #include "version.h"
 
 #include <ctype.h>
-#include <ctype.h>
 #include <sched.h>
 #include <signal.h>
 
@@ -14,7 +13,8 @@ extern "C"
 #include "../../src/server.h"
 #include "rax.h"
     extern struct client *createAOFClient(void);
-
+    void raxRecursiveFree(rax *rax, raxNode *n, void (*free_callback)(void *));
+    unsigned long getClusterConnectionsCount(void);
 #include <stdlib.h>
 #include <string.h>
 
@@ -23,7 +23,7 @@ extern "C"
 }
 #endif
 
-#include <math.h> 
+#include <math.h>
 
 #define rxUNUSED(x) (void)(x)
 
@@ -311,6 +311,26 @@ int rxHashTypeSet(void *o, const char *f, const char *v, int flags)
     return retval;
 }
 
+int rxHashTypeDelete(void *o, const char *f)
+{
+    if (((robj *)o)->type != rxOBJ_HASH)
+        return -1;
+    rxString field = rxStringNew(f);
+    int retval = hashTypeDelete((robj *)o, (sds)field);
+    rxStringFree(field);
+    return retval;
+}
+
+int rxHashTypeExists(void *o, const char *f)
+{
+    if (((robj *)o)->type != rxOBJ_HASH)
+        return -1;
+    rxString field = rxStringNew(f);
+    int retval = hashTypeExists((robj *)o, (sds)field);
+    rxStringFree(field);
+    return retval;
+}
+
 rxString rxGetHashField(void *oO, const char *f)
 {
     rxString field = rxStringNew(f);
@@ -367,6 +387,17 @@ rxString rxGetHashField2(void *oO, const char *field)
     rxString v = rxGetHashField(oO, f);
     rxStringFree(f);
     return v;
+}
+
+long long rxGetHashFieldAsLong(void *o, const char *field)
+{
+    rxString v = rxGetHashField(o, field);
+    return v ? atol(v) : 0;
+}
+double rxGetHashFieldAsDouble(void *o, const char *field)
+{
+    rxString v = rxGetHashField(o, field);
+    return v ? atof(v) : 0;
 }
 
 rxString rxHashAsJson(const char *key, void *o)
@@ -932,9 +963,8 @@ double computeModulus(const char *l, int ll, const char *r)
     //     return modulus(v, t);
     // }
     // else
-        return 0;
+    return 0;
 }
-
 
 double computePower(const char *l, int ll, const char *r)
 {
@@ -948,7 +978,7 @@ double computePower(const char *l, int ll, const char *r)
         return 0;
 }
 
-int calcSqrtInRange(const char *l, int ll)
+int calcSqrtInRange(const char *l, int )
 {
     double v = atof(l);
     return sqrt(v);
@@ -988,7 +1018,7 @@ void rxInitComparisonsProcs()
     raxTryInsert(rxComparisonsMap, (unsigned char *)"=", 1, (void *)compareEquals, &old);
     raxTryInsert(rxComparisonsMap, (unsigned char *)"pow", 3, (void *)computePower, &old);
     raxTryInsert(rxComparisonsMap, (unsigned char *)"POW", 3, (void *)computePower, &old);
-   raxTryInsert(rxComparisonsMap, (unsigned char *)"==", 2, (void *)compareEquals, &old);
+    raxTryInsert(rxComparisonsMap, (unsigned char *)"==", 2, (void *)compareEquals, &old);
     raxTryInsert(rxComparisonsMap, (unsigned char *)">=", 2, (void *)compareGreaterEquals, &old);
     raxTryInsert(rxComparisonsMap, (unsigned char *)"<=", 2, (void *)compareLessEquals, &old);
     raxTryInsert(rxComparisonsMap, (unsigned char *)">", 1, (void *)compareGreater, &old);
@@ -1016,11 +1046,21 @@ void rxInitComparisonsProcs()
     raxTryInsert(rxComparisonsMap, (unsigned char *)"sqrt", 4, (void *)calcSqrtInRange, &old);
 }
 
-rxComparisonProc *rxFindComparisonProc(const char *op)
+rxComputeProc rxFindComputationProc(const char *op)
 {
     if (rxComparisonsMap == NULL)
         rxInitComparisonsProcs();
-    rxComparisonProc *compare = (rxComparisonProc *)raxFind(rxComparisonsMap, (unsigned char *)op, strlen(op));
+    rxComputeProc computation = (rxComputeProc *)raxFind(rxComparisonsMap, (unsigned char *)op, strlen(op));
+    if (computation == raxNotFound)
+    return NULL;
+    return computation;
+}
+
+rxComparisonProc rxFindComparisonProc(const char *op)
+{
+    if (rxComparisonsMap == NULL)
+        rxInitComparisonsProcs();
+    rxComparisonProc compare = (rxComparisonProc *)raxFind(rxComparisonsMap, (unsigned char *)op, strlen(op));
     if (compare == raxNotFound)
         return NULL;
     return compare;
@@ -1043,49 +1083,76 @@ void rxRaxFree(rax *rax)
 
 double rxGetMemoryUsedPercentage()
 {
+    if (server.maxmemory == 0)
+        return 0.0;
     return zmalloc_used_memory() * 100.0 / server.maxmemory;
+}
+
+rxClientInfo rxGetClientInfoForHealthCheck()
+{
+    struct redisMemOverhead *mh = getMemoryOverheadData();
+
+    rxClientInfo info;
+    info.used_memory = zmalloc_used_memory();
+    info.used_memory_peak = server.stat_peak_memory;
+    info.maxmemory = server.maxmemory;
+    info.server_memory_available = zmalloc_used_memory();
+
+    info.connected_clients = listLength(server.clients) - listLength(server.slaves);
+    info.cluster_connections = getClusterConnectionsCount();
+    info.blocked_clients = server.blocked_clients;
+    info.tracking_clients = server.tracking_clients;
+    info.clients_in_timeout_table = (unsigned long long)raxSize(server.clients_timeout_table);
+    info.total_keys = mh->total_keys;
+    info.bytes_per_key = mh->bytes_per_key;
+    return info;
 }
 
 rxClientInfo rxGetClientInfo()
 {
-    size_t maxin, maxout;
-    getExpansiveClientsInfo(&maxin, &maxout);
-    size_t zmalloc_used = zmalloc_used_memory();
-    size_t total_system_mem = server.system_memory_size;
-    struct redisMemOverhead *mh = getMemoryOverheadData();
+    return rxGetClientInfoForHealthCheck();
+    // size_t maxin, maxout;
+    // getExpansiveClientsInfo(&maxin, &maxout);
+    // size_t zmalloc_used = zmalloc_used_memory();
+    // size_t total_system_mem = server.system_memory_size;
+    // struct redisMemOverhead *mh = getMemoryOverheadData();
 
-    /* Peak memory is updated from time to time by serverCron() so it
-     * may happen that the instantaneous value is slightly bigger than
-     * the peak value. This may confuse users, so we update the peak
-     * if found smaller than the current memory usage. */
-    if (zmalloc_used > server.stat_peak_memory)
-        server.stat_peak_memory = zmalloc_used;
+    // /* Peak memory is updated from time to time by serverCron() so it
+    //  * may happen that the instantaneous value is slightly bigger than
+    //  * the peak value. This may confuse users, so we update the peak
+    //  * if found smaller than the current memory usage. */
+    // if (zmalloc_used > server.stat_peak_memory)
+    //     server.stat_peak_memory = zmalloc_used;
 
-    rxClientInfo info;
-    info.used_memory = zmalloc_used;
-    info.used_memory_rss = mh->allocator_rss;
-    info.used_memory_peak = server.stat_peak_memory;
-    info.used_memory_peak_perc = mh->peak_perc;
-    info.used_memory_overhead = mh->overhead_total;
-    info.used_memory_startup = mh->startup_allocated;
-    info.used_memory_dataset = mh->dataset;
+    // rxClientInfo info;
+    // info.used_memory = zmalloc_used;
+    // info.used_memory_rss = mh->allocator_rss;
+    // info.used_memory_peak = server.stat_peak_memory;
+    // info.used_memory_peak_perc = mh->peak_perc;
+    // info.used_memory_overhead = mh->overhead_total;
+    // info.used_memory_startup = mh->startup_allocated;
+    // info.used_memory_dataset = mh->dataset;
 
-    info.total_keys = mh->total_keys;
-    info.bytes_per_key = mh->bytes_per_key;
-    info.dataset_perc = mh->dataset_perc;
-    info.peak_perc = mh->peak_perc;
-    info.total_frag = mh->total_frag;
+    // info.total_keys = mh->total_keys;
+    // info.bytes_per_key = mh->bytes_per_key;
+    // info.dataset_perc = mh->dataset_perc;
+    // info.peak_perc = mh->peak_perc;
+    // info.total_frag = mh->total_frag;
 
-    info.maxmemory = (unsigned long)total_system_mem;
+    // info.maxmemory = (unsigned long)total_system_mem;
 
-    info.connected_clients = listLength(server.clients) - listLength(server.slaves);
-    info.maxclients = server.maxclients;
-    info.cluster_connections = getClusterConnectionsCount();
-    info.client_recent_max_input_buffer = maxin;
-    info.client_recent_max_output_buffer = maxout;
-    info.blocked_clients = server.blocked_clients;
-    info.tracking_clients = server.tracking_clients;
-    info.clients_in_timeout_table = (unsigned long long)raxSize(server.clients_timeout_table);
+    // info.connected_clients = listLength(server.clients) - listLength(server.slaves);
+    // info.maxclients = server.maxclients;
+    // info.cluster_connections = getClusterConnectionsCount();
+    // info.client_recent_max_input_buffer = maxin;
+    // info.client_recent_max_output_buffer = maxout;
+    // info.blocked_clients = server.blocked_clients;
+    // info.tracking_clients = server.tracking_clients;
+    // info.clients_in_timeout_table = (unsigned long long)raxSize(server.clients_timeout_table);
 
-    return info;
+    // return info;
 }
+
+    int rxGetServerPort(){
+    return server.port ? server.port : server.tls_port;
+    }

@@ -116,7 +116,7 @@ int rx_fetch(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         v = (const char *)rxGetContainedObject(argv[1]);
         f = (const char *)rxGetContainedObject(argv[2]);
         op = (const char *)rxGetContainedObject(argv[3]);
-        rxComparisonProc *compare  = rxFindComparisonProc(op);
+        rxComparisonProc compare  = rxFindComparisonProc(op);
         if(compare == NULL)
             return RedisModule_ReplyWithError(ctx, "Invalid operator command! Syntax: rxFetch %value% [%field%] [ = | == | > | < | <= | >= | != ]");
         multiplexer = new RxFetchMultiplexer(argc, dbId, v, f, compare);

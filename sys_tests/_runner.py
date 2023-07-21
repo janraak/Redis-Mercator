@@ -123,6 +123,9 @@ def prepare_controller():
     module_config = which_mercator_modules_has_been_loaded(redis_client)
     if not "rxMercator" in module_config:
         r = redis_client.execute_command(
+            "MODULE LOAD {}/extensions/src/rxQuery.so".format(redis_path))
+        print("rxMercator loaded")
+        r = redis_client.execute_command(
             "MODULE LOAD {}/extensions/src/rxMercator.so".format(redis_path))
         print("rxMercator loaded")
         r = redis_client.execute_command(

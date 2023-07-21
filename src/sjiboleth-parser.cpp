@@ -6,7 +6,8 @@
 
 #define semicolon rxStringNew(";")
 
-std::string generate_uuid(){
+std::string generate_uuid()
+{
     return uuid::generate_uuid_v4();
 }
 
@@ -189,11 +190,16 @@ ParsedExpression *Sjiboleth::Parse(const char *query)
                                 auto tmp = generate_uuid();
                                 token->BracketResult(ParserToken::New(_literal, tmp.c_str(), strlen(tmp.c_str()), PARSER_OPTION_NONE));
                             }
+                            if(expression->Bracket()){
                             expression = expression->Bracket();
                             expression->emitFinal(token);
                             token->AddOptions(object_expression_treatment);
+                            }else{
+                            printf("Odd!\n");
+                            }
                         }
-                        if(expression->sideTrackLength() == object_expression_treatment_level){
+                        if (expression->sideTrackLength() == object_expression_treatment_level)
+                        {
                             object_expression_treatment = PARSER_OPTION_NONE;
                             object_expression_treatment_level = 0;
                         }
@@ -245,7 +251,8 @@ ParsedExpression *Sjiboleth::Parse(const char *query)
         else
         {
             token = ScanIdentifier(head, &tail);
-            if((token->Options() && PARSER_OPTION_DELAY_OBJECT_EXPRESSION) == PARSER_OPTION_DELAY_OBJECT_EXPRESSION){
+            if ((token->Options() && PARSER_OPTION_DELAY_OBJECT_EXPRESSION) == PARSER_OPTION_DELAY_OBJECT_EXPRESSION)
+            {
                 object_expression_treatment = PARSER_OPTION_DELAY_OBJECT_EXPRESSION;
                 object_expression_treatment_level = expression->sideTrackLength();
             }
@@ -443,7 +450,7 @@ bool ParsedExpression::hasParkedToken(const char *token)
 bool Sjiboleth::IsBracket(char *aChar, char **newPos)
 {
     *newPos = aChar;
-    switch (*aChar)
+    switch ((unsigned char)*aChar)
     {
     case '(':
     case ')':
@@ -454,36 +461,40 @@ bool Sjiboleth::IsBracket(char *aChar, char **newPos)
     case ';':
         return true;
     case 0xe2: // Unicode
-        if (*(aChar + 1) == 0x80 && *(aChar + 2) == 0x9c)
+    {
+        auto next_char = (unsigned char)*(aChar + 1);
+        auto next_next_char = (unsigned char)*(aChar + 2);
+        if (next_char == 0x80 && next_next_char == 0x9c)
         {
             *newPos = aChar + 2;
             return true;
         }
-        if (*(aChar + 1) == 0x80 && *(aChar + 2) == 0x98)
+        if (next_char == 0x80 && next_next_char == 0x98)
         {
             *newPos = aChar + 2;
             return true;
         }
-        if (*(aChar + 1) == 0x20 && *(aChar + 2) == 0x39)
+        if (next_char == 0x20 && next_next_char == 0x39)
         {
             *newPos = aChar + 2;
             return true;
         }
-        if (*(aChar + 1) == 0x80 && *(aChar + 2) == 0x9d)
+        if (next_char == 0x80 && next_next_char == 0x9d)
         {
             *newPos = aChar + 2;
             return true;
         }
-        if (*(aChar + 1) == 0x80 && *(aChar + 2) == 0x99)
+        if (next_char == 0x80 && next_next_char == 0x99)
         {
             *newPos = aChar + 2;
             return true;
         }
-        if (*(aChar + 1) == 0x20 && *(aChar + 2) == 0x3a)
+        if (next_char == 0x20 && next_next_char == 0x3a)
         {
             *newPos = aChar + 2;
             return true;
         }
+    }
         return false;
     default:
         return false;
@@ -493,7 +504,7 @@ bool Sjiboleth::IsBracket(char *aChar, char **newPos)
 bool Sjiboleth::IsBracketOpen(char *aChar, char **newPos)
 {
     *newPos = aChar;
-    switch (*aChar)
+    switch ((unsigned char)*aChar)
     {
     case '(':
     case '{':
@@ -501,36 +512,40 @@ bool Sjiboleth::IsBracketOpen(char *aChar, char **newPos)
     case ';':
         return true;
     case 0xe2: // Unicode
-        if (*(aChar + 1) == 0x80 && *(aChar + 2) == 0x9c)
+    {
+        auto next_char = (unsigned char)*(aChar + 1);
+        auto next_next_char = (unsigned char)*(aChar + 2);
+        if (next_char == 0x80 && next_next_char == 0x9c)
         {
             *newPos = aChar + 2;
             return true;
         }
-        if (*(aChar + 1) == 0x80 && *(aChar + 2) == 0x98)
+        if (next_char == 0x80 && next_next_char == 0x98)
         {
             *newPos = aChar + 2;
             return true;
         }
-        if (*(aChar + 1) == 0x20 && *(aChar + 2) == 0x39)
+        if (next_char == 0x20 && next_next_char == 0x39)
         {
             *newPos = aChar + 2;
             return true;
         }
-        if (*(aChar + 1) == 0x80 && *(aChar + 2) == 0x9d)
+        if (next_char == 0x80 && next_next_char == 0x9d)
         {
             *newPos = aChar + 2;
             return true;
         }
-        if (*(aChar + 1) == 0x80 && *(aChar + 2) == 0x99)
+        if (next_char == 0x80 && next_next_char == 0x99)
         {
             *newPos = aChar + 2;
             return true;
         }
-        if (*(aChar + 1) == 0x20 && *(aChar + 2) == 0x3a)
+        if (next_char == 0x20 && next_next_char == 0x3a)
         {
             *newPos = aChar + 2;
             return true;
         }
+    }
         return false;
     default:
         return false;
@@ -539,7 +554,8 @@ bool Sjiboleth::IsBracketOpen(char *aChar, char **newPos)
 
 char *Sjiboleth::GetFence(char *aChar)
 {
-    switch (*aChar)
+    auto first_char = (unsigned char)*(aChar);
+    switch (first_char)
     {
     case '(':
         return ")";
@@ -548,12 +564,16 @@ char *Sjiboleth::GetFence(char *aChar)
     case '[':
         return "]";
     case 0xe2: // Unicode
-        if (*(aChar + 1) == 0x80 && *(aChar + 2) == 0x9c)
+    {
+        auto next_char = (unsigned char)*(aChar + 1);
+        auto next_next_char = (unsigned char)*(aChar + 2);
+        if (next_char == 0x80 && next_next_char == 0x9c)
             return "\xe2\x80\x9d";
-        if (*(aChar + 1) == 0x80 && *(aChar + 2) == 0x98)
+        if (next_char == 0x80 && next_next_char == 0x98)
             return "\xe2\x80\x99";
-        if (*(aChar + 1) == 0x20 && *(aChar + 2) == 0x39)
+        if (next_char == 0x20 && next_next_char == 0x39)
             return "\xe2\x20\x3a";
+    }
         return aChar;
     default:
         return aChar;

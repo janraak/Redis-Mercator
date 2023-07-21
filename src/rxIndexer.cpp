@@ -64,9 +64,6 @@ extern "C"
 static void startIndexerThreads();
 static void stopIndexerThreads();
 
-static void startIndexerThreads();
-static void stopIndexerThreads();
-
 #define stringKey rxStringNew("S")
 #define hashKey rxStringNew("H")
 #define streamKey rxStringNew("X")

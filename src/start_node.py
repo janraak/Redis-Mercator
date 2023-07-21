@@ -133,13 +133,18 @@ if role == 'data':
     # redis_client.execute_command("ACL SETUSER {} +@transaction".format(cid))
 elif role == 'master':
     module_config = which_modules_has_been_load(redis_client)
+    if not "rxQuery" in module_config:
+        redis_client.execute_command("MODULE LOAD {}/extensions/src/rxQuery.so DEFAULT_OPERATOR &".format(path, ihost, iport, host, port))
+        print("rxQuery loaded")
+    else:
+        print("rxQuery already loaded")
     if not "rxMercator" in module_config:
         redis_client.execute_command("MODULE LOAD {}/extensions/src/rxMercator.so".format(wd))
         print("rxMercator loaded")
     else:
         print("rxMercator already loaded")
-    # redis_client.execute_command("ACL SETUSER admin ON >admin +@all +@admin".format(cid, cid))
-    # redis_client.execute_command("ACL SETUSER admin ON >admin +@all +@admin".format(cid, cid))
+    redis_client.execute_command("ACL SETUSER admin ON >admin +@all +@admin".format(cid, cid))
+    redis_client.execute_command("ACL SETUSER admin ON >admin +@all +@admin".format(cid, cid))
     # redis_client.execute_command("ACL SETUSER {} ON >{} +select|0".format(cid, cid))
     # redis_client.execute_command("ACL SETUSER {} -@admin".format(cid))
     # redis_client.execute_command("ACL SETUSER {} +@read".format(cid))

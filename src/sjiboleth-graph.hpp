@@ -80,7 +80,7 @@ public:
     static Graph_Leg *New(rxString key, double weight, Graph_Leg *origin)
     {
         auto *here = (Graph_Leg *)rxMemAllocSession(sizeof(Graph_Leg) + strlen(key) + 1,"Graph_Leg");
-        here->Init(key, weight / 2 + origin-> length);
+        here->Init(key, origin ? weight / 2 + origin-> length : 0.0);
         here->increment = weight / 2;
         here->origin = origin;
         //printf("+  %p %s %d\n", here, key, here->refCnt);
@@ -99,7 +99,7 @@ public:
              0 == l == r
              1 == l < r
         */
-        int opti = (int)parm;
+        auto opti = *((int *)parm);
         double balance = ((Graph_Leg *)left)->length - ((Graph_Leg *)right)->length;
         ////printf("%s :: %s => %f :: %f => %f * %d ==> ", ((Graph_Leg *)left)->key, ((Graph_Leg *)right)->key, ((Graph_Leg *)left)->length, ((Graph_Leg *)right)->length, balance, opti);
         opti = 1;
@@ -126,7 +126,7 @@ public:
                 return NULL;
         }
         auto *leg = Graph_Leg::New(key, weight, origin);
-        bsf_q->Enqueue(leg, WeightOrdered, (void*)optimization);
+        bsf_q->Enqueue(leg, WeightOrdered, (void*)&optimization);
         if (touches){
             raxInsert(touches, (UCHAR *)key, strlen(key), leg, NULL);
             if(contra_key){
@@ -140,7 +140,7 @@ public:
     static Graph_Leg *Add(rxString key, double weight, GraphStack<Graph_Leg> *bsf_q, int optimization)
     {
         auto *leg = Graph_Leg::New(key, weight);
-        bsf_q->Enqueue(leg, WeightOrdered, (void*)optimization);
+        bsf_q->Enqueue(leg, WeightOrdered, (void*)&optimization);
         return leg;
     }
 };

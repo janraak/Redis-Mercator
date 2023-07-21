@@ -208,7 +208,8 @@ void executeQueryCommand(Sjiboleth *parser, const char *cmd, int fetch_rows, Red
         return;
     }
     auto *e = (SilNikParowy_Kontekst *)data_config->executor;
-    if(e){
+    if (e)
+    {
         if (e->fieldSelector)
         {
             delete e->fieldSelector;
@@ -243,7 +244,8 @@ int executeParseCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     rxString query = rxStringEmpty();
     int dialect_skippy = 0;
-    Sjiboleth *parser = NULL;;
+    Sjiboleth *parser = NULL;
+    ;
     size_t arg_len;
     char sep[2] = {0x00, 0x00};
     for (int j = 1; j < argc; ++j)
@@ -257,17 +259,25 @@ int executeParseCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         else if (rxStringMatchLen(q, 2, "j:", 2, 1))
         {
             parser = JsonDialect::Get("JsonDialect");
-        dialect_skippy = 2;
+            dialect_skippy = 2;
         }
         else if (rxStringMatchLen(q, 2, "t:", 2, 1))
         {
             dialect_skippy = 2;
-        parser = TextDialect::Get("TextDialect");
+            parser = TextDialect::Get("TextDialect");
         }
-            query = rxStringFormat("%s%s%s", query, sep, q);
-            sep[0] = ' ';
+        query = rxStringFormat("%s%s%s", query, sep, q);
+        sep[0] = ' ';
     }
-    if (parser== NULL)
+    int l = strlen(query);
+    if ((query[0] == '\"' && query[l - 1] == '\"') || (query[0] == '\'' && query[l - 1] == '\''))
+    {
+        ((char *)query)[0] = ' ';
+        ((char *)query)[l - 1] = ' ';
+        ++query;
+    }
+
+    if (parser == NULL)
         parser = QueryDialect::Get("QueryDialect");
 
     list *errors = listCreate();
@@ -277,7 +287,7 @@ int executeParseCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         writeParsedErrors(t, ctx);
         return REDISMODULE_ERR;
     }
-    t->Write(ctx);    
+    t->Write(ctx);
     listRelease(errors);
     releaseParser(parser);
     rxStringFree(query);
@@ -286,7 +296,8 @@ int executeParseCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 
 int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
-    if(rxGetMemoryUsedPercentage() > 95.0)    {
+    if (rxGetMemoryUsedPercentage() > 95.0)
+    {
         RedisModule_ReplyWithSimpleString(ctx, "Short on memory! Query command not executed.");
         return C_ERR;
     }
@@ -297,7 +308,7 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     int fetch_rows = strcmp(RX_GET, cmd) == 0 ? 1 : 0;
     rxString query = rxStringEmpty();
     bool ranked = false;
-    double ranked_lower_bound = -1;//std::numeric_limits<double>::min();
+    double ranked_lower_bound = -1; // std::numeric_limits<double>::min();
     double ranked_upper_bound = std::numeric_limits<double>::max();
     int dialect_skippy = 0;
     size_t arg_len;
@@ -343,6 +354,13 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     Sjiboleth *parser;
     try
     {
+        int l = strlen(query);
+        if ((query[0] == '\"' && query[l - 1] == '\"') || (query[0] == '\'' && query[l - 1] == '\''))
+        {
+            ((char *)query)[0] = ' ';
+            ((char *)query)[l - 1] = 0x00;
+            ++query;
+        }
         if (
             rxStringMatchLen(query, 2, GREMLIN_PREFX, strlen(GREMLIN_PREFX), 1) ||
             rxStringMatchLen(query, 2, GREMLIN_PREFIX_ALT, strlen(GREMLIN_PREFIX_ALT), 1))
@@ -529,10 +547,10 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     if (RedisModule_CreateCommand(ctx, RX_HELP,
                                   executeHelpCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
-   if (RedisModule_CreateCommand(ctx, "rxParse",
+    if (RedisModule_CreateCommand(ctx, "rxParse",
                                   executeParseCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
-    if (RedisModule_CreateCommand(ctx,"rxFetch",
+    if (RedisModule_CreateCommand(ctx, "rxFetch",
                                   passthru, "readonly", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 

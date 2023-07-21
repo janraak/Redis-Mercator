@@ -367,6 +367,8 @@ rxString FaBlok::AsSds()
 int FaBlok::FetchKeySet(redisNodeInfo *serviceConfig, const char *rh)
 {
     int rc = C_ERR;
+    if(serviceConfig->is_local == -1000)
+        return rc;
     redisContext *index_context = RedisClientPool<redisContext>::Acquire(serviceConfig->host_reference, "_CLIENT", "FaBlok::FetchKeySet");
     if (!index_context)
         return C_ERR;
@@ -403,6 +405,8 @@ int FaBlok::FetchKeySet(redisNodeInfo *serviceConfig, const char *rh)
 
 int FaBlok::FetchKeySet(redisNodeInfo *serviceConfig, const char *lh, const char *rh, rxString cmp)
 {
+    if(serviceConfig->is_local == -1000)
+        return C_ERR;
     auto *index_context = RedisClientPool<redisContext>::Acquire(serviceConfig->host_reference, "_CLIENT", "FaBlok::FetchKeySet2");
     if (index_context == NULL)
         return C_OK;
@@ -477,7 +481,7 @@ FaBlok *FaBlok::Left()
     return this->left;
 }
 
-FaBlok *FaBlok::Copy(rxString set_name, int value_type, RaxCopyCallProc *fnCallback, void **privData)
+FaBlok *FaBlok::Copy(rxString set_name, int value_type, RaxCopyCallProc *fnCallback, void *privData)
 {
     FaBlok *out = FaBlok::Get(set_name ? set_name : this->setname, value_type);
     out->Open();

@@ -137,13 +137,14 @@ rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, vo
         {
         case _operand:
         case _literal:
-            if (data && rxGetObjectType(data) == rxOBJ_HASH)
-            {
+            if (data && rxGetObjectType(data) == rxOBJ_HASH
+            /*&& rxHashTypeExists(data, t->Token())*/)
+            {                
                 rxString propertyValue = rxGetHashField(data, t->Token());
                 if (propertyValue)
                     kd = FaBlok::Get(propertyValue, KeysetDescriptor_TYPE_SINGULAR);
                 else
-                    kd = FaBlok::Get(t->Token(), KeysetDescriptor_TYPE_SINGULAR);
+                    kd = FaBlok::Get(t->Token(), KeysetDescriptor_TYPE_UNKNOWN);
             }
             else
                 kd = FaBlok::Get(t->Token(), KeysetDescriptor_TYPE_SINGULAR);

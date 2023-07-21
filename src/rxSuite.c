@@ -66,24 +66,27 @@ void *initRxSuite()
         shared->parserClaimCount = 0;        
         rxMercatorShared = shared;
 
-        shared->indexNode.host_reference = sdsnew("127.0.0.1:6379");
+        char default_address[48];
+        snprintf(default_address, sizeof(default_address), "127.0.0.1:%d", server.port);
+
+        shared->indexNode.host_reference = sdsnew(default_address);
         shared->indexNode.host = sdsnew("127.0.0.1");
-        shared->indexNode.port = 6379;
+        shared->indexNode.port = server.port;
         shared->indexNode.database_id = 0;
         shared->indexNode.is_local = 0;
         shared->indexNode.executor = NULL;
 
-        shared->dataNode.host_reference = sdsnew("127.0.0.1:6379");
+        shared->dataNode.host_reference = sdsnew(default_address);
         shared->dataNode.host = sdsnew("127.0.0.1");
-        shared->dataNode.port = 6379;
+        shared->dataNode.port = server.port;
         shared->dataNode.database_id = 0;
         shared->dataNode.is_local = 0;
         shared->dataNode.executor = NULL;
         shared->defaultQueryOperator = sdsnew("&");
 
-        shared->controllerNode.host_reference = sdsnew("127.0.0.1:6379");
+        shared->controllerNode.host_reference = sdsnew(default_address);
         shared->controllerNode.host = sdsnew("127.0.0.1");
-        shared->controllerNode.port = 6379;
+        shared->controllerNode.port = server.port;
         shared->controllerNode.database_id = 0;
         shared->controllerNode.is_local = 0;
         shared->controllerNode.executor = NULL;
@@ -145,22 +148,22 @@ void rxRegisterConfig(void **oargv, int argc)
     {
         const char *arg = (const char *)argv[j]->ptr;
         int argl = strlen(arg);
-        if (stringmatch(arg, "INDEX", 1) == 1)
+        if (stringmatch(arg, "INDEX", 1) == 1 && (j + 3) <= argc)
         {
             extractArgs(argv, j + 1, &config->indexNode);
             j += 3;
         }
-        else if (stringmatch(arg, "DATA", 1) == 1)
+        else if (stringmatch(arg, "DATA", 1) == 1 && (j + 3) <= argc)
         {
             extractArgs(argv, j + 1, &config->dataNode);
             j += 3;
         }
-        else if (stringmatch(arg, "CONTROLLER", 1) == 1)
+        else if (stringmatch(arg, "CONTROLLER", 1) == 1 && (j + 3) <= argc)
         {
             extractArgs(argv, j + 1, &config->controllerNode);
             j += 3;
         }
-        else if (stringmatch(arg, "DEFAULT_OPERATOR", 1) == 1)
+        else if (stringmatch(arg, "DEFAULT_OPERATOR", 1) == 1 && (j + 3) <= argc)
         {
             ++j;
             const char *s = (const char *)argv[j]->ptr;
@@ -195,6 +198,10 @@ void rxRegisterConfig(void **oargv, int argc)
     config->indexNode.host_reference = sdscatprintf(sdsempty(), "%s:%d", config->indexNode.host, config->indexNode.port);
     config->dataNode.is_local = config->indexNode.is_local;
     config->dataNode.host_reference = sdscatprintf(sdsempty(), "%s:%d", config->dataNode.host, config->dataNode.port);
+    if(argc == 0){
+        config->dataNode.is_local = -1000;
+        config->indexNode.is_local = -1000;
+    }
     if (config->cdnRootUrl == NULL)
         config->cdnRootUrl = sdsnew("https://roxoft.dev/assets");
     if (config->startScript == NULL)

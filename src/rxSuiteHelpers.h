@@ -72,6 +72,8 @@ extern "C"
     void rxAllocateClientArgs(void *cO, void **argV, int argC);
     void rxClientExecute(void *cO, void *pO);
 
+    int rxGetServerPort();
+
     int rxIsAddrBound(char *addr, int port);
 #define MATCH_IS_FALSE 0
 #define MATCH_IS_TRUE 1
@@ -109,12 +111,16 @@ extern "C"
     int rxHashTypeGetValue(void *o, const char *field, unsigned char **vstr, POINTER *vlen, long long *vll);
     rxString rxGetHashField(void *o, const char *field);
     rxString rxGetHashField2(void *oO, const char *field);
-    int rxHashTypeSet(void *o, const char *field, const char *value, int flags);
-    rxString rxHashAsJson(const char *key, void *o);
-    struct rxHashTypeIterator *rxHashTypeInitIterator(void *subject);
-    void rxHashTypeReleaseIterator(struct rxHashTypeIterator *hi);
+     long long rxGetHashFieldAsLong(void *o, const char *field);
+     double rxGetHashFieldAsDouble(void *o, const char *field);
+     int rxHashTypeSet(void *o, const char *field, const char *value, int flags);
+     int rxHashTypeDelete(void *o, const char *f);
+     int rxHashTypeExists(void *o, const char *f);
+     rxString rxHashAsJson(const char *key, void *o);
+     struct rxHashTypeIterator *rxHashTypeInitIterator(void *subject);
+     void rxHashTypeReleaseIterator(struct rxHashTypeIterator *hi);
 
-    int rxHashTypeNext(struct rxHashTypeIterator *hi);
+     int rxHashTypeNext(struct rxHashTypeIterator *hi);
 
 #define rxOBJ_HASH_KEY 1
 #define rxOBJ_HASH_VALUE 2
@@ -148,11 +154,12 @@ extern "C"
 
     unsigned long long mem_avail();
 
-    typedef double rxComputeProc(const char *l, int ll, const char *r);
-    typedef int rxComparisonProc(const char *l, int ll, const char *r);
-    typedef int rxComparisonProc2(const char *l, int ll, const char *r, const char *h);
+    typedef double (*rxComputeProc)(const char *l, int ll, const char *r);
+    typedef int (*rxComparisonProc)(const char *l, int ll, const char *r);
+    typedef int (*rxComparisonProc2)(const char *l, int ll, const char *r, const char *h);
     void rxInitComparisonsProcs();
-    rxComparisonProc *rxFindComparisonProc(const char *op);
+    rxComputeProc rxFindComputationProc(const char *op);
+    rxComparisonProc rxFindComparisonProc(const char *op);
 
     // rxMercator overrides for embededded rax object
     void rxRaxFreeWithCallback(rax *rax, void (*free_callback)(void *));
@@ -162,31 +169,33 @@ extern "C"
     {
         // Memory Info
         size_t used_memory;
-        size_t used_memory_rss;
+        // size_t used_memory_rss;
         size_t used_memory_peak;
-        size_t used_memory_peak_perc;
-        size_t used_memory_overhead;
-        size_t used_memory_startup;
-        size_t used_memory_dataset;
-        size_t used_memory_dataset_perc;
+        // size_t used_memory_peak_perc;
+        // size_t used_memory_overhead;
+        // size_t used_memory_startup;
+        // size_t used_memory_dataset;
+        // size_t used_memory_dataset_perc;
         size_t maxmemory;
+        size_t server_memory_available;
         // Client Info
         size_t connected_clients;
         size_t cluster_connections;
-        size_t maxclients;
-        size_t client_recent_max_input_buffer;
-        size_t client_recent_max_output_buffer;
+        // size_t maxclients;
+        // size_t client_recent_max_input_buffer;
+        // size_t client_recent_max_output_buffer;
         size_t blocked_clients;
         size_t tracking_clients;
         size_t clients_in_timeout_table;
         size_t total_keys;
         size_t bytes_per_key;
-        double dataset_perc;
-        double peak_perc;
-        double total_frag;
+        // double dataset_perc;
+        // double peak_perc;
+        // double total_frag;
     } rxClientInfo;
 
     rxClientInfo rxGetClientInfo();
+    rxClientInfo rxGetClientInfoForHealthCheck();
     double rxGetMemoryUsedPercentage();
 
 #ifdef __cplusplus

@@ -261,10 +261,13 @@ SJIBOLETH_PARSER_CONTEXT_CHECKER(TextColonScopeCheck)
 	char *es = s + 8;
 	while (s <= es)
 	{
-		switch (*s)
+		auto ucs = (unsigned char) *s;
+		auto ucs1 = (unsigned char) *(s + 1);
+		auto ucs2 = (unsigned char) *(s + 2);
+		switch (ucs)
 		{
 		case 0xe2: // Unicode
-			if ((*(s + 1) == 0x80 && *(s + 2) == 0x9c) || (*(s + 1) == 0x80 && *(s + 2) == 0x98) || (*(s + 1) == 0x20 && *(s + 2) == 0x39))
+			if ((ucs1 == 0x80 && ucs2 == 0x9c) || (ucs1 == 0x80 && ucs2 == 0x98) || (ucs1 == 0x20 && ucs2 == 0x39))
 			{
 				rxString referal = rxStringNew("!!!");
 				referal = rxStringFormat("%s%s", referal, ((ParserToken *)t)->TokenAsSds());

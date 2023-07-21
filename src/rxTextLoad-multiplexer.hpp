@@ -436,7 +436,7 @@ public:
     SimpleQueue *threading_response;
 
     RxTextLoadMultiplexer(RedisModuleString **argv, int argc)
-        : Multiplexer()
+        : Multiplexer(argv, argc)
     {
         this->threading_response = new SimpleQueue("TxtLdMuxRESP");
         this->threading_request = new SimpleQueue("TxtLdMuxREQ", (void *)execTextLoadThread, 1, this->threading_response);

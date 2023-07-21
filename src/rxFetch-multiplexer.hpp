@@ -32,7 +32,7 @@ public:
     int attribute_value_len;
     rxString attribute;
     int attribute_len;
-    rxComparisonProc *matchOperation;
+    rxComparisonProc matchOperation;
     long long touched;
     long long strings;
     long long hashes;
@@ -45,7 +45,7 @@ public:
     int dbNo;
 
     dictIterator *dup_di;
-    rxComparisonProc *dup_matchOperation;
+    rxComparisonProc dup_matchOperation;
     rax *dup_bucket;
 
     RxFetchMultiplexer(int argc, int dbNo, rxString attribute_value)
@@ -79,7 +79,7 @@ public:
         this->attribute_len = strlen(attribute);
     }
 
-    RxFetchMultiplexer(int argc, int dbNo, rxString attribute_value, rxString attribute, rxComparisonProc *matchOperation)
+    RxFetchMultiplexer(int argc, int dbNo, rxString attribute_value, rxString attribute, rxComparisonProc matchOperation)
         : RxFetchMultiplexer(argc, dbNo, attribute_value, attribute)
     {
         this->matchOperation = matchOperation;

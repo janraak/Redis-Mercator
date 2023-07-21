@@ -53,6 +53,8 @@ public:
 
     bool HasEntries()
     {
+        if(this->sequencer == NULL)
+            return false;
         return listLength(this->sequencer) > 0;
     }
 
