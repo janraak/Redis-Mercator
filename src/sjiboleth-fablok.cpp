@@ -372,6 +372,8 @@ int FaBlok::FetchKeySet(redisNodeInfo *serviceConfig, const char *rh)
     redisContext *index_context = RedisClientPool<redisContext>::Acquire(serviceConfig->host_reference, "_CLIENT", "FaBlok::FetchKeySet");
     if (!index_context)
         return C_ERR;
+    if ((size_t)index_context->obuf == (size_t)-1)
+        index_context->obuf = hi_sdsempty();
     long long start = ustime();
     try
     {
@@ -410,8 +412,8 @@ int FaBlok::FetchKeySet(redisNodeInfo *serviceConfig, const char *lh, const char
     auto *index_context = RedisClientPool<redisContext>::Acquire(serviceConfig->host_reference, "_CLIENT", "FaBlok::FetchKeySet2");
     if (index_context == NULL)
         return C_OK;
-    if (index_context == NULL)
-        return C_ERR;
+    if ((size_t)index_context->obuf == (size_t)-1)
+        index_context->obuf = hi_sdsempty();
     redisReply *rcc = NULL;
     long long start = ustime();
     if (isdigit(*rh))
@@ -503,6 +505,17 @@ FaBlok *FaBlok::Copy(rxString set_name, int value_type, RaxCopyCallProc *fnCallb
         raxSeek(&ri, "^", NULL, 0);
         while (raxNext(&ri))
         {
+            rxString k = rxStringNewLen((const char*)ri.key, ri.key_len);
+            void *v = rxFindKey(0, k);
+            if(v != ri.data){
+                rxServerLogRaw(rxLL_NOTICE, "Changed object");
+            }
+            rxServerLog(rxLL_NOTICE, "%s\ncallback on %x -> %x : %s",k , ri.data, rxGetContainedObject(ri.data), (char *)rxGetContainedObject(ri.data));
+            if(v)
+                rxServerLog(rxLL_NOTICE, "standing on %x -> %x : %s", v, rxGetContainedObject(v), (char *)rxGetContainedObject(v));
+                else
+                rxServerLog(rxLL_NOTICE, "standing on %x -> ODD", v);
+            rxStringFree(k);
             if (fnCallback == NULL || fnCallback(ri.key, ri.key_len, ri.data, privData))
             {
                 void *old_data = NULL;

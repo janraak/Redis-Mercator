@@ -43,7 +43,7 @@
 #include <iostream>
 #include <memory>
 #include <stdexcept>
-#include <string>
+#include <string.h>
 
 using namespace std;
 
@@ -105,88 +105,97 @@ extern void hincrbyfloatCommand(client *c);
 
 void *RXQUERY = rxCreateStringObject(RXQUERY_cmd, strlen(RXQUERY_cmd));
 
-#define UPDATE_FAILURE_STATE "g:addv(%s,status)"                      \
-                             ".property('HEALTH_CHECKS_FAILED',%lld)" \
-                             ".property('HEALTH_CHECKS_RESTART','%s')"
+#define UPDATE_FAILURE_STATE "RXQUERY \""                                                                                     \
+                             "g:addv('%s',status)"                      \
+                           ".property{HEALTH_CHECK_SHIFT='%lld'}"                                                     \
+                             ".property('HEALTH_CHECKS_FAILED','%lld')" \
+                             ".property('HEALTH_CHECKS_RESTART','%s')"\
+                             "\""
 
-#define UPDATE_SUCCESS_STATE "g:addv(%s,status)"                                     \
-                             ".property(HEALTH_CHECKS_SUCCESS,%lld)"                 \
-                             ".property(HEALTH_TALLY,%lld)"                          \
-                             ".property(HEALTH_AVG_LATENCY_0_us,%f)"                 \
-                             ".property(HEALTH_AVG_used_memory_0,%    lld)"          \
-                             ".property(HEALTH_AVG_used_memory_peak_0,%lld)"         \
-                             ".property(HEALTH_AVG_maxmemory_0,%lld)"                \
-                             ".property(HEALTH_AVG_server_memory_available_0,%lld)"  \
-                             ".property(HEALTH_AVG_connected_clients_0,%lld)"        \
-                             ".property(HEALTH_AVG_cluster_connections_0,%lld)"      \
-                             ".property(HEALTH_AVG_blocked_clients_0,%lld)"          \
-                             ".property(HEALTH_AVG_tracking_clients_0,%lld)"         \
-                             ".property(HEALTH_AVG_clients_in_timeout_table_0,%lld)" \
-                             ".property(HEALTH_AVG_total_keys_0,%lld)"               \
-                             ".property(HEALTH_AVG_bytes_per_key_0,%lld)"
+#define UPDATE_SUCCESS_STATE "RXQUERY \""                                                                                     \
+                             "g:addv('%s',status)"                                     \
+                           ".property{HEALTH_CHECK_SHIFT='%lld'}"                                                     \
+                             ".property(HEALTH_CHECKS_SUCCESS,'%lld')"                 \
+                             ".property(HEALTH_TALLY,'%lld')"                          \
+                             ".property(HEALTH_AVG_LATENCY_0_us,'%lf')"                 \
+                             ".property(HEALTH_AVG_used_memory_0,'%lld')"          \
+                             ".property(HEALTH_AVG_used_memory_peak_0,'%lld')"         \
+                             ".property(HEALTH_AVG_maxmemory_0,'%lld')"                \
+                             ".property(HEALTH_AVG_server_memory_available_0,'%lld')"  \
+                             ".property(HEALTH_AVG_connected_clients_0,'%lld')"        \
+                             ".property(HEALTH_AVG_cluster_connections_0,'%lld')"      \
+                             ".property(HEALTH_AVG_blocked_clients_0,'%lld')"          \
+                             ".property(HEALTH_AVG_tracking_clients_0,'%lld')"         \
+                             ".property(HEALTH_AVG_clients_in_timeout_table_0,'%lld')" \
+                             ".property(HEALTH_AVG_total_keys_0,'%lld')"               \
+                             ".property(HEALTH_AVG_bytes_per_key_0,'%lld')"            \
+                             "\""
 
-#define UPDATE_SHIFT_STATS "g:v('%s'}"                                                                              \
-                           ".WHERE{%lld - HEALTH_CHECK_SHIFT >= 900000}"                                            \
-                           ".property(HEALTH_CHECK_SHIFT,%lld)"                                                     \
+#define UPDATE_SHIFT_STATS "RXQUERY \""                                                                                     \
+                           "g:"                                                                              \
+                           ".v('%s'}"                                                                              \
+                           ".WHERE{'%lld' - HEALTH_CHECK_SHIFT >= '900000'}"                                            \
+                           ".property{HEALTH_CHECK_SHIFT='%lld'}"                                                     \
                            ".property{SHIFT_AT_1=SHIFT_AT_0}"                                                       \
                            ".property(SHIFT_AT_0,'%s')"                                                             \
                            ".property(HEALTH_TALLY,0)"                                                              \
-                           ".property{HEALTH_AVG_LATENCY_4_us=HEALTH_AVG_LATENCY_3_us}"                             \
-                           ".property{HEALTH_AVG_LATENCY_3_us=HEALTH_AVG_LATENCY_2_us}"                             \
-                           ".property{HEALTH_AVG_LATENCY_2_us=HEALTH_AVG_LATENCY_1_us}"                             \
-                           ".property{HEALTH_AVG_LATENCY_1_us=HEALTH_AVG_LATENCY_0_us}"                             \
+                           ".property{HEALTH_AVG_LATENCY_4_us=(HEALTH_AVG_LATENCY_3_us)}"                             \
+                           ".property{HEALTH_AVG_LATENCY_3_us=(HEALTH_AVG_LATENCY_2_us)}"                             \
+                           ".property{HEALTH_AVG_LATENCY_2_us=(HEALTH_AVG_LATENCY_1_us)}"                             \
+                           ".property{HEALTH_AVG_LATENCY_1_us=(HEALTH_AVG_LATENCY_0_us)}"                             \
                            ".property(HEALTH_AVG_LATENCY_0,0)"                                                      \
-                           ".property{HEALTH_AVG_used_memory_4=HEALTH_AVG_used_memory_3}"                           \
-                           ".property{HEALTH_AVG_used_memory_3=HEALTH_AVG_used_memory_2}"                           \
-                           ".property{HEALTH_AVG_used_memory_2=HEALTH_AVG_used_memory_1}"                           \
-                           ".property{HEALTH_AVG_used_memory_1=HEALTH_AVG_used_memory_0}"                           \
+                           ".property{HEALTH_AVG_used_memory_4=(HEALTH_AVG_used_memory_3)}"                           \
+                           ".property{HEALTH_AVG_used_memory_3=(HEALTH_AVG_used_memory_2)}"                           \
+                           ".property{HEALTH_AVG_used_memory_2=(HEALTH_AVG_used_memory_1)}"                           \
+                           ".property{HEALTH_AVG_used_memory_1=(HEALTH_AVG_used_memory_0)}"                           \
                            ".property(HEALTH_AVG_used_memory_0,0)"                                                  \
-                           ".property{HEALTH_AVG_used_memory_peak_4=HEALTH_AVG_used_memory_peak_3}"                 \
-                           ".property{HEALTH_AVG_used_memory_peak_3=HEALTH_AVG_used_memory_peak_2}"                 \
-                           ".property{HEALTH_AVG_used_memory_peak_2=HEALTH_AVG_used_memory_peak_1}"                 \
-                           ".property{HEALTH_AVG_used_memory_peak_1=HEALTH_AVG_used_memory_peak_0}"                 \
+                           ".property{HEALTH_AVG_used_memory_peak_4=(HEALTH_AVG_used_memory_peak_3)}"                 \
+                           ".property{HEALTH_AVG_used_memory_peak_3=(HEALTH_AVG_used_memory_peak_2)}"                 \
+                           ".property{HEALTH_AVG_used_memory_peak_2=(HEALTH_AVG_used_memory_peak_1)}"                 \
+                           ".property{HEALTH_AVG_used_memory_peak_1=(HEALTH_AVG_used_memory_peak_0)}"                 \
                            ".property(HEALTH_AVG_used_memory_peak_0,0)"                                             \
                            ".property(HEALTH_AVG_maxmemory_0,0)"                                                    \
-                           ".property{'HEALTH_AVG_server_memory_available_4='HEALTH_AVG_server_memory_available_3}" \
-                           ".property{'HEALTH_AVG_server_memory_available_3='HEALTH_AVG_server_memory_available_2}" \
-                           ".property{'HEALTH_AVG_server_memory_available_2='HEALTH_AVG_server_memory_available_1}" \
-                           ".property{'HEALTH_AVG_server_memory_available_1='HEALTH_AVG_server_memory_available_0}" \
+                           ".property{'HEALTH_AVG_server_memory_available_4=('HEALTH_AVG_server_memory_available_3)}" \
+                           ".property{'HEALTH_AVG_server_memory_available_3=('HEALTH_AVG_server_memory_available_2)}" \
+                           ".property{'HEALTH_AVG_server_memory_available_2=('HEALTH_AVG_server_memory_available_1)}" \
+                           ".property{'HEALTH_AVG_server_memory_available_1=('HEALTH_AVG_server_memory_available_0)}" \
                            ".property(HEALTH_AVG_server_memory_available_0,0)"                                      \
-                           ".property{HEALTH_AVG_connected_clients_4=HEALTH_AVG_connected_clients_3}"               \
-                           ".property{HEALTH_AVG_connected_clients_3=HEALTH_AVG_connected_clients_2}"               \
-                           ".property{HEALTH_AVG_connected_clients_2=HEALTH_AVG_connected_clients_1}"               \
-                           ".property{HEALTH_AVG_connected_clients_1=HEALTH_AVG_connected_clients_0}"               \
+                           ".property{HEALTH_AVG_connected_clients_4=(HEALTH_AVG_connected_clients_3)}"               \
+                           ".property{HEALTH_AVG_connected_clients_3=(HEALTH_AVG_connected_clients_2)}"               \
+                           ".property{HEALTH_AVG_connected_clients_2=(HEALTH_AVG_connected_clients_1)}"               \
+                           ".property{HEALTH_AVG_connected_clients_1=(HEALTH_AVG_connected_clients_0)}"               \
                            ".property(HEALTH_AVG_connected_clients_0,0)"                                            \
-                           ".property{HEALTH_AVG_cluster_connections_4=HEALTH_AVG_cluster_connections_3}"           \
-                           ".property{HEALTH_AVG_cluster_connections_3=HEALTH_AVG_cluster_connections_2}"           \
-                           ".property{HEALTH_AVG_cluster_connections_2=HEALTH_AVG_cluster_connections_1}"           \
-                           ".property{HEALTH_AVG_cluster_connections_1=HEALTH_AVG_cluster_connections_0}"           \
+                           ".property{HEALTH_AVG_cluster_connections_4=(HEALTH_AVG_cluster_connections_3)}"           \
+                           ".property{HEALTH_AVG_cluster_connections_3=(HEALTH_AVG_cluster_connections_2)}"           \
+                           ".property{HEALTH_AVG_cluster_connections_2=(HEALTH_AVG_cluster_connections_1)}"           \
+                           ".property{HEALTH_AVG_cluster_connections_1=(HEALTH_AVG_cluster_connections_0)}"           \
                            ".property(HEALTH_AVG_cluster_connections_0,0)"                                          \
-                           ".property{HEALTH_AVG_blocked_clients_4=HEALTH_AVG_blocked_clients_3}"                   \
-                           ".property{HEALTH_AVG_blocked_clients_3=HEALTH_AVG_blocked_clients_2}"                   \
-                           ".property{HEALTH_AVG_blocked_clients_2=HEALTH_AVG_blocked_clients_1}"                   \
-                           ".property{HEALTH_AVG_blocked_clients_1=HEALTH_AVG_blocked_clients_0}"                   \
+                           ".property{HEALTH_AVG_blocked_clients_4=(HEALTH_AVG_blocked_clients_3)}"                   \
+                           ".property{HEALTH_AVG_blocked_clients_3=(HEALTH_AVG_blocked_clients_2)}"                   \
+                           ".property{HEALTH_AVG_blocked_clients_2=(HEALTH_AVG_blocked_clients_1)}"                   \
+                           ".property{HEALTH_AVG_blocked_clients_1=(HEALTH_AVG_blocked_clients_0)}"                   \
                            ".property(HEALTH_AVG_blocked_clients_0,0)"                                              \
-                           ".property{HEALTH_AVG_tracking_clients_4=HEALTH_AVG_tracking_clients_3}"                 \
-                           ".property{HEALTH_AVG_tracking_clients_3=HEALTH_AVG_tracking_clients_2}"                 \
-                           ".property{HEALTH_AVG_tracking_clients_2=HEALTH_AVG_tracking_clients_1}"                 \
-                           ".property{HEALTH_AVG_tracking_clients_1=HEALTH_AVG_tracking_clients_0}"                 \
+                           ".property{HEALTH_AVG_tracking_clients_4=(HEALTH_AVG_tracking_clients_3)}"                 \
+                           ".property{HEALTH_AVG_tracking_clients_3=(HEALTH_AVG_tracking_clients_2)}"                 \
+                           ".property{HEALTH_AVG_tracking_clients_2=(HEALTH_AVG_tracking_clients_1)}"                 \
+                           ".property{HEALTH_AVG_tracking_clients_1=(HEALTH_AVG_tracking_clients_0)}"                 \
                            ".property(HEALTH_AVG_tracking_clients_0,0)"                                             \
-                           ".property{HEALTH_AVG_clients_in_timeout_table_4=HEALTH_AVG_clients_in_timeout_table_3}" \
-                           ".property{HEALTH_AVG_clients_in_timeout_table_3=HEALTH_AVG_clients_in_timeout_table_2}" \
-                           ".property{HEALTH_AVG_clients_in_timeout_table_2=HEALTH_AVG_clients_in_timeout_table_1}" \
-                           ".property{HEALTH_AVG_clients_in_timeout_table_1=HEALTH_AVG_clients_in_timeout_table_0}" \
+                           ".property{HEALTH_AVG_clients_in_timeout_table_4=(HEALTH_AVG_clients_in_timeout_table_3)}" \
+                           ".property{HEALTH_AVG_clients_in_timeout_table_3=(HEALTH_AVG_clients_in_timeout_table_2)}" \
+                           ".property{HEALTH_AVG_clients_in_timeout_table_2=(HEALTH_AVG_clients_in_timeout_table_1)}" \
+                           ".property{HEALTH_AVG_clients_in_timeout_table_1=(HEALTH_AVG_clients_in_timeout_table_0)}" \
                            ".property(HEALTH_AVG_clients_in_timeout_table_0,0)"                                     \
-                           ".property{HEALTH_AVG_total_keys_4=HEALTH_AVG_total_keys_3}"                             \
-                           ".property{HEALTH_AVG_total_keys_3=HEALTH_AVG_total_keys_2}"                             \
-                           ".property{HEALTH_AVG_total_keys_2=HEALTH_AVG_total_keys_1}"                             \
-                           ".property{HEALTH_AVG_total_keys_1=HEALTH_AVG_total_keys_0}"                             \
+                           ".property{HEALTH_AVG_total_keys_4=(HEALTH_AVG_total_keys_3)}"                             \
+                           ".property{HEALTH_AVG_total_keys_3=(HEALTH_AVG_total_keys_2)}"                             \
+                           ".property{HEALTH_AVG_total_keys_2=(HEALTH_AVG_total_keys_1)}"                             \
+                           ".property{HEALTH_AVG_total_keys_1=(HEALTH_AVG_total_keys_0)}"                             \
                            ".property(HEALTH_AVG_total_keys_0,0)"                                                   \
-                           ".property{HEALTH_AVG_bytes_per_key_4=HEALTH_AVG_bytes_per_key_3}"                       \
-                           ".property{HEALTH_AVG_bytes_per_key_3=HEALTH_AVG_bytes_per_key_2}"                       \
-                           ".property{HEALTH_AVG_bytes_per_key_2=HEALTH_AVG_bytes_per_key_1}"                       \
-                           ".property{HEALTH_AVG_bytes_per_key_1=HEALTH_AVG_bytes_per_key_0}"                       \
-                           ".property(HEALTH_AVG_bytes_per_key_0,0)"
+                           ".property{HEALTH_AVG_bytes_per_key_4=(HEALTH_AVG_bytes_per_key_3)}"                       \
+                           ".property{HEALTH_AVG_bytes_per_key_3=(HEALTH_AVG_bytes_per_key_2)}"                       \
+                           ".property{HEALTH_AVG_bytes_per_key_2=(HEALTH_AVG_bytes_per_key_1)}"                       \
+                           ".property{HEALTH_AVG_bytes_per_key_1=(HEALTH_AVG_bytes_per_key_0)}"                       \
+                           ".property(HEALTH_AVG_bytes_per_key_0,0)"                       \
+                           "\""
 
 size_t CalcAverage(void *o, const char *field, long long tally, long long value)
 {
@@ -208,12 +217,14 @@ char *GetCurrentDateTimeAsString(char *buffer)
     return buffer;
 }
 
-void PostCommand(const char *cmd)
+void PostCommand(const char *cmdP)
 {
-    status_update_queue->Enqueue((void *)cmd);
-    printf("%s\n", cmd);
+    // status_update_queue->Enqueue((void *)cmd);
+    // printf("%s\n", cmd);
+        ExecuteLocal(cmdP, LOCAL_NO_RESPONSE);
 }
 
+timeval oneminute = {60,0};
 int queryInstance(RedisModuleCtx *ctx, redisContext *redis_node, char *sha1, const char *address, char *instance_key, void *)
 {
     int instance_state;
@@ -228,10 +239,13 @@ int queryInstance(RedisModuleCtx *ctx, redisContext *redis_node, char *sha1, con
     if (redis_node)
     {
         rxString cmd = rxStringFormat(UPDATE_SHIFT_STATS, sKey, shift_time, shift_time, GetCurrentDateTimeAsString(buffer));
-        printf("%s\n", cmd);
-        status_update_queue->Enqueue((void *)cmd);
-
+        // printf("%s\n", cmd);
+        // status_update_queue->Enqueue((void *)cmd);
+        ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
+        auto timeout_saved = redis_node->command_timeout;
+        redis_node->command_timeout = &oneminute;
         rcc = (redisReply *)redisCommand(redis_node, "mercator.instance.status");
+        redis_node->command_timeout = timeout_saved;
     }
     auto probe_stop = ustime();
     auto probe_latency = probe_stop - probe_start;
@@ -241,9 +255,11 @@ int queryInstance(RedisModuleCtx *ctx, redisContext *redis_node, char *sha1, con
 
     if (rcc == NULL)
     {
+        if(redis_node && redis_node->err != 0)
+            rxServerLog(rxLL_NOTICE, "For %s [%s|%s] error: %s", address, sha1, instance_key, redis_node->errstr);
         recover_instance(ctx, sha1, address);
         auto failure_tally = rxGetHashFieldAsLong(o, HEALTH_CHECKS_FAILED);
-        PostCommand(rxStringFormat(UPDATE_FAILURE_STATE, sKey, 1 + failure_tally, GetCurrentDateTimeAsString(buffer)));
+        PostCommand(rxStringFormat(UPDATE_FAILURE_STATE, sKey, shift_time, 1 + failure_tally, GetCurrentDateTimeAsString(buffer)));
         instance_state = C_ERR;
     }
     else
@@ -279,7 +295,7 @@ int queryInstance(RedisModuleCtx *ctx, redisContext *redis_node, char *sha1, con
         21) bytes_per_key
         22) (integer) 0
         */
-        if (rcc->type == REDIS_REPLY_ARRAY && rcc->len > 0)
+        if (rcc->type == REDIS_REPLY_ARRAY && rcc->elements > 0)
         {
 
             info.used_memory = CalcAverage(o, "HEALTH_AVG_used_memory_0", latency_tally, rcc->element[1]->integer);
@@ -297,6 +313,7 @@ int queryInstance(RedisModuleCtx *ctx, redisContext *redis_node, char *sha1, con
 
             rxString cmd = rxStringFormat(UPDATE_SUCCESS_STATE,
                                           sKey,
+                                          shift_time,
                                           success_tally + 1,
                                           latency_tally + 1,
                                           avg_probe_latency,
@@ -320,13 +337,16 @@ int queryInstance(RedisModuleCtx *ctx, redisContext *redis_node, char *sha1, con
     return instance_state;
 }
 
-#define UPDATE_CLUSTER_STATE "g:addv(%s__HEALTH, cluster_status}" \
-                             ".property(INSTANCES_OK_0,%lld)"     \
-                             ".property(INSTANCES_ERR_0,%lld)"
+#define UPDATE_CLUSTER_STATE "RXQUERY \""                                 \
+                             "g:addv('%s__HEALTH','cluster_status'}" \
+                             ".property(INSTANCES_OK_0,'%lld')"     \
+                             ".property(INSTANCES_ERR_0,'%lld')"    \
+                             "\""
 
-#define UPDATE_SHIFT_CLUSTER_STATE "g:v(%s__HEALTH}"                            \
-                                   ".WHERE{%lld - CHECK_SHIFT >= 900000}"       \
-                                   ".property(CHECK_SHIFT,%lld)"                \
+#define UPDATE_SHIFT_CLUSTER_STATE "RXQUERY \""                                 \
+                                   "g:v('%s__HEALTH'}"                          \
+                                   ".WHERE{'%lld' - CHECK_SHIFT >= 900000}"     \
+                                   ".property(CHECK_SHIFT,'%lld')"              \
                                    ".property{SHIFT_AT_1=SHIFT_AT_0}"           \
                                    ".property(SHIFT_AT_0,'%s')"                 \
                                    ".property{INSTANCES_OK_4=INSTANCES_OK_3}"   \
@@ -338,7 +358,8 @@ int queryInstance(RedisModuleCtx *ctx, redisContext *redis_node, char *sha1, con
                                    ".property{INSTANCES_ERR_3=INSTANCES_ERR_2}" \
                                    ".property{INSTANCES_ERR_2=INSTANCES_ERR_1}" \
                                    ".property{INSTANCES_ERR_1=INSTANCES_ERR_0}" \
-                                   ".property(INSTANCES_ERR_0,0)"
+                                   ".property(INSTANCES_ERR_0,0)"               \
+                                   "\""
 
 int clusterState(RedisModuleCtx *, redisContext *, char *sha1, const char *, char *, void *oCounters)
 {
@@ -356,18 +377,16 @@ int allClustersOperation(SimpleQueue *status_update_queue)
 
     RedisModuleCtx *ctx = NULL;
     rxString cluster_key = "__MERCATOR__CLUSTERS__";
-    int prefix_length = strlen(cluster_key);
     void *nodes = rxFindSetKey(0, cluster_key);
     if (!nodes)
         return 0;
-    //     return RedisModule_ReplyWithSimpleString(ctx, "cluster not found");
 
     void *si = NULL;
     rxString node;
     int64_t l;
     while (rxScanSetMembers(nodes, &si, (char **)&node, &l) != NULL)
     {
-        char *clusterId = (char *)node + prefix_length - 1;
+        const char *clusterId =  strrchr(node, '_') + 1;
         void *params[] = {(void *)node, (void *)status_update_queue};
         clusterOperation(ctx, clusterId, NULL, (clusterOperationProc *)queryInstance, params, (clusterOperationProc *)clusterState);
     }
@@ -382,43 +401,40 @@ int allClustersOperation(SimpleQueue *status_update_queue)
 
     return C_OK;
 }
-int query_requests_interval = 100;
-long long query_requests_cron = -1;
+// int query_requests_interval = 100;
+// long long query_requests_cron = -1;
 int must_stop = 0;
 
 /* Execute rxquery commands on the main thread */
-int execute_queries_timer_handler(struct aeEventLoop *, long long int, void *)
-{
-    if (must_stop == 1)
-        return -1;
+// int execute_queries_timer_handler(struct aeEventLoop *, long long int, void *)
+// {
+//     if (must_stop == 1)
+//         return -1;
 
-    void *update_request = status_update_queue->Dequeue();
-    while (update_request != NULL)
-    {
-        char controller[24];
-        snprintf(controller, sizeof(controller),  "0.0.0.0:%d", rxGetServerPort());
-        auto *local_node = RedisClientPool<struct client>::Acquire(controller, "_MONITOR", "ClusterStatistics");
-        auto *cmd = (const char *)update_request;
-        void *ot = rxCreateStringObject(cmd, strlen(cmd));
-        void *args2[] = {RXQUERY, ot};
-        rxAllocateClientArgs(local_node, args2, 2);
-        rxClientExecute(local_node, rxLookupCommand("RXQUERY"));
-        RedisClientPool<struct client>::Release(local_node, "ClusterStatistics");
-        status_complete_queue->Enqueue(update_request);
-        update_request = status_update_queue->Dequeue();
-    }
+//     void *update_request = status_update_queue->Dequeue();
+//     while (update_request != NULL)
+//     {
+//         char controller[24];
+//         snprintf(controller, sizeof(controller),  "0.0.0.0:%d", rxGetServerPort());
+//         auto *local_node = RedisClientPool<struct client>::Acquire(controller, "_MONITOR", "ClusterStatistics");
+//         auto *cmd = rxStringNew("RXQUERY");
+//         cmd = rxStringAppend(cmd, update_request, ' ');
+//         ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
+//         RedisClientPool<struct client>::Release(local_node, "ClusterStatistics");
+//         status_complete_queue->Enqueue(update_request);
+//         update_request = status_update_queue->Dequeue();
+//     }
 
-    return query_requests_interval;
-}
+//     return query_requests_interval;
+// }
 typedef void (*tThreadHandler)(aeEventLoop *, void *);
-static void *execClusterInstanceHealthCheckThread(void *ptr)
+static void *execClusterInstanceHealthCheckThread(void *)
 {
-    auto *status_update_queue = (SimpleQueue *)ptr;
-    auto *status_complete_queue = status_update_queue->response_queue;
+    // auto *status_update_queue = (SimpleQueue *)ptr;
+    // auto *status_complete_queue = status_update_queue->response_queue;
 
-    query_requests_interval = 100;
-    query_requests_cron = rxCreateTimeEvent(1, &execute_queries_timer_handler, NULL, (tThreadHandler)status_complete_queue);
-    // execute_queries_timer_handler(NULL, 0, NULL);
+    // query_requests_interval = 100;
+    // query_requests_cron = rxCreateTimeEvent(1, &execute_queries_timer_handler, NULL, (tThreadHandler)status_complete_queue);
 
     rxServerLog(rxLL_NOTICE, "InstanceHealthCheck started");
 

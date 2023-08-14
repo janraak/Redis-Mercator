@@ -29,6 +29,7 @@ void rxStringFree(rxString s);
 rxString rxStringTrim(rxString s, const char *cset);
 
 rxString rxStringFormat(const char *fmt, ...);
+rxString rxStringAppend(const char *current, const char *extra, char sep);
 
 rxString *rxStringSplitLen(const char *s, ssize_t len, const char *sep, int seplen, int *count);
 rxString *rxStringFreeSplitRes(rxString *tokens, int count);

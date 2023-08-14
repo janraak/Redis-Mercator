@@ -197,6 +197,32 @@ bool ParserToken::IsObjectExpression()
     return this->no_of_stack_entries_consumed == -1 && this->no_of_stack_entries_produced == -1;
 }
 
+bool ParserToken::IsNumber()
+{
+    auto c = this->Token();
+    auto first = isdigit(*c);
+    while (*c){
+        if(!isdigit(*c))
+            return false;
+        c++;
+    }
+    return first;
+}
+
+bool ParserToken::IsAllSpaces()
+{
+    auto c = this->Token();
+    if(!*c)
+        return true;
+    while (*c)
+    {
+        if(*c != ' ')
+            return false;
+        c++;
+    }
+    return true;
+}
+
 void ParserToken::TokenType(eTokenType tt)
 {
     this->token_type = tt;
@@ -315,6 +341,8 @@ bool ParserToken::IsVolatile()
 int ParserToken::AddOptions(int object_expression_treatment){
     int o = this->options;
     this->options |= object_expression_treatment;
+    if(object_expression_treatment == PARSER_OPTION_DELAY_OBJECT_EXPRESSION)
+        this->token_type = _expression;
     return o;
 }
 
@@ -328,14 +356,15 @@ bool ParserToken::Is(const char *aStr)
     const char *tok = this->Token();
     if (tok == NULL)
         return false;
-    while (*tok && *aStr)
-    {
-        if (toupper(*tok) != toupper(*aStr))
-            return false;
-        ++tok;
-        ++aStr;
-    }
-    return true;
+    return rxStringMatch(tok, aStr, 1);
+    // while (*tok && *aStr)
+    // {
+    //     if (toupper(*tok) != toupper(*aStr))
+    //         return false;
+    //     ++tok;
+    //     ++aStr;
+    // }
+    // return true;
 }
 
 bool Sjiboleth::ResetSyntax()

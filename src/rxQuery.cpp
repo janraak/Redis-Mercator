@@ -202,6 +202,7 @@ void executeQueryCommand(Sjiboleth *parser, const char *cmd, int fetch_rows, Red
     redisNodeInfo *index_config = rxIndexNode();
     redisNodeInfo *data_config = rxDataNode();
     auto *t = parser->Parse(cmd);
+    // t->show(NULL);
     if (parsedWithErrors(t))
     {
         writeParsedErrors(t, ctx);
@@ -307,12 +308,12 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     rxStringToUpper(cmd);
     int fetch_rows = strcmp(RX_GET, cmd) == 0 ? 1 : 0;
     rxString query = rxStringEmpty();
+    rxString sv_query;
     bool ranked = false;
     double ranked_lower_bound = -1; // std::numeric_limits<double>::min();
     double ranked_upper_bound = std::numeric_limits<double>::max();
     int dialect_skippy = 0;
     size_t arg_len;
-    char sep[2] = {0x00, 0x00};
     for (int j = 1; j < argc; ++j)
     {
         char *q = (char *)RedisModule_StringPtrLen(argv[j], &arg_len);
@@ -346,37 +347,55 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         }
         else
         {
-            query = rxStringFormat("%s%s%s", query, sep, q);
-            sep[0] = ' ';
+            query = rxStringAppend(query, q, ' ');
         }
+    }
+    if(strstr(query,"HEALTH_CHECK_SHIFT")){
+        printf("Special check: %s\n", query);
     }
     rxUNUSED(target_setname);
     Sjiboleth *parser;
+    sv_query = query;
     try
     {
+        while(*query == ' '){
+            ++query;
+        }
         int l = strlen(query);
+        char *tail = (char *)query + (l - 1);
+        while(*tail == ' '){
+            *tail = 0x00;
+            --l;
+            --tail;
+        }
         if ((query[0] == '\"' && query[l - 1] == '\"') || (query[0] == '\'' && query[l - 1] == '\''))
         {
             ((char *)query)[0] = ' ';
             ((char *)query)[l - 1] = 0x00;
             ++query;
         }
-        if (
-            rxStringMatchLen(query, 2, GREMLIN_PREFX, strlen(GREMLIN_PREFX), 1) ||
-            rxStringMatchLen(query, 2, GREMLIN_PREFIX_ALT, strlen(GREMLIN_PREFIX_ALT), 1))
+        // while(*query == ' ')
+        //     ++query;
+        const char *g = strstr(query, "g:");
+        if(g == NULL)
+            g = strstr(query, "G:");
+        if (g != NULL)
         {
             parser = GremlinDialect::Get("GremlinDialect");
-            dialect_skippy = strlen(GREMLIN_PREFX);
+            query = g + strlen(GREMLIN_PREFX);
+                rxServerLog(rxLL_NOTICE, "GREMLIN: %s", query);
+
             // ranked = false;
         }
-        else
+        else{
             parser = QueryDialect::Get("QueryDialect");
-
+                rxServerLog(rxLL_NOTICE, "QUERY: %s", query);
+        }
         list *errors = listCreate();
         executeQueryCommand(parser, (const char *)query + dialect_skippy, fetch_rows, ctx, errors, ranked, ranked_lower_bound, ranked_upper_bound);
         listRelease(errors);
         releaseParser(parser);
-        rxStringFree(query);
+        rxStringFree(sv_query);
         return REDISMODULE_OK;
     }
     catch (void *)

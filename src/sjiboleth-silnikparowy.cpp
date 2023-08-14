@@ -137,9 +137,11 @@ rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, vo
         {
         case _operand:
         case _literal:
-            if (data && rxGetObjectType(data) == rxOBJ_HASH
-            /*&& rxHashTypeExists(data, t->Token())*/)
-            {                
+            if (t->IsAllSpaces())
+                continue;
+            if (data && rxGetObjectType(data) == rxOBJ_HASH && !t->IsNumber()
+                /*&& rxHashTypeExists(data, t->Token())*/)
+            {
                 rxString propertyValue = rxGetHashField(data, t->Token());
                 if (propertyValue)
                     kd = FaBlok::Get(propertyValue, KeysetDescriptor_TYPE_SINGULAR);
@@ -151,6 +153,7 @@ rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, vo
             kd->IsValid();
             stack->Push(kd);
             break;
+        case _expression:
         case _operator:
             if (t->IsObjectExpression() 
             && ((t->Options() && PARSER_OPTION_DELAY_OBJECT_EXPRESSION) == PARSER_OPTION_DELAY_OBJECT_EXPRESSION))
@@ -189,6 +192,7 @@ end_of_loop:
     rax *rx = NULL;
     if (listLength(e->errors) > 0)
     {
+        e->show(NULL);
         error = rxStringEmpty();
         listNode *ln;
         listIter *li = listGetIterator(e->errors, AL_START_HEAD);

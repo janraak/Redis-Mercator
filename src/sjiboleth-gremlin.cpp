@@ -1581,7 +1581,24 @@ END_SJIBOLETH_HANDLER(executeGremlinComputeOnSinglePropertyValue)
     // this->RegisterSyntax("trend_base", 30, 2, 1, &calculateTrendBase);
     // this->RegisterSyntax("trend", 30, 2, 1, &calculateTrend);
 
-static bool calculateTrend(unsigned char *, size_t, void *data, void *privData)
+    typedef struct {
+    double boundary;
+    char *label;
+    } slope_range;
+
+    slope_range ranges[] = {
+        /*slope_range*/{-1.0, "Agressive Shrinking"},       // [indef .. -1] 
+        /*slope_range*/{-0.5, "Shrinking"},                 // [-1 .. -0.5]
+        /*slope_range*/{-0.25, "Steady Shrinking"},         // [-0.5 .. -0.25] 
+        /*slope_range*/{-0.1, "Agressive Shrink"},          // [-0.25 .. -0.1]
+        /*slope_range*/{-0.1, "Stable"},                    // [-0.1 .. 0.1]
+        /*slope_range*/{-0.25, "Steady Growth"}, 
+        /*slope_range*/{-0.5, "Growth"}, 
+        /*slope_range*/{-1.0, "Agressive Growth"} 
+    };
+
+    static bool
+    calculateTrend(unsigned char *, size_t, void *data, void *privData)
 {
     for_object_expressions_parameters params = ((operation_parameters *)privData)->for_object_expressions;
 
@@ -1639,9 +1656,19 @@ static bool calculateTrend(unsigned char *, size_t, void *data, void *privData)
         B1 = (sum_Y - B0 * sum_X) / n;
         fields->Stop();
 
+        slope_range *range = (slope_range *)&ranges;
+        int n_ranges = sizeof(ranges) / sizeof(slope_range);
+        while(n_ranges){
+            if(B0 <= range->boundary){
+                break;
+            }
+            ++range;
+            --n_ranges;
+        }
+
         auto *receptor = params.t->BracketResult();
         char buf[64];
-        snprintf(buf, sizeof(buf), "a=%0.3f b=%0.3f t=%0.3f t2=%0.3f 1/slope=%0.3f", B0, B1, atan(B0), atan2(B0, 1), 1 / B0);
+        snprintf(buf, sizeof(buf), "a=%0.3f b=%0.3f t=%0.3f t2=%0.3f 1/slope=%0.3f trend:%s", B0, B1, atan(B0), atan2(B0, 1), 1 / B0, range->label);
         if (r->value_type != KeysetDescriptor_TYPE_UNKNOWN)
         {
             rxHashTypeSet(data, (params.attr ? params.attr->AsSds() : (const char *)receptor->Operation()), buf, 0);
@@ -2255,7 +2282,7 @@ SJIBOLETH_HANDLER(executeGremlinLinkVertex)
             e->left = v;
         }
     }
-    if (e->left && e->right)
+    if (e->left != NULL && e->right != NULL)
         CommitEdge(stack, e);
     else
         PushResult(e, stack);
@@ -2523,13 +2550,17 @@ SJIBOLETH_HANDLER(executeGremlinAddProperty)
 
     FaBlok *pl = stack->Pop();
     FaBlok *input_set = stack->Pop();
+    if(input_set == 0){
+        stack->AddError("No input set");
+        return C_ERR;
+    }
     redisNodeInfo *data_config = rxDataNode();
 
     if (pl->IsParameterList())
     {
         if ((pl->parameter_list->Size() & 1) == 1)
         {
-            ERROR("Incorrect parameters for AddProperty, must be [<a>, <v>]...");
+            ERROR("Incorrect parameter list for AddProperty, must be [<a>, <v>]...");
         }
 
         FaBlok *a = pl->parameter_list->Dequeue();
@@ -2575,6 +2606,8 @@ SJIBOLETH_HANDLER(executeGremlinAddProperty)
     }
     else
     {
+        rxServerLog(rxLL_NOTICE, "parameter list: %s %x\ninput_set: %s %d entries", pl->setname, pl->parameter_list, input_set->setname, raxSize(input_set->keyset));
+        raxShow(input_set->keyset);
         ERROR("Incorrect parameters for AddProperty, must be [<a>, <v>]...");
     }
 }
@@ -2732,6 +2765,11 @@ SJIBOLETH_HANDLER(executeResetStack)
 }
 END_SJIBOLETH_HANDLER(executeResetStack)
 
+SJIBOLETH_HANDLER(debugBreak)
+{
+    rxServerLog(rxLL_NOTICE, "----- BREAKPOINT ---- %d stackentries", stack->Size());
+}
+END_SJIBOLETH_HANDLER(debugBreak)
 GremlinDialect::GremlinDialect()
     : Sjiboleth("GremlinDialect")
 {
@@ -2865,6 +2903,7 @@ bool GremlinDialect::RegisterDefaultSyntax()
     this->RegisterSyntax("{", 50, -1, -1, NULL);
     this->RegisterSyntax("}", 50, -1, -1, &executeObjectExpression);
     this->RegisterSyntax("reset", 50, -1, -1, &executeResetStack);
+    this->RegisterSyntax("break", 50, -1, -1, &debugBreak);
     return true;
 }
 
@@ -2926,6 +2965,8 @@ FaBlok *getAllKeysByField(int dbNo, const char *regex, int on_matched, rxString 
     allkeys = strcmp(pattern, "*") == 0;
     while ((obj = rxScanKeys(dbNo, &iter, (char **)&key)) != NULL)
     {
+        if(rxGetObjectType(obj) != rxOBJ_HASH)
+            continue;
         if (*key == '^')
             continue;
 

@@ -10,7 +10,7 @@ import json
 import subprocess
 import pdb
 
-def which_modules_has_been_load(redis_client):
+def which_modules_has_been_loaded(redis_client):
     module_tags = {}
     data = redis_client.execute_command("MODULE LIST")
     print(data)
@@ -88,7 +88,7 @@ segments = info["executable"].split('/')
 path = '/'.join(segments[0:len(segments)-2])
 
 if role == 'data':
-    module_config = which_modules_has_been_load(redis_client)
+    module_config = which_modules_has_been_loaded(redis_client)
     if not "rxMercator" in module_config:
         redis_client.execute_command("MODULE LOAD {}/extensions/src/rxMercator.so CLIENT".format(path))
         print("rxMercator loaded")
@@ -131,15 +131,23 @@ if role == 'data':
     # redis_client.execute_command("ACL SETUSER {} +@stream".format(cid))
     # redis_client.execute_command("ACL SETUSER {} +@pubsub".format(cid))
     # redis_client.execute_command("ACL SETUSER {} +@transaction".format(cid))
-elif role == 'master':
-    module_config = which_modules_has_been_load(redis_client)
+elif role == 'master' or role == 'controller':
+    module_config = which_modules_has_been_loaded(redis_client)
     if not "rxQuery" in module_config:
-        redis_client.execute_command("MODULE LOAD {}/extensions/src/rxQuery.so DEFAULT_OPERATOR &".format(path, ihost, iport, host, port))
+        print("MODULE LOAD {}/extensions/src/rxQuery.so".format(path))
+        redis_client.execute_command("MODULE LOAD {}/extensions/src/rxQuery.so".format(path))
         print("rxQuery loaded")
     else:
         print("rxQuery already loaded")
+    if not "rxRule" in module_config:
+        print("MODULE LOAD {}/extensions/src/rxRule.so ".format(path))
+        redis_client.execute_command("MODULE LOAD {}/extensions/src/rxRule.so ".format(path))
+        print("rxRule loaded")
+    else:
+        print("rxRule already loaded")
     if not "rxMercator" in module_config:
-        redis_client.execute_command("MODULE LOAD {}/extensions/src/rxMercator.so".format(wd))
+        print("MODULE LOAD {}/extensions/src/rxMercator.so".format(path))
+        redis_client.execute_command("MODULE LOAD {}/extensions/src/rxMercator.so".format(path))
         print("rxMercator loaded")
     else:
         print("rxMercator already loaded")
@@ -151,7 +159,7 @@ elif role == 'master':
 else:
     print(wd)
     print("MODULE LOAD {}/extensions/src/rxMercator.so CLIENT".format(path))
-    module_config = which_modules_has_been_load(redis_client)
+    module_config = which_modules_has_been_loaded(redis_client)
     if not "rxMercator" in module_config:
         redis_client.execute_command("MODULE LOAD {}/extensions/src/rxMercator.so CLIENT".format(path))
         print("rxMercator loaded")

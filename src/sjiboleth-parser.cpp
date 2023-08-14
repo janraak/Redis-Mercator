@@ -89,13 +89,14 @@ ParsedExpression *Sjiboleth::Parse(const char *query)
         char *tail;
         while (IsSpace(*head))
             head++;
-
+        if (!*head)
+            break;
         ParserToken *token = NULL;
         newHead = NULL;
         if (*head == '"' || *head == '\'')
         {
             token = ScanLiteral(head, &tail);
-            head = tail + 1;
+            head = tail + 1; // consume closing token!!
             expression->stashToken(this, token, last_token);
         }
         else if (IsNumber(head))
@@ -106,6 +107,9 @@ ParsedExpression *Sjiboleth::Parse(const char *query)
         }
         else if (IsOperator(*head))
         {
+            if(rxStringMatchLen("OBJECT", 6, head, 6, 1))
+                rxServerLogRaw(rxLL_NOTICE, "object");
+
             token = ScanOperator(head, &tail);
             if (token != NULL && token->HasParserContextProc())
             {
@@ -190,12 +194,15 @@ ParsedExpression *Sjiboleth::Parse(const char *query)
                                 auto tmp = generate_uuid();
                                 token->BracketResult(ParserToken::New(_literal, tmp.c_str(), strlen(tmp.c_str()), PARSER_OPTION_NONE));
                             }
-                            if(expression->Bracket()){
-                            expression = expression->Bracket();
-                            expression->emitFinal(token);
-                            token->AddOptions(object_expression_treatment);
-                            }else{
-                            printf("Odd!\n");
+                            if (expression->Bracket())
+                            {
+                                expression = expression->Bracket();
+                                expression->emitFinal(token);
+                                token->AddOptions(object_expression_treatment);
+                            }
+                            else
+                            {
+                                printf("Odd!\n");
                             }
                         }
                         if (expression->sideTrackLength() == object_expression_treatment_level)
@@ -305,10 +312,18 @@ void ParsedExpression::Write(RedisModuleCtx *ctx)
             RedisModule_ReplyWithSimpleString(ctx, t->Token());
     }
 }
-
+const char *tokenTypeLabels[] = {   "?", "_operand",
+    "_literal",
+    "_operator",
+    "_open_bracket",
+    "_close_bracket",
+    "_key_set",
+    "_immediate_operator",
+    "_expression"
+};
 void ParsedExpression::show(const char *query)
 {
-    return;
+    // return;
     // if (p->show_debug_info)
     // {
     rxServerLog(rxLL_NOTICE, "expression: %d entries\n", this->expression->Size());
@@ -317,13 +332,16 @@ void ParsedExpression::show(const char *query)
     // listRelease(side_track);
     // if (p->show_debug_info)
     // {
-    rxServerLog(rxLL_NOTICE, "parsed: %s %d tokens\n", query, this->expression->Size());
+    if (query)
+        rxServerLog(rxLL_NOTICE, "parsed: %s %d tokens\n", query, this->expression->Size());
+    else
+        rxServerLog(rxLL_NOTICE, "parsed:  %d tokens\n", this->expression->Size());
     this->expression->StartHead();
     ParserToken *t;
     int j = 0;
     while ((t = this->expression->Next()) != NULL)
     {
-        rxServerLog(rxLL_NOTICE, "Parse: %d %d %s\n", j, t->TokenType(), t->Token());
+        rxServerLog(rxLL_NOTICE, "Parse: %d t:%d %s l:%d %s\n", j, t->TokenType(), tokenTypeLabels[t->TokenType()], strlen(t->Token()), t->Token());
         ++j;
     }
     // }
@@ -852,6 +870,7 @@ int ParsedExpression::writeErrors(RedisModuleCtx *ctx)
     listNode *ln;
     while ((ln = listNext(li)) != NULL)
     {
+        rxServerLogRaw(rxLL_NOTICE, (char *)ln->value);
         RedisModule_ReplyWithSimpleString(ctx, (char *)ln->value);
     }
     listReleaseIterator(li);

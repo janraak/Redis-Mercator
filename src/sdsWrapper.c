@@ -78,6 +78,13 @@ rxString rxStringFormat(const char *fmt, ...)
     return t;
 }
 
+rxString rxStringAppend(const char *current, const char *extra, char sep)
+{
+    rxString *new = rxStringFormat("%s%c%s", current, sep, extra);
+    rxStringFree(current);
+    return new;
+}
+
 rxString rxStringTrim(rxString s, const char *cset)
 {
     return sdstrim((sds)s, cset);

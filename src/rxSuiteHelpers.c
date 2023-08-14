@@ -212,6 +212,8 @@ void *rxScanSetMembers(void *obj, void **siO, char **member, int64_t *member_len
 
 rxString rxRandomSetMember(void *set)
 {
+    if(!set)
+        return NULL;
     rxString ele;
     int64_t llele;
     int encoding;
@@ -342,6 +344,13 @@ rxString rxGetHashField(void *oO, const char *f)
         rxStringFree(field);
         return rxStringEmpty();
     }
+    if (((robj *)o)->type != rxOBJ_HASH){
+        rxServerLog(rxLL_WARNING, "%s is not a hash key", f);
+        return NULL;
+    }
+    int zzz = hashTypeExists(o, field);
+    if (!hashTypeExists(o, field))
+        return NULL;
 
     if (o->encoding == HASHTYPE_PACKED)
     {
@@ -841,7 +850,7 @@ int compareEquals(const char *l, int ll, const char *r)
         return v == t;
     }
     else
-        return strncmp(l, r, ll) == 0;
+        return strcmp(l, r) != 0;
 }
 
 int compareGreaterEquals(const char *l, int ll, const char *r)
@@ -853,7 +862,7 @@ int compareGreaterEquals(const char *l, int ll, const char *r)
         return v >= t;
     }
     else
-        return strncmp(l, r, ll) >= 0;
+        return strcmp(l, r) >= 0;
 }
 
 int compareGreater(const char *l, int ll, const char *r)
@@ -865,7 +874,7 @@ int compareGreater(const char *l, int ll, const char *r)
         return v > t;
     }
     else
-        return strncmp(l, r, ll) > 0;
+        return strcmp(l, r) > 0;
 }
 
 int compareLessEquals(const char *l, int ll, const char *r)
@@ -877,7 +886,7 @@ int compareLessEquals(const char *l, int ll, const char *r)
         return v <= t;
     }
     else
-        return strncmp(l, r, ll) <= 0;
+        return strcmp(l, r) <= 0;
 }
 
 int compareLess(const char *l, int ll, const char *r)
@@ -889,7 +898,7 @@ int compareLess(const char *l, int ll, const char *r)
         return v < t;
     }
     else
-        return strncmp(l, r, ll) < 0;
+        return strcmp(l, r) < 0;
 }
 
 int compareNotEquals(const char *l, int ll, const char *r)
@@ -901,7 +910,7 @@ int compareNotEquals(const char *l, int ll, const char *r)
         return v != t;
     }
     else
-        return strncmp(l, r, ll) != 0;
+        return strcmp(l, r) == 0;
 }
 
 // TODO: Float arithmetic

@@ -82,7 +82,8 @@ public:
     void TokenType(eTokenType tt);
 
     bool IsObjectExpression();
-
+    bool IsNumber();
+    bool IsAllSpaces();
     const char *Token();
     const char *TokenAsSds();
     bool Is(const char *aStr);
