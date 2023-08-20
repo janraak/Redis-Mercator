@@ -374,8 +374,7 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
             ((char *)query)[l - 1] = 0x00;
             ++query;
         }
-        // while(*query == ' ')
-        //     ++query;
+
         const char *g = strstr(query, "g:");
         if(g == NULL)
             g = strstr(query, "G:");
@@ -383,13 +382,9 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         {
             parser = GremlinDialect::Get("GremlinDialect");
             query = g + strlen(GREMLIN_PREFX);
-                rxServerLog(rxLL_NOTICE, "GREMLIN: %s", query);
-
-            // ranked = false;
         }
         else{
             parser = QueryDialect::Get("QueryDialect");
-                rxServerLog(rxLL_NOTICE, "QUERY: %s", query);
         }
         list *errors = listCreate();
         executeQueryCommand(parser, (const char *)query + dialect_skippy, fetch_rows, ctx, errors, ranked, ranked_lower_bound, ranked_upper_bound);

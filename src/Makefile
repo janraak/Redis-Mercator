@@ -93,6 +93,8 @@ SHOBJ_CFLAGS+= -Wno-pointer-arith
 
 DEBUG += -g -ggdb -fpermissive 
 
+OPT?=-O0
+
 all: sdsWrapper.xo indexIntercepts.xo rxSuite.xo  rxSuiteHelpers.xo rxIndexer.so rxQuery.so rxIndexStore.so rxMercator.so rxRule.xo  rxRule.so sjiboleth.so rxGraphdb.so 
 
 .c.xo: 

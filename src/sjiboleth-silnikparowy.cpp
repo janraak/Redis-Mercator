@@ -146,7 +146,7 @@ rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, vo
                 if (propertyValue)
                     kd = FaBlok::Get(propertyValue, KeysetDescriptor_TYPE_SINGULAR);
                 else
-                    kd = FaBlok::Get(t->Token(), KeysetDescriptor_TYPE_UNKNOWN);
+                    kd = FaBlok::Get((isdigit(t->Operation()[0] || t->TokenType() == _operand) ? "0" : t->Token()), KeysetDescriptor_TYPE_UNKNOWN);
             }
             else
                 kd = FaBlok::Get(t->Token(), KeysetDescriptor_TYPE_SINGULAR);

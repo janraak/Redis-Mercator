@@ -110,6 +110,30 @@ redisContext *RedisClientPool<redisContext>::NewInstance()
 }
 
 template <>
+redisAsyncContext *RedisClientPool<redisAsyncContext>::NewInstance()
+{
+    auto *c = redisAsyncConnect(this->host, this->port);
+    if (c == NULL || c->err)
+    {
+        if (c)
+        {
+            rxString e = rxStringFormat("Connection error: %s\n", c->errstr);
+            redisAsyncFree(c);
+            rxStringFree(e);
+            return NULL;
+        }
+        else
+        {
+            rxString e = rxStringFormat("Connection error: can't allocate lzf context\n");
+            rxStringFree(e);
+            return NULL;
+        }
+        return NULL;
+    }
+    return c;
+}
+
+template <>
 struct client *RedisClientPool<struct client>::NewInstance()
 {
     return (struct client *)rxCreateAOFClient();
@@ -190,4 +214,6 @@ rax *RedisClientPool<T>::Lookup = raxNew();
 template class RedisClientPool<redisContext>;
 // template class RedisClientPool<void>;
 template class RedisClientPool<struct client>;
+
+template class RedisClientPool<redisAsyncContext>;
 

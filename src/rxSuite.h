@@ -55,6 +55,7 @@ typedef struct
     const char *cdnRootUrl;
     const char *startScript;
     const char *installScript;
+    const char *ssh_identity;
     CSimpleQueue *cron_command_request_queue;
 } rxSuiteShared;
 

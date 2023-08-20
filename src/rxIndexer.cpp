@@ -228,8 +228,6 @@ int rxrule_timer_handler(struct aeEventLoop *, long long int, void *)
     void *index_request = index_info.index_rxRuleApply_request_queue->Dequeue();
     while (index_request != NULL)
     {
-        // rxServerLogHexDump(rxLL_NOTICE, index_request, 128/*rxMemAllocSize(index_request)*/, "rxrule_timer_handler %s %p DEQUEUE", index_info.index_rxRuleApply_request_queue->name, index_request);
-
         ExecuteRedisCommand(index_info.index_rxRuleApply_respone_queue, index_request, index_config->host_reference);
         index_request = index_info.index_rxRuleApply_request_queue->Dequeue();
     }
@@ -245,7 +243,6 @@ static int indexingHandler(int, void *stash, redisNodeInfo *index_config, SilNik
     rxString command = (rxString)rxGetContainedObject(argv[0]);
     if (command == NULL)
     {
-        // rxServerLogHexDump(rxLL_NOTICE, index_request, 128/*rxMemAllocSize(index_request)*/, "freeCompletedRedisRequests %s %p DEQUEUE", index_info.index_update_respone_queue->name, index_request);
         return C_ERR;
     }
     rxString key = (rxString)rxGetContainedObject(argv[1]);
@@ -325,25 +322,12 @@ void freeCompletedRedisRequests()
     index_request = index_info.index_update_respone_queue->Dequeue();
     while (index_request != NULL)
     {
-        // rxServerLogHexDump(rxLL_NOTICE, index_request, 128/*rxMemAllocSize(index_request)*/, "freeCompletedRedisRequests %s %p DEQUEUE", index_info.index_update_respone_queue->name, index_request);
-
         GET_ARGUMENTS_FROM_STASH(index_request);
         rxUNUSED(argv);
         if (argc > 1)
         {
             rxString key = (rxString)rxGetContainedObject(argv[1]);
             rxStashCommand(index_info.index_rxRuleApply_request_queue, "RULE.APPLY", 1, key);
-            // auto *sdsv = (void **)(index_request + (argc + 3) * sizeof(void *));
-            // // TODO : refactor next
-            // sdsv = sdsv + 16;
-            // // rxString key = (rxString)rxGetContainedObject(argv[1]);
-            // char *key = (char *)sdsv;
-            // if (freeCompletedRedisRequests_last_key == NULL || strcmp(freeCompletedRedisRequests_last_key, key) != 0)
-            // {
-            //     auto *stash = rxStashCommand(index_info.index_rxRuleApply_request_queue, "RULE.APPLY", 1, key);
-            //     ExecuteRedisCommand(NULL, stash, rxDataNode()->host_reference);
-            //     freeCompletedRedisRequests_last_key = key;
-            // }
         }
 
         FreeStash(index_request);
@@ -354,8 +338,6 @@ void freeCompletedRedisRequests()
         index_request = index_info.index_rxRuleApply_respone_queue->Dequeue();
         while (index_request != NULL)
         {
-            // rxServerLogHexDump(rxLL_NOTICE, index_request, 128/*rxMemAllocSize(index_request)*/, "freeCompletedRedisRequests %s %p DEQUEUE", index_info.index_rxRuleApply_respone_queue->name, index_request);
-            // FreeStash(index_request);
             index_request = index_info.index_rxRuleApply_respone_queue->Dequeue();
         }
     }
@@ -764,8 +746,6 @@ static void *execUpdateRedisThread(void *ptr)
             index_info.start_batch_ms = mstime();
             while (index_request != NULL)
             {
-                // rxServerLogHexDump(rxLL_NOTICE, index_request, 128/*rxMemAllocSize(index_request)*/, "execUpdateRedisThread %s %p DEQUEUE", redis_queue->name, index_request);
-
                 GET_ARGUMENTS_FROM_STASH(index_request);
                 if (argc < 1)
                 {

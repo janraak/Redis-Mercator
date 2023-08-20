@@ -107,14 +107,12 @@ void *RXQUERY = rxCreateStringObject(RXQUERY_cmd, strlen(RXQUERY_cmd));
 
 #define UPDATE_FAILURE_STATE "RXQUERY \""                                                                                     \
                              "g:addv('%s',status)"                      \
-                           ".property{HEALTH_CHECK_SHIFT='%lld'}"                                                     \
                              ".property('HEALTH_CHECKS_FAILED','%lld')" \
                              ".property('HEALTH_CHECKS_RESTART','%s')"\
                              "\""
 
 #define UPDATE_SUCCESS_STATE "RXQUERY \""                                                                                     \
                              "g:addv('%s',status)"                                     \
-                           ".property{HEALTH_CHECK_SHIFT='%lld'}"                                                     \
                              ".property(HEALTH_CHECKS_SUCCESS,'%lld')"                 \
                              ".property(HEALTH_TALLY,'%lld')"                          \
                              ".property(HEALTH_AVG_LATENCY_0_us,'%lf')"                 \
@@ -259,7 +257,7 @@ int queryInstance(RedisModuleCtx *ctx, redisContext *redis_node, char *sha1, con
             rxServerLog(rxLL_NOTICE, "For %s [%s|%s] error: %s", address, sha1, instance_key, redis_node->errstr);
         recover_instance(ctx, sha1, address);
         auto failure_tally = rxGetHashFieldAsLong(o, HEALTH_CHECKS_FAILED);
-        PostCommand(rxStringFormat(UPDATE_FAILURE_STATE, sKey, shift_time, 1 + failure_tally, GetCurrentDateTimeAsString(buffer)));
+        PostCommand(rxStringFormat(UPDATE_FAILURE_STATE, sKey, 1 + failure_tally, GetCurrentDateTimeAsString(buffer)));
         instance_state = C_ERR;
     }
     else
@@ -313,7 +311,6 @@ int queryInstance(RedisModuleCtx *ctx, redisContext *redis_node, char *sha1, con
 
             rxString cmd = rxStringFormat(UPDATE_SUCCESS_STATE,
                                           sKey,
-                                          shift_time,
                                           success_tally + 1,
                                           latency_tally + 1,
                                           avg_probe_latency,

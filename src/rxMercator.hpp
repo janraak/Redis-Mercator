@@ -39,27 +39,22 @@ extern const char *START_ARG;
 extern void *RXQUERY;
 
 #define UPDATE_CLUSTER__STATE "RXQUERY \"g:v('%s')"                    \
-                           ".property{HEALTH_CHECK_SHIFT='%lld'}"                                                     \
                               ".property('STATUS','%s')" \
                               ".property('LAST_%s','%s')\""
 
 #define UPDATE_CLUSTER__STATE_CREATED "RXQUERY \"g:v('%s')"                    \
-                           ".property{HEALTH_CHECK_SHIFT='%lld'}"                                                     \
                               ".property('STATUS','CREATED')" \
                               ".property('LAST_CREATED','%s')\""
 
 #define UPDATE_CLUSTER__STATE_STARTED  "RXQUERY \"g:v('%s')"                    \
-                           ".property{HEALTH_CHECK_SHIFT='%lld'}"                                                     \
                               ".property('STATUS','STARTED')" \
                               ".property('LAST_STARTED','%s')\""
 
 #define UPDATE_CLUSTER__STATE_STOPPED  "RXQUERY \"g:v('%s')"                    \
-                           ".property{HEALTH_CHECK_SHIFT='%lld'}"                                                     \
                               ".property('STATUS','STOPPED')" \
                               ".property('LAST_STOPPED','%s')\""
 
 #define UPDATE_INSTANCE_START "RXQUERY \"g:addv('%s__HEALTH',status)"                    \
-                           ".property{HEALTH_CHECK_SHIFT='%lld'}"                                                     \
                               ".property{INSTANCE_START_4=INSTANCE_START_3}" \
                               ".property{INSTANCE_START_3=INSTANCE_START_2}" \
                               ".property{INSTANCE_START_2=INSTANCE_START_1}" \

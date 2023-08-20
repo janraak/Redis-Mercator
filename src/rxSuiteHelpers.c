@@ -509,6 +509,8 @@ void rxFreeObject(void *o)
 
 void *rxGetContainedObject(void *o)
 {
+    if(!o)
+        return NULL;
     robj *ro = (robj *)o;
     return ro->ptr;
 }
@@ -841,7 +843,7 @@ int rxIsAddrBound(char *addr, int port)
     return 0;
 }
 
-int compareEquals(const char *l, int ll, const char *r)
+int compareEquals(const char *l, int , const char *r)
 {
     if (isdigit(*l) || isdigit(*r))
     {
@@ -853,7 +855,7 @@ int compareEquals(const char *l, int ll, const char *r)
         return strcmp(l, r) != 0;
 }
 
-int compareGreaterEquals(const char *l, int ll, const char *r)
+int compareGreaterEquals(const char *l, int , const char *r)
 {
     if (isdigit(*l) || isdigit(*r))
     {
@@ -865,7 +867,7 @@ int compareGreaterEquals(const char *l, int ll, const char *r)
         return strcmp(l, r) >= 0;
 }
 
-int compareGreater(const char *l, int ll, const char *r)
+int compareGreater(const char *l, int , const char *r)
 {
     if (isdigit(*l) || isdigit(*r))
     {
@@ -877,7 +879,7 @@ int compareGreater(const char *l, int ll, const char *r)
         return strcmp(l, r) > 0;
 }
 
-int compareLessEquals(const char *l, int ll, const char *r)
+int compareLessEquals(const char *l, int , const char *r)
 {
     if (isdigit(*l) || isdigit(*r))
     {
@@ -889,7 +891,7 @@ int compareLessEquals(const char *l, int ll, const char *r)
         return strcmp(l, r) <= 0;
 }
 
-int compareLess(const char *l, int ll, const char *r)
+int compareLess(const char *l, int , const char *r)
 {
     if (isdigit(*l) || isdigit(*r))
     {
@@ -901,7 +903,7 @@ int compareLess(const char *l, int ll, const char *r)
         return strcmp(l, r) < 0;
 }
 
-int compareNotEquals(const char *l, int ll, const char *r)
+int compareNotEquals(const char *l, int , const char *r)
 {
     if (isdigit(*l) || isdigit(*r))
     {
@@ -915,7 +917,7 @@ int compareNotEquals(const char *l, int ll, const char *r)
 
 // TODO: Float arithmetic
 
-double computeAdd(const char *l, int ll, const char *r)
+double computeAdd(const char *l, int , const char *r)
 {
     if (isdigit(*l) || isdigit(*r))
     {
@@ -927,7 +929,7 @@ double computeAdd(const char *l, int ll, const char *r)
         return 0;
 }
 
-double computeSubtract(const char *l, int ll, const char *r)
+double computeSubtract(const char *l, int , const char *r)
 {
     if (isdigit(*l) || isdigit(*r))
     {
@@ -939,7 +941,7 @@ double computeSubtract(const char *l, int ll, const char *r)
         return 0;
 }
 
-double computeMultiply(const char *l, int ll, const char *r)
+double computeMultiply(const char *l, int , const char *r)
 {
     if (isdigit(*l) || isdigit(*r))
     {
@@ -951,7 +953,7 @@ double computeMultiply(const char *l, int ll, const char *r)
         return 0;
 }
 
-double computeDivide(const char *l, int ll, const char *r)
+double computeDivide(const char *l, int , const char *r)
 {
     if (isdigit(*l) || isdigit(*r))
     {
@@ -963,7 +965,7 @@ double computeDivide(const char *l, int ll, const char *r)
         return 0;
 }
 
-double computeModulus(const char *l, int ll, const char *r)
+double computeModulus(const char *, int , const char *)
 {
     // if (isdigit(*l) || isdigit(*r))
     // {
@@ -975,7 +977,7 @@ double computeModulus(const char *l, int ll, const char *r)
     return 0;
 }
 
-double computePower(const char *l, int ll, const char *r)
+double computePower(const char *l, int , const char *r)
 {
     if (isdigit(*l) || isdigit(*r))
     {

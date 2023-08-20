@@ -11,6 +11,8 @@ extern "C"
 
 #include "rax.h"
 #include "../../deps/hiredis/hiredis.h"
+#include "../../deps/hiredis/async.h"
+
 #include "rxSuiteHelpers.h"
 #ifdef __cplusplus
 }
