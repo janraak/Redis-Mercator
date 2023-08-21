@@ -201,12 +201,22 @@ void *rxScanSetMembers(void *obj, void **siO, char **member, int64_t *member_len
     {
         *si = setTypeInitIterator(obj);
     }
+#if REDIS_VERSION_NUM < 0x00070200
     if (setTypeNext(*si, member, member_len) == -1)
     {
         setTypeReleaseIterator(*si);
         *si = NULL;
         return NULL;
     }
+#else
+    int64_t llele;
+    if (setTypeNext(*si, member, member_len, &llele) == -1)
+    {
+        setTypeReleaseIterator(*si);
+        *si = NULL;
+        return NULL;
+    }
+#endif
     return *member;
 }
 
@@ -217,8 +227,14 @@ rxString rxRandomSetMember(void *set)
     rxString ele;
     int64_t llele;
     int encoding;
-
+#if REDIS_VERSION_NUM < 0x00070200
     encoding = setTypeRandomElement(set, (sds *)&ele, &llele);
+#else
+    size_t sz;
+    char *e;
+    encoding = setTypeRandomElement(set, &e, &sz, &llele);
+    ele = rxStringNewLen(e, sz);
+#endif
     if (encoding == OBJ_ENCODING_INTSET)
     {
         ele = rxStringFormat("%lld", llele);
@@ -233,10 +249,20 @@ rax *rxSetToRax(void *obj)
     int64_t member_len;
     setTypeIterator *si = setTypeInitIterator(obj);
 
+#if REDIS_VERSION_NUM < 0x00070200
     while (setTypeNext(si, (sds *)&member, &member_len) != -1)
     {
         raxInsert(r, (unsigned char *)member, strlen(member), NULL, NULL);
     }
+#else
+    size_t sz;
+    char *m;
+    int64_t llele;
+    while (setTypeNext(si, &m, &sz, &llele) != -1)
+    {
+        raxInsert(r, (unsigned char *)member, strlen(member), NULL, NULL);
+    }
+#endif
     setTypeReleaseIterator(si);
     return r;
 }
