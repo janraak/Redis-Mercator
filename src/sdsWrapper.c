@@ -16,6 +16,7 @@
 #include <rax.h>
 #define REDISMODULE_EXPERIMENTAL_API
 #include "../../src/redismodule.h"
+#include "rxSessionMemory.hpp"
 
 extern void serverLogHexDump(int level, char *descr, void *value, size_t len);
 
@@ -227,7 +228,7 @@ void *rxMemAlloc(size_t size)
     return ptr;
 }
 
-extern void rxMemFreeSession(void *ptr);
+// extern void rxMemFreeSession(void *ptr);
 
 void rxMemFree(void *ptr)
 {
