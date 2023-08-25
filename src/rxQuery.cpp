@@ -15,6 +15,7 @@ using std::string;
 extern "C"
 {
 #endif
+#include "rxSessionMemory.hpp"
 #include "sdsWrapper.h"
 #include <string.h>
 #include <sys/stat.h>

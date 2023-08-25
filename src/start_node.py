@@ -55,8 +55,8 @@ base_fn = "{}.{}".format(host, port)
 print("wd: {}".format(wd))
 
 start0 = ''
-if node_is_local < 0:
-    start0 = "ssh {} ".format(host)
+# if node_is_local < 0:
+#     start0 = "ssh {} ".format(host)
 
 # os.system("{}rm {}/{}  {}/{} ".format(start0, home, start_script, home, install_script))
 os.system("{}wget  --timestamping  -O {}/{} {}/{}".format(start0, home, start_script, cdn, start_script))

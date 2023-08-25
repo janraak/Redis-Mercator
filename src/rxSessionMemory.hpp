@@ -3,27 +3,28 @@
 
 
 
-#define rxMemAllocSession(size, tag) rxMemAlloc(size)
-#define rxMemFreeSession(ptr) rxMemFreeX(ptr)
+// #define rxMemAllocSession(size, tag) rxMemAlloc(size)
+// #define rxMemFreeSession(ptr) rxMemFreeX(ptr)
 
-// #include "rxSuite.h"
-// #include "rxSuiteHelpers.h"
+#include "rxSuite.h"
+#include "rxSuiteHelpers.h"
 
-// void *rxMemAllocSession(size_t size, const char *tag);
+void *rxMemAllocSession(size_t size, const char *tag);
 
-// #ifdef __cplusplus
-// extern "C"
-// {
-// #include "sdsWrapper.h"
-// #include <stddef.h> /* atof */
-// #include <stdlib.h> /* atof */
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
-// #endif
-// void rxMemFreeSession(void *ptr);
+#include "sdsWrapper.h"
+#include <stddef.h> /* atof */
+#include <stdlib.h> /* atof */
 
-// #ifdef __cplusplus
-// }
-// #endif
+void rxMemFreeSession(void *ptr);
+
+#ifdef __cplusplus
+}
+#endif
 
 
 #endif

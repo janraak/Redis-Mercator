@@ -232,8 +232,11 @@ rxString rxRandomSetMember(void *set)
 #else
     size_t sz;
     char *e;
-    encoding = setTypeRandomElement(set, &e, &sz, &llele);
-    ele = rxStringNewLen(e, sz);
+        encoding = setTypeRandomElement(set, &e, &sz, &llele);
+    if (e == NULL)
+        ele = rxStringFormat("%lld", llele);
+    else
+        ele = rxStringNewLen(e, sz);
 #endif
     if (encoding == OBJ_ENCODING_INTSET)
     {

@@ -32,6 +32,7 @@ extern const char *CLUSTERING_ARG;
 extern const char *REPLICATION_ARG;
 extern const char *CONTROLLER_ARG;
 extern const char *START_ARG;
+extern const char *REDIS_VERSION_ARG;
 
 
 #define RXQUERY_cmd "RXQUERY"

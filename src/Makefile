@@ -93,7 +93,7 @@ SHOBJ_CFLAGS+= -Wno-pointer-arith
 
 DEBUG += -g -ggdb -fpermissive 
 
-OPT?=-O0
+# OPT?=-O0
 
 all: sdsWrapper.xo indexIntercepts.xo rxSuite.xo  rxSuiteHelpers.xo rxIndexer.so rxQuery.so rxIndexStore.so rxMercator.so rxRule.xo  rxRule.so sjiboleth.so rxGraphdb.so 
 
@@ -133,8 +133,8 @@ rxQuery.so: ../../src/redismodule.h rxQuery.cpp rxQuery.hpp rule.hpp  rxSuite.xo
 rxIndexStore.so: ../../src/redismodule.h rxIndexStore.cpp rxIndexStore.hpp command-multiplexer.hpp  rxFetch-multiplexer.hpp rxDescribe-multiplexer.hpp rxIndex.hpp rxSuiteHelpers.xo   sdsWrapper.xo  rxSessionMemory.xo
 	g++ -o rxIndexStore.so -shared -g -ggdb -fpermissive   $(SHOBJ_CFLAGS)   $(INCLUDE_PATHS)  -fPIC rxIndexStore.cpp rxSuiteHelpers.xo   rxSuite.xo   sdsWrapper.xo  rxSessionMemory.xo
 
-rxMercator.so: ../../src/redismodule.h rxMercator.cpp rxMercatorMonitor.cpp rxMercatorMonitor.hpp rxMercator.hpp  rxSuiteHelpers.xo   client-pool.hpp client-pool.cpp tls.xo sdsWrapper.xo  rxSessionMemory.xo
-	g++ -o rxMercator.so  -shared -g -ggdb -fpermissive  $(SHOBJ_CFLAGS)   $(INCLUDE_PATHS) -Wvarargs -fPIC rxMercator.cpp rxMercatorMonitor.cpp rxSuiteHelpers.xo   rxSuite.xo   client-pool.cpp tls.xo  sdsWrapper.xo  rxSessionMemory.xo
+rxMercator.so: ../../src/redismodule.h rxMercator.cpp rxMercatorMonitor.cpp rxMercatorMonitor.hpp rxMercator.hpp  rxSuiteHelpers.xo   sjiboleth.so client-pool.hpp client-pool.cpp tls.xo sdsWrapper.xo  rxSessionMemory.xo
+	g++ -o rxMercator.so  -shared -g -ggdb -fpermissive  $(SHOBJ_CFLAGS)   $(INCLUDE_PATHS) -Wvarargs -fPIC rxMercator.cpp rxMercatorMonitor.cpp rxSuiteHelpers.xo   sjiboleth.xo rxSuite.xo sjiboleth.so   client-pool.cpp tls.xo  sdsWrapper.xo  rxSessionMemory.xo
 rxSuite.xo:       ../../src/server.h ../../src/dict.h rxSuite.h rxSuite.c sdsWrapper.xo
 
 rxSuiteHelpers.xo:       ../../src/server.h rxSuiteHelpers.h rxSuiteHelpers.c sdsWrapper.xo  rxSessionMemory.xo
