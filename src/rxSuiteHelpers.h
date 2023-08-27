@@ -11,10 +11,10 @@ extern "C"
 {
 #endif
 
-// #if REDIS_VERSION_NUM >= 0x00070200
-// // With redis 7.2.0 fmacro.h may cause compilation errors
-// #define _REDIS_FMACRO_H 
-// #endif
+#if REDIS_VERSION_NUM >= 0x00070200
+// With redis 7.2.0 fmacro.h may cause compilation errors
+#define _REDIS_FMACRO_H 
+#endif
 #include "ae.h"
 // 
 #include "rax.h"

@@ -371,22 +371,38 @@ int clusterState(RedisModuleCtx *, redisContext *, char *sha1, const char *, cha
 
 int allClustersOperation(SimpleQueue *status_update_queue)
 {
-
     RedisModuleCtx *ctx = NULL;
-    rxString cluster_key = "__MERCATOR__CLUSTERS__";
-    void *nodes = rxFindSetKey(0, cluster_key);
-    if (!nodes)
-        return 0;
 
-    void *si = NULL;
-    rxString node;
-    int64_t l;
-    while (rxScanSetMembers(nodes, &si, (char **)&node, &l) != NULL)
-    {
-        const char *clusterId =  strrchr(node, '_') + 1;
-        void *params[] = {(void *)node, (void *)status_update_queue};
-        clusterOperation(ctx, clusterId, NULL, (clusterOperationProc *)queryInstance, params, (clusterOperationProc *)clusterState);
+    redisReply *clusters = ExecuteLocal("rxquery g:v(cluster)", LOCAL_STANDARD);
+    if(clusters && clusters->type == REDIS_REPLY_ARRAY){
+        int n = 0;
+        while( n< clusters->elements){
+            auto *clusterId =  clusters->element[n]->element[1]->str;
+            void *params[] = {(void *)clusterId, (void *)status_update_queue};
+            clusterOperation(ctx, clusterId, NULL, (clusterOperationProc *)queryInstance, params, (clusterOperationProc *)clusterState);
+
+            ++n;
+        }
     }
+    freeReplyObject(clusters);
+
+//     rxString cluster_key = "__MERCATOR__CLUSTERS__";
+//     void *nodes = rxFindSetKey(0, cluster_key);
+//     if (!nodes)
+//         return 0;
+
+//     void *si = NULL;
+//     rxString node;
+//     int64_t l;
+//     while (rxScanSetMembers(nodes, &si, (char **)&node, &l) != NULL)
+//     {
+//         const char *clusterId =  strrchr(node, '_') + 1;
+//         void *params[] = {(void *)node, (void *)status_update_queue};
+//         clusterOperation(ctx, clusterId, NULL, (clusterOperationProc *)queryInstance, params, (clusterOperationProc *)clusterState);
+//         #if REDIS_VERSION_NUM < 0x00070200
+//         rxStringFree(node);
+// #endif
+//     }
 
     auto *ready_queue = (SimpleQueue *)status_update_queue->response_queue;
     void *update_request = ready_queue->Dequeue();

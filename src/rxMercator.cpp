@@ -826,7 +826,7 @@ void *CreateClusterAsync_Go(void *privData)
     int clustering_requested = 0;
     int start_requested = 0;
     char *controller_path = NULL;
-    char *redis_version = NULL;
+    char *redis_version = REDIS_VERSION;
     rxString c_ip = rxStringEmpty();
     size_t arg_len;
     for (int j = 1; j < multiplexer->argc; ++j)
@@ -850,6 +850,9 @@ void *CreateClusterAsync_Go(void *privData)
         else
             c_ip = rxStringNew(q);
     }
+    if (!redis_version)
+        redis_version = REDIS_VERSION;
+
     rxString sha1 = getSha1("sii", c_ip, replication_requested, clustering_requested);
 
     if (controller_path)
@@ -883,8 +886,8 @@ void *CreateClusterAsync_Go(void *privData)
                     return multiplexer->StopThread();
                 }
 
-                cmd = rxStringFormat("SADD __MERCATOR__CLUSTERS__ %s", cluster_key);
-                ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
+                // cmd = rxStringFormat("SADD __MERCATOR__CLUSTERS__ %s", cluster_key);
+                // ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
 
                 PostCommand(rxStringFormat(UPDATE_CLUSTER__STATE, controller_path, "CREATED", "CREATED", GetCurrentDateTimeAsString(buffer)));
 
@@ -893,6 +896,10 @@ void *CreateClusterAsync_Go(void *privData)
                 cmd = rxStringFormat(FIND_CONTROLLER, controller_path);
                 rcc = ExecuteLocal(cmd, LOCAL_FREE_CMD);
                 loan_instances = true;
+            }
+            if(rcc->type!=REDIS_REPLY_ARRAY){
+               multiplexer->result_text = rcc->str;
+                 return multiplexer->StopThread();
             }
             redisReply *row = rcc->element[0];
             redisReply *hash = row->element[5];
@@ -964,9 +971,9 @@ void *CreateClusterAsync_Go(void *privData)
 
     cmd = rxStringFormat("RXQUERY \"g:break.addv('%s','cluster').PROPERTY('redis','%s')\"", sha1, redis_version);
     r = ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
-    rxString cluster_key = rxStringFormat("__MERCATOR__CLUSTER__%s", sha1);
-    cmd = rxStringFormat("SADD __MERCATOR__CLUSTERS__ __MERCATOR__CLUSTER__%s", sha1);
-    ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
+    // rxString cluster_key = rxStringFormat("__MERCATOR__CLUSTER__%s", sha1);
+    // cmd = rxStringFormat("SADD __MERCATOR__CLUSTERS__ __MERCATOR__CLUSTER__%s", sha1);
+    // ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
 
     rxString data;
     rxString index;
@@ -1478,7 +1485,7 @@ redisReply *FindInstanceGroup(const char *sha1, const char *fields)
 
 redisReply *recover_cluster(RedisModuleCtx *ctx, const char *sha1, char *fields = NULL)
 {
-    rxString cmd = rxStringFormat("rxget \"g:v(instance).where{owner=='%s'}.adde(instance_of,has_instance).to('%s')\"", sha1, sha1);
+    rxString cmd = rxStringFormat("rxget \"g:v(instance).has(owner,'%s'}.adde(instance_of,has_instance).to('%s')\"", sha1, sha1);
     ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
     return FindInstanceGroup(sha1, fields);
 }

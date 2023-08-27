@@ -940,6 +940,9 @@ SJIBOLETH_HANDLER(GremlinDialect::executeGremlinMatchInExclude)
                 }
                 // Skip nodes!
             }
+#if REDIS_VERSION_NUM < 0x00070200
+            rxMemFree(member);
+#endif
         }
         else
         {
@@ -999,6 +1002,9 @@ FaBlok *LoadKeySetFromMetaType(FaBlok *kd, rxString metaType)
                 continue;
             }
             kd->InsertKey(member, rxFindKey(0, member));
+#if REDIS_VERSION_NUM < 0x00070200
+            rxMemFree(member);
+#endif
         }
     }
     return kd;
@@ -1089,7 +1095,7 @@ SJIBOLETH_HANDLER(GremlinDialect::executeAllVertices)
 
                 rxString metatype = rxStringFormat("`%s", kd->AsSds());
                 auto *key_entry = rxFindKey(0, metatype);
-                if (key_entry != NULL)
+                if (key_entry != NULL && rxGetObjectType(key_entry) == rxOBJ_SET)
                     LoadKeySetFromMetaType(kd, metatype);
                 else
                 {

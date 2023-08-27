@@ -191,6 +191,9 @@ void *rxScanSetMembers(void *obj, void **siO, char **member, int64_t *member_len
     {
     case OBJ_ENCODING_HT:
     case OBJ_ENCODING_INTSET:
+#if REDIS_VERSION_NUM >= 0x00070200
+    case OBJ_ENCODING_LISTPACK:
+#endif
         break;
     default:
         rxServerLog(rxLL_NOTICE, "Invalid set encoding on %p %d", r, r->encoding);
@@ -216,6 +219,11 @@ void *rxScanSetMembers(void *obj, void **siO, char **member, int64_t *member_len
         *si = NULL;
         return NULL;
     }
+    int l = *member_len;
+    char *m = rxMemAlloc(1 + l);
+    memcpy(m, *member, *member_len);
+    m[l] = 0x00;
+    *member = m;
 #endif
     return *member;
 }
@@ -229,6 +237,10 @@ rxString rxRandomSetMember(void *set)
     int encoding;
 #if REDIS_VERSION_NUM < 0x00070200
     encoding = setTypeRandomElement(set, (sds *)&ele, &llele);
+    if (encoding == OBJ_ENCODING_INTSET)
+    {
+        ele = rxStringFormat("%lld", llele);
+    }
 #else
     size_t sz;
     char *e;
@@ -238,10 +250,6 @@ rxString rxRandomSetMember(void *set)
     else
         ele = rxStringNewLen(e, sz);
 #endif
-    if (encoding == OBJ_ENCODING_INTSET)
-    {
-        ele = rxStringFormat("%lld", llele);
-    }
     return ele;
 }
 
@@ -255,15 +263,14 @@ rax *rxSetToRax(void *obj)
 #if REDIS_VERSION_NUM < 0x00070200
     while (setTypeNext(si, (sds *)&member, &member_len) != -1)
     {
-        raxInsert(r, (unsigned char *)member, strlen(member), NULL, NULL);
+        raxInsert(r, (unsigned char *)member, member_len, NULL, NULL);
     }
 #else
-    size_t sz;
     char *m;
     int64_t llele;
-    while (setTypeNext(si, &m, &sz, &llele) != -1)
+    while (setTypeNext(si, &m, &member_len, &llele) != -1)
     {
-        raxInsert(r, (unsigned char *)member, strlen(member), NULL, NULL);
+        raxInsert(r, (unsigned char *)m, member_len, NULL, NULL);
     }
 #endif
     setTypeReleaseIterator(si);
