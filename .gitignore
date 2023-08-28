@@ -35,3 +35,5 @@ sys_tests/curses.py
 sys_tests/curses.pyc
 deps/concurrentqueue
 deps/concurrentqueue
+q
+erroneous_extensions

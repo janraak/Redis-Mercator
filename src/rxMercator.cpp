@@ -972,6 +972,7 @@ void *CreateClusterAsync_Go(void *privData)
     cmd = rxStringFormat("RXQUERY \"g:break.addv('%s','cluster').PROPERTY('redis','%s')\"", sha1, redis_version);
     r = ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
     // rxString cluster_key = rxStringFormat("__MERCATOR__CLUSTER__%s", sha1);
+    rxString cluster_key = sha1;
     // cmd = rxStringFormat("SADD __MERCATOR__CLUSTERS__ __MERCATOR__CLUSTER__%s", sha1);
     // ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
 
