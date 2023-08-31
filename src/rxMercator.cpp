@@ -1010,7 +1010,6 @@ void *CreateClusterAsync_Go(void *privData)
     r = ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
     rxString cluster_key = sha1;
     // rxString cluster_key = rxStringFormat("__MERCATOR__CLUSTER__%s", sha1);
-    rxString cluster_key = sha1;
     // cmd = rxStringFormat("SADD __MERCATOR__CLUSTERS__ __MERCATOR__CLUSTER__%s", sha1);
     // ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
 
