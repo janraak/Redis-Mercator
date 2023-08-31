@@ -190,7 +190,8 @@ T *RedisClientPool<T>::Acquire(const char *address, const char *suffix, const ch
 template <typename T>
 void RedisClientPool<T>::Release(T *client, const char */*caller*/)
 {
-    auto *pool = (RedisClientPool<T> *)raxFind(Get_ClientPool_Registry(), (UCHAR *)client, sizeof(client));
+    auto *ppool = Get_ClientPool_Registry();
+    auto *pool = (RedisClientPool<T> *)raxFind(ppool, (UCHAR *)client, sizeof(client));
     if (pool == raxNotFound)
     {
         rxServerLog(rxLL_NOTICE, "RedisClientPool unregisted redis client\n");

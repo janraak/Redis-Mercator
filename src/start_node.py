@@ -89,17 +89,14 @@ path = '/'.join(segments[0:len(segments)-2])
 
 if role == 'data':
     module_config = which_modules_has_been_loaded(redis_client)
-    if not "rxMercator" in module_config:
-        redis_client.execute_command("MODULE LOAD {}/extensions/src/rxMercator.so CLIENT".format(path))
-        print("rxMercator loaded")
-    else:
-        print("rxMercator already loaded")
     if not "rxIndexer" in module_config:
+        print("MODULE LOAD {}/extensions/src/rxIndexer.so INDEX {} {} 0 DATA {} {} 0".format(path, ihost, iport, host, port))
         redis_client.execute_command("MODULE LOAD {}/extensions/src/rxIndexer.so INDEX {} {} 0 DATA {} {} 0".format(path, ihost, iport, host, port))
         print("rxIndexer loaded")
     else:
         print("rxIndexer already loaded")
     if not "rxQuery" in module_config:
+        print("MODULE LOAD {}/extensions/src/rxQuery.so INDEX {} {} 0 DATA {} {} 0 DEFAULT_OPERATOR &".format(path, ihost, iport, host, port))
         redis_client.execute_command("MODULE LOAD {}/extensions/src/rxQuery.so INDEX {} {} 0 DATA {} {} 0 DEFAULT_OPERATOR &".format(path, ihost, iport, host, port))
         print("rxQuery loaded")
     else:
@@ -114,6 +111,11 @@ if role == 'data':
         print("rxGraphdb loaded")
     else:
         print("rxGraphdb already loaded")
+    if not "rxMercator" in module_config:
+        redis_client.execute_command("MODULE LOAD {}/extensions/src/rxMercator.so CLIENT".format(path))
+        print("rxMercator loaded")
+    else:
+        print("rxMercator already loaded")
 
     # redis_client.execute_command("ACL SETUSER admin ON >admin +@all +@admin".format(cid, cid))
     # redis_client.execute_command("ACL SETUSER {} ON >{} +select|0".format(cid, cid))
@@ -151,8 +153,6 @@ elif role == 'master' or role == 'controller':
         print("rxMercator loaded")
     else:
         print("rxMercator already loaded")
-    redis_client.execute_command("ACL SETUSER admin ON >admin +@all +@admin".format(cid, cid))
-    redis_client.execute_command("ACL SETUSER admin ON >admin +@all +@admin".format(cid, cid))
     # redis_client.execute_command("ACL SETUSER {} ON >{} +select|0".format(cid, cid))
     # redis_client.execute_command("ACL SETUSER {} -@admin".format(cid))
     # redis_client.execute_command("ACL SETUSER {} +@read".format(cid))
@@ -160,16 +160,18 @@ else:
     print(wd)
     print("MODULE LOAD {}/extensions/src/rxMercator.so CLIENT".format(path))
     module_config = which_modules_has_been_loaded(redis_client)
-    if not "rxMercator" in module_config:
-        redis_client.execute_command("MODULE LOAD {}/extensions/src/rxMercator.so CLIENT".format(path))
-        print("rxMercator loaded")
-    else:
-        print("rxMercator already loaded")
     if not "rxIndexStore" in module_config:
         redis_client.execute_command("MODULE LOAD {}/extensions/src/rxIndexStore.so INDEX {} {} 0 DATA {} {} 0 ".format(path, ihost, iport, host, port))
         print("rxIndexStore loaded")
     else:
         print("rxIndexStore already loaded")
+    if not "rxMercator" in module_config:
+        redis_client.execute_command("MODULE LOAD {}/extensions/src/rxMercator.so CLIENT".format(path))
+        print("rxMercator loaded")
+    else:
+        print("rxMercator already loaded")
+print(redis_client.execute_command("ACL SETUSER admin ON >admin +@all +@admin".format(cid, cid)))
+print(redis_client.execute_command("ACL SETUSER admin ON >admin +@all +@admin".format(cid, cid)))
     # redis_client.execute_command("ACL SETUSER {} ON >{} +select|0".format(cid, cid))
     # redis_client.execute_command("ACL SETUSER {} -@admin".format(cid))
     # redis_client.execute_command("ACL SETUSER {} +@read".format(cid))

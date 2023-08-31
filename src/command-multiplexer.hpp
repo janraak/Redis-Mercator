@@ -57,6 +57,7 @@ public:
     long long misses;
     long long ignored;
 
+    const char *GetArgument(int n);
     Multiplexer();
     Multiplexer(RedisModuleString **argv, int argc);
     virtual ~Multiplexer();
@@ -168,6 +169,20 @@ Multiplexer::Multiplexer(RedisModuleString **argv, int argc)
 {
     this->argv = argv;
     this->argc = argc;
+}
+
+const char *Multiplexer::GetArgument(int n)
+{
+    size_t arg_len;
+    auto s = (char *)RedisModule_StringPtrLen(this->argv[n], &arg_len);
+
+    if ((signed)arg_len < 0)
+        arg_len = strlen(s);
+    return rxStringNewLen(s, arg_len);
+    // auto m = (char *)rxMemAlloc(1 + arg_len);
+    // memcpy(m, s, arg_len);
+    // m[arg_len] = 0x00;
+    // return m;
 }
 
 Multiplexer::~Multiplexer(){};

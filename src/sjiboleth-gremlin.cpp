@@ -936,13 +936,12 @@ SJIBOLETH_HANDLER(GremlinDialect::executeGremlinMatchInExclude)
                 if (member[0] == '`' || member[0] == '~')
                 {
                     q.Push(member);
+                rxStringFree(member);
                     continue;
                 }
+                rxStringFree(member);
                 // Skip nodes!
             }
-#if REDIS_VERSION_NUM < 0x00070200
-            rxMemFree(member);
-#endif
         }
         else
         {
@@ -1002,9 +1001,7 @@ FaBlok *LoadKeySetFromMetaType(FaBlok *kd, rxString metaType)
                 continue;
             }
             kd->InsertKey(member, rxFindKey(0, member));
-#if REDIS_VERSION_NUM < 0x00070200
-            rxMemFree(member);
-#endif
+            rxMemFree((void *)member);
         }
     }
     return kd;
@@ -3134,6 +3131,7 @@ int AddMemberToKeysetForMatch(int db, unsigned char *vstr, size_t vlen, FaBlok *
             {
                 kd->AddKey(link /*terminal->key*/, mobj);
             }
+            rxStringFree(member);
         }
     }
     else
@@ -3310,6 +3308,7 @@ int matchEdges(int db, Graph_Leg *leg, FaBlok *kd, GraphStack<Graph_Leg> *bsf_q,
         rxStringFreeSplitRes(parts, segments);
         rxStringFreeSplitRes(link_parts, link_segments);
         rxStringFree(link);
+        rxStringFree(elesds);
     }
     rxStringFree(key);
     return numkeys;

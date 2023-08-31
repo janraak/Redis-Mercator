@@ -131,7 +131,7 @@ void *RXQUERY = rxCreateStringObject(RXQUERY_cmd, strlen(RXQUERY_cmd));
 
 #define UPDATE_SHIFT_STATS "RXQUERY \""                                                                                     \
                            "g:"                                                                              \
-                           ".v('%s'}"                                                                              \
+                           "v('%s'}"                                                                              \
                            ".WHERE{'%lld' - HEALTH_CHECK_SHIFT >= '900000'}"                                            \
                            ".property{HEALTH_CHECK_SHIFT='%lld'}"                                                     \
                            ".property{SHIFT_AT_1=SHIFT_AT_0}"                                                       \
@@ -375,8 +375,8 @@ int allClustersOperation(SimpleQueue *status_update_queue)
 
     redisReply *clusters = ExecuteLocal("rxquery g:v(cluster)", LOCAL_STANDARD);
     if(clusters && clusters->type == REDIS_REPLY_ARRAY){
-        int n = 0;
-        while( n< clusters->elements){
+        size_t n = 0;
+        while( n < clusters->elements){
             auto *clusterId =  clusters->element[n]->element[1]->str;
             void *params[] = {(void *)clusterId, (void *)status_update_queue};
             clusterOperation(ctx, clusterId, NULL, (clusterOperationProc *)queryInstance, params, (clusterOperationProc *)clusterState);

@@ -219,12 +219,14 @@ void *rxScanSetMembers(void *obj, void **siO, char **member, int64_t *member_len
         *si = NULL;
         return NULL;
     }
+#endif
     int l = *member_len;
+    if(l == -123456789)
+        l = strlen(*member);
     char *m = rxMemAlloc(1 + l);
-    memcpy(m, *member, *member_len);
+    memcpy(m, *member, l);
     m[l] = 0x00;
     *member = m;
-#endif
     return *member;
 }
 
@@ -741,6 +743,7 @@ void *rxCommitKeyRetainValue(int dbNo, const char *key, void *old_state)
                 }
             }
         }
+        rxStringFree((old_member));
     }
 
     if (new_members != NULL)
