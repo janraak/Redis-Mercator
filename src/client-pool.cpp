@@ -213,8 +213,17 @@ template <typename T>
 rax *RedisClientPool<T>::Lookup = raxNew();
 
 template class RedisClientPool<redisContext>;
-// template class RedisClientPool<void>;
 template class RedisClientPool<struct client>;
 
 template class RedisClientPool<redisAsyncContext>;
 
+extern "C" void    ExecuteOnFake(const char *commandName, int argc, void **argv){
+    client *c = (struct client *)RedisClientPool<client>::Acquire("THIS", "_FAKE", "ExecuteRedisCommand");
+    rxAllocateClientArgs(c, argv, 3);
+    void *command_definition = rxLookupCommand(commandName);
+    if(command_definition)
+        rxClientExecute(c, command_definition);
+    else
+        rxServerLog(rxLL_WARNING, "Unknown command %s,  arg count: %d", commandName, argc);
+    RedisClientPool<struct client>::Release(c, "ExecuteRedisCommand");
+}

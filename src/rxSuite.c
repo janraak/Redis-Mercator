@@ -147,7 +147,6 @@ void rxRegisterConfig(void **oargv, int argc)
     for (int j = 0; j < argc; ++j)
     {
         const char *arg = (const char *)argv[j]->ptr;
-        int argl = strlen(arg);
         if (stringmatch(arg, "INDEX", 1) == 1 && (j + 3) <= argc)
         {
             extractArgs(argv, j + 1, &config->indexNode);
@@ -192,6 +191,12 @@ void rxRegisterConfig(void **oargv, int argc)
             ++j;
             const char *s = (const char *)argv[j]->ptr;
             config->installScript = sdsnew(s);
+        }
+        else if (stringmatch(arg, "DATA-DIR", 1) == 1)
+        {
+            ++j;
+            const char *s = (const char *)argv[j]->ptr;
+            config->wget_root = sdsnew(s);
         }
     }
     config->indexNode.is_local = strcmp(config->indexNode.host, config->dataNode.host) == 0 && config->indexNode.port == config->dataNode.port;
@@ -238,4 +243,9 @@ CSimpleQueue *rxGetCronCommandQueue(){
     rxSuiteShared *config = initRxSuite();
     return config->cron_command_request_queue;
 
+}
+
+void rxSetDataRoot(const char *s){
+    rxSuiteShared *config = initRxSuite();
+    config->wget_root = sdsnew(s);
 }

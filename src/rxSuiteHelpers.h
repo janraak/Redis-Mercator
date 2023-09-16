@@ -203,6 +203,15 @@ extern "C"
     rxClientInfo rxGetClientInfo();
     rxClientInfo rxGetClientInfoForHealthCheck();
     double rxGetMemoryUsedPercentage();
+  typedef struct rxSetMembers
+    {
+        size_t member_count;    // Number of members in this block
+        const char *members;   // Pointer to the members
+        // The members are embedding in the allocated block;
+    } rxSetMembers;
+
+    rxSetMembers *rxHarvestSetmembers(void *obj);
+    rxSetMembers *rxFreeSetmembers(rxSetMembers *mob);
 
 #ifdef __cplusplus
 }

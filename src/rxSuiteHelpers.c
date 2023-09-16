@@ -99,6 +99,13 @@ void *rxFindKey(int dbNo, const char *key)
     if (!key)
         serverPanic("findKey: No key to search!");
     // robj k = {OBJ_STRING, OBJ_ENCODING_RAW, key, OBJ_SHARED_REFCOUNT};
+    robj *ko = createStringObject(key, strlen(key));
+    robj *kv = lookupKeyRead(db, ko);
+    freeStringObject(ko);
+    if (kv)
+    {
+        return kv;
+    }
     sds k = sdsnew(key);
     dictEntry *de = dictFind(db->dict, k);
     sdsfree(k);
@@ -221,7 +228,7 @@ void *rxScanSetMembers(void *obj, void **siO, char **member, int64_t *member_len
     }
 #endif
     int l = *member_len;
-    if(l == -123456789)
+    if (l == -123456789)
         l = strlen(*member);
     char *m = rxMemAlloc(1 + l);
     memcpy(m, *member, l);
@@ -232,7 +239,7 @@ void *rxScanSetMembers(void *obj, void **siO, char **member, int64_t *member_len
 
 rxString rxRandomSetMember(void *set)
 {
-    if(!set)
+    if (!set)
         return NULL;
     rxString ele;
     int64_t llele;
@@ -246,7 +253,7 @@ rxString rxRandomSetMember(void *set)
 #else
     size_t sz;
     char *e;
-        encoding = setTypeRandomElement(set, &e, &sz, &llele);
+    encoding = setTypeRandomElement(set, &e, &sz, &llele);
     if (e == NULL)
         ele = rxStringFormat("%lld", llele);
     else
@@ -382,7 +389,8 @@ rxString rxGetHashField(void *oO, const char *f)
         rxStringFree(field);
         return rxStringEmpty();
     }
-    if (((robj *)o)->type != rxOBJ_HASH){
+    if (((robj *)o)->type != rxOBJ_HASH)
+    {
         rxServerLog(rxLL_WARNING, "%s is not a hash key", f);
         return NULL;
     }
@@ -547,7 +555,7 @@ void rxFreeObject(void *o)
 
 void *rxGetContainedObject(void *o)
 {
-    if(!o)
+    if (!o)
         return NULL;
     robj *ro = (robj *)o;
     return ro->ptr;
@@ -882,7 +890,7 @@ int rxIsAddrBound(char *addr, int port)
     return 0;
 }
 
-int compareEquals(const char *l, int , const char *r)
+int compareEquals(const char *l, int, const char *r)
 {
     if (isdigit(*l) || isdigit(*r))
     {
@@ -894,7 +902,7 @@ int compareEquals(const char *l, int , const char *r)
         return strcmp(l, r) != 0;
 }
 
-int compareGreaterEquals(const char *l, int , const char *r)
+int compareGreaterEquals(const char *l, int, const char *r)
 {
     if (isdigit(*l) || isdigit(*r))
     {
@@ -906,7 +914,7 @@ int compareGreaterEquals(const char *l, int , const char *r)
         return strcmp(l, r) >= 0;
 }
 
-int compareGreater(const char *l, int , const char *r)
+int compareGreater(const char *l, int, const char *r)
 {
     if (isdigit(*l) || isdigit(*r))
     {
@@ -918,7 +926,7 @@ int compareGreater(const char *l, int , const char *r)
         return strcmp(l, r) > 0;
 }
 
-int compareLessEquals(const char *l, int , const char *r)
+int compareLessEquals(const char *l, int, const char *r)
 {
     if (isdigit(*l) || isdigit(*r))
     {
@@ -930,7 +938,7 @@ int compareLessEquals(const char *l, int , const char *r)
         return strcmp(l, r) <= 0;
 }
 
-int compareLess(const char *l, int , const char *r)
+int compareLess(const char *l, int, const char *r)
 {
     if (isdigit(*l) || isdigit(*r))
     {
@@ -942,7 +950,7 @@ int compareLess(const char *l, int , const char *r)
         return strcmp(l, r) < 0;
 }
 
-int compareNotEquals(const char *l, int , const char *r)
+int compareNotEquals(const char *l, int, const char *r)
 {
     if (isdigit(*l) || isdigit(*r))
     {
@@ -956,7 +964,7 @@ int compareNotEquals(const char *l, int , const char *r)
 
 // TODO: Float arithmetic
 
-double computeAdd(const char *l, int , const char *r)
+double computeAdd(const char *l, int, const char *r)
 {
     if (isdigit(*l) || isdigit(*r))
     {
@@ -968,7 +976,7 @@ double computeAdd(const char *l, int , const char *r)
         return 0;
 }
 
-double computeSubtract(const char *l, int , const char *r)
+double computeSubtract(const char *l, int, const char *r)
 {
     if (isdigit(*l) || isdigit(*r))
     {
@@ -980,7 +988,7 @@ double computeSubtract(const char *l, int , const char *r)
         return 0;
 }
 
-double computeMultiply(const char *l, int , const char *r)
+double computeMultiply(const char *l, int, const char *r)
 {
     if (isdigit(*l) || isdigit(*r))
     {
@@ -992,7 +1000,7 @@ double computeMultiply(const char *l, int , const char *r)
         return 0;
 }
 
-double computeDivide(const char *l, int , const char *r)
+double computeDivide(const char *l, int, const char *r)
 {
     if (isdigit(*l) || isdigit(*r))
     {
@@ -1004,7 +1012,7 @@ double computeDivide(const char *l, int , const char *r)
         return 0;
 }
 
-double computeModulus(const char *, int , const char *)
+double computeModulus(const char *, int, const char *)
 {
     // if (isdigit(*l) || isdigit(*r))
     // {
@@ -1016,7 +1024,7 @@ double computeModulus(const char *, int , const char *)
     return 0;
 }
 
-double computePower(const char *l, int , const char *r)
+double computePower(const char *l, int, const char *r)
 {
     if (isdigit(*l) || isdigit(*r))
     {
@@ -1028,7 +1036,7 @@ double computePower(const char *l, int , const char *r)
         return 0;
 }
 
-int calcSqrtInRange(const char *l, int )
+int calcSqrtInRange(const char *l, int)
 {
     double v = atof(l);
     return sqrt(v);
@@ -1102,7 +1110,7 @@ rxComputeProc rxFindComputationProc(const char *op)
         rxInitComparisonsProcs();
     rxComputeProc computation = (rxComputeProc *)raxFind(rxComparisonsMap, (unsigned char *)op, strlen(op));
     if (computation == raxNotFound)
-    return NULL;
+        return NULL;
     return computation;
 }
 
@@ -1203,6 +1211,72 @@ rxClientInfo rxGetClientInfo()
     // return info;
 }
 
-    int rxGetServerPort(){
+int rxGetServerPort()
+{
     return server.port ? server.port : server.tls_port;
+}
+
+rxSetMembers *rxHarvestSetmembers(void *obj)
+{
+    size_t member_count = 0;
+    size_t total_member_size = 0;
+
+    robj *r = (robj *)obj;
+    switch (r->encoding)
+    {
+    case OBJ_ENCODING_HT:
+    case OBJ_ENCODING_INTSET:
+#if REDIS_VERSION_NUM >= 0x00070200
+    case OBJ_ENCODING_LISTPACK:
+#endif
+        break;
+    default:
+        rxServerLog(rxLL_NOTICE, "Invalid set encoding on %p %d", r, r->encoding);
+        return NULL;
     }
+
+    setTypeIterator *si = setTypeInitIterator(r);
+
+    char *member;
+    int64_t member_len;
+
+#if REDIS_VERSION_NUM < 0x00070200
+    while (setTypeNext(si, &member, &member_len) != -1){
+#else
+    int64_t llele;
+    while (setTypeNext(si, &member, &member_len, &llele) != -1){
+#endif
+        ++member_count;
+        total_member_size = total_member_size + strlen(member);
+    }
+    setTypeReleaseIterator(si);
+    total_member_size = total_member_size + member_count;
+
+    rxSetMembers *mob = (rxSetMembers *)rxMemAlloc(sizeof(rxSetMembers) + member_count * sizeof(void *) + total_member_size);
+    mob->member_count = member_count;
+    si = setTypeInitIterator(r);
+
+    char **p = &mob->members;
+    char *m = (char *)((void *)p) + member_count * sizeof(void *);
+#if REDIS_VERSION_NUM < 0x00070200
+    while (setTypeNext(si, &member, &member_len) != -1){
+#else
+    int64_t llele;
+    while (setTypeNext(si, &member, &member_len, &llele) != -1){
+#endif 
+
+        strcpy(m, member);
+        *p = m;
+        m = m + strlen(member) + 1;
+        ++p;
+    }
+
+    setTypeReleaseIterator(si);
+    return mob;
+}
+
+rxSetMembers *rxFreeSetmembers(rxSetMembers *mob)
+{
+    rxMemFree(mob);
+    return NULL;
+}

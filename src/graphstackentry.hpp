@@ -365,7 +365,24 @@ public:
         return strcmp(this->token_key, PREDICATE) == 0;
     }
 
-    void Link(rxString edge_key, rxString vertice, const char *direction, double weight)
+    void AddTriplet(rxString subject_key, rxString predicate_key, rxString inverse_predicate_key, rxString object_key, double ){
+        auto *colon1 = (char *)strchr(predicate_key, ':');
+        *colon1 = 0x00;
+        auto *colon2 = (char *)strchr(inverse_predicate_key, ':');
+        *colon2 = 0x00;
+        rxString traversal = rxStringFormat("\"g:predicate('%s','%s').subject('%s').object('%s')\"",
+                                   predicate_key, inverse_predicate_key,
+                                   subject_key,
+                                   object_key);
+        *colon1 = ':';
+        *colon2 = ':';
+
+        rxStashCommand(this->ctx, "RXQUERY", 1, traversal);
+        rxStringFree(traversal);
+        
+    }
+
+    void Link(rxString edge_key, rxString vertice, const char *direction, double )
     {
         rxString type;
         char *colon = strstr((char *)edge_key, COLON);
@@ -457,10 +474,11 @@ public:
                     inverse_predicate_key = rxStringFormat("%s%s", inverse_predicate_key, this->inverse_token_key);
                 else
                     inverse_predicate_key = rxStringFormat("%s%s", inverse_predicate_key, this->token_key);
-                this->Link(inverse_predicate_key, subject_key, EDGE_TYPE_EDGE_TO_SUBJECT, w);
-                this->Link(subject_key, predicate_key, EDGE_TYPE_SUBJECT_TO_EDGE, w);
-                this->Link(predicate_key, object_key, EDGE_TYPE_EDGE_TO_OBJECT, w);
-                this->Link(object_key, inverse_predicate_key, EDGE_TYPE_OBJECT_TO_EDGE, w);
+                this->AddTriplet(subject, this->token_key, this->inverse_token_key ? this->inverse_token_key : this->token_key, object, w);
+                // this->Link(inverse_predicate_key, subject_key, EDGE_TYPE_EDGE_TO_SUBJECT, w);
+                // this->Link(subject_key, predicate_key, EDGE_TYPE_SUBJECT_TO_EDGE, w);
+                // this->Link(predicate_key, object_key, EDGE_TYPE_EDGE_TO_OBJECT, w);
+                // this->Link(object_key, inverse_predicate_key, EDGE_TYPE_OBJECT_TO_EDGE, w);
                 this->entity->Remove(PREDICATE, 9);
             }
         }

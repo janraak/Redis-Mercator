@@ -100,10 +100,12 @@ static void *execWgetThread(void *ptr)
 {
     auto *multiplexer = (RxWgetMultiplexer *)ptr;
 
+    auto *config = getRxSuite();
     char cwd[FILENAME_MAX]; // create string buffer to hold path
     GetCurrentDir(cwd, FILENAME_MAX);
-    rxString command = rxStringFormat("wget  --timestamping  -P %s/data %s", cwd, multiplexer->url);
-    system(command);
+    rxString command = rxStringFormat("wget  --timestamping  -P %s %s", config->wget_root ? config->wget_root : cwd, multiplexer->url);
+    rxServerLogRaw(rxLL_NOTICE, command);
+    rxServerLog(rxLL_NOTICE,"WGET rc=%d", system(command));
     multiplexer->done = true;
     return NULL;
 }

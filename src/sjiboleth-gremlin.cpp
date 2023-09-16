@@ -52,9 +52,9 @@ static FaBlok *getAllKeysByField(int dbNo, const char *regex, int on_matched, rx
 #define OBJECT_EXPRESSION_IS_CALCULATION 0
 #define OBJECT_EXPRESSION_IS_PREDICATE 1023
 
-#define TREND_OUTPUT_BASE               1
-#define TREND_OUTPUT_SLOPE              2
-#define TREND_OUTPUT_BASE_AND_SLOPE     3
+#define TREND_OUTPUT_BASE 1
+#define TREND_OUTPUT_SLOPE 2
+#define TREND_OUTPUT_BASE_AND_SLOPE 3
 
 typedef int (*tCalculateFunction)(const char *, int, const char *);
 typedef double (*tComputeFunction)(const char *, int, const char *);
@@ -67,7 +67,7 @@ struct for_object_expressions_parameters
     FaBlok *attr;
     FaBlok *val;
     short calc_or_test;
-   short output;
+    short output;
     GraphStack<FaBlok> *fields;
 };
 
@@ -85,7 +85,6 @@ struct for_filters_parameters
 struct for_calculations_parameters
 {
     // Filter parameters
- 
 };
 
 typedef union
@@ -179,8 +178,8 @@ static bool FilterTypes(unsigned char *, size_t, void *data, void *privData)
             break;
         }
         if (params.max_pattern != NULL)
-            return ((rxComparisonProc2)params.operatorFn)(value?value:"0", params.flen, params.pattern, params.max_pattern);
-        int rc = params.operatorFn(value?value:"0", params.flen, params.pattern);
+            return ((rxComparisonProc2)params.operatorFn)(value ? value : "0", params.flen, params.pattern, params.max_pattern);
+        int rc = params.operatorFn(value ? value : "0", params.flen, params.pattern);
         if (must_free && value)
             rxStringFree(value);
         return rc;
@@ -936,7 +935,7 @@ SJIBOLETH_HANDLER(GremlinDialect::executeGremlinMatchInExclude)
                 if (member[0] == '`' || member[0] == '~')
                 {
                     q.Push(member);
-                rxStringFree(member);
+                    rxStringFree(member);
                     continue;
                 }
                 rxStringFree(member);
@@ -990,19 +989,21 @@ FaBlok *LoadKeySetFromMetaType(FaBlok *kd, rxString metaType)
         auto *members = rxFindSetKey(0, a_type);
         if (members == NULL)
             continue;
-        void *si = NULL;
-        rxString member;
-        int64_t l;
-        while (rxScanSetMembers(members, &si, (char **)&member, &l) != NULL)
+        auto mob = rxHarvestSetmembers(members);
+        char **p = (char **)&mob->members;
+        for (size_t n = 0; n < mob->member_count; ++n)
         {
+            char *member = *p;
+            rxServerLog(rxLL_NOTICE, "LoadKeySetFromMetaType for %s : %d: %s", metaType, n, member);
             if (member[0] == '`' || member[0] == '~')
             {
                 q.Push(member);
                 continue;
             }
             kd->InsertKey(member, rxFindKey(0, member));
-            rxMemFree((void *)member);
+            ++p;
         }
+        rxFreeSetmembers(mob);
     }
     return kd;
 }
@@ -1508,10 +1509,8 @@ SJIBOLETH_HANDLER(executeGremlinComputeOnPropertyValue)
         }
 
         if (
-            (right->ValueType() == KeysetDescriptor_TYPE_SINGULAR || right->ValueType() == KeysetDescriptor_TYPE_UNKNOWN )
-            && 
-            (left->ValueType() == KeysetDescriptor_TYPE_SINGULAR || left->ValueType() == KeysetDescriptor_TYPE_UNKNOWN)
-            )
+            (right->ValueType() == KeysetDescriptor_TYPE_SINGULAR || right->ValueType() == KeysetDescriptor_TYPE_UNKNOWN) &&
+            (left->ValueType() == KeysetDescriptor_TYPE_SINGULAR || left->ValueType() == KeysetDescriptor_TYPE_UNKNOWN))
         {
             int right_len = strlen(right->AsSds());
             auto fnCallback = rxFindComputationProc((char *)t->Operation());
@@ -1580,28 +1579,28 @@ SJIBOLETH_HANDLER(executeGremlinComputeOnSinglePropertyValue)
 }
 END_SJIBOLETH_HANDLER(executeGremlinComputeOnSinglePropertyValue)
 
-    // this->RegisterSyntax("trend_slope", 30, 2, 1, &calculateTrendSlope);
-    // this->RegisterSyntax("trend_base", 30, 2, 1, &calculateTrendBase);
-    // this->RegisterSyntax("trend", 30, 2, 1, &calculateTrend);
+// this->RegisterSyntax("trend_slope", 30, 2, 1, &calculateTrendSlope);
+// this->RegisterSyntax("trend_base", 30, 2, 1, &calculateTrendBase);
+// this->RegisterSyntax("trend", 30, 2, 1, &calculateTrend);
 
-    typedef struct {
+typedef struct
+{
     double boundary;
     char *label;
-    } slope_range;
+} slope_range;
 
-    slope_range ranges[] = {
-        /*slope_range*/{-1.0, "Agressive Shrinking"},       // [indef .. -1] 
-        /*slope_range*/{-0.5, "Shrinking"},                 // [-1 .. -0.5]
-        /*slope_range*/{-0.25, "Steady Shrinking"},         // [-0.5 .. -0.25] 
-        /*slope_range*/{-0.1, "Agressive Shrink"},          // [-0.25 .. -0.1]
-        /*slope_range*/{-0.1, "Stable"},                    // [-0.1 .. 0.1]
-        /*slope_range*/{-0.25, "Steady Growth"}, 
-        /*slope_range*/{-0.5, "Growth"}, 
-        /*slope_range*/{-1.0, "Agressive Growth"} 
-    };
+slope_range ranges[] = {
+    /*slope_range*/ {-1.0, "Agressive Shrinking"}, // [indef .. -1]
+    /*slope_range*/ {-0.5, "Shrinking"},           // [-1 .. -0.5]
+    /*slope_range*/ {-0.25, "Steady Shrinking"},   // [-0.5 .. -0.25]
+    /*slope_range*/ {-0.1, "Agressive Shrink"},    // [-0.25 .. -0.1]
+    /*slope_range*/ {-0.1, "Stable"},              // [-0.1 .. 0.1]
+    /*slope_range*/ {-0.25, "Steady Growth"},
+    /*slope_range*/ {-0.5, "Growth"},
+    /*slope_range*/ {-1.0, "Agressive Growth"}};
 
-    static bool
-    calculateTrend(unsigned char *, size_t, void *data, void *privData)
+static bool
+calculateTrend(unsigned char *, size_t, void *data, void *privData)
 {
     for_object_expressions_parameters params = ((operation_parameters *)privData)->for_object_expressions;
 
@@ -1633,9 +1632,9 @@ END_SJIBOLETH_HANDLER(executeGremlinComputeOnSinglePropertyValue)
             double v = atof(field->AsSds());
             n += 1.0;
             sum_Y += v;
-            sum_Y_Y += pow(v,2);
+            sum_Y_Y += pow(v, 2);
             sum_X += n;
-            sum_X_X += pow(n,2);
+            sum_X_X += pow(n, 2);
             sum_Y_X += v * n;
         }
         avg_Y = sum_Y / n;
@@ -1655,14 +1654,16 @@ END_SJIBOLETH_HANDLER(executeGremlinComputeOnSinglePropertyValue)
         //
         // https://www.graphpad.com/quickcalcs/linear1/
 
-        B0 = (n * sum_Y_X - sum_X * sum_Y) / (n * sum_X_X - pow(sum_X,2));
+        B0 = (n * sum_Y_X - sum_X * sum_Y) / (n * sum_X_X - pow(sum_X, 2));
         B1 = (sum_Y - B0 * sum_X) / n;
         fields->Stop();
 
         slope_range *range = (slope_range *)&ranges;
         int n_ranges = sizeof(ranges) / sizeof(slope_range);
-        while(n_ranges){
-            if(B0 <= range->boundary){
+        while (n_ranges)
+        {
+            if (B0 <= range->boundary)
+            {
                 break;
             }
             ++range;
@@ -1689,7 +1690,7 @@ SJIBOLETH_HANDLER(calculateTrendSlope)
     STACK_CHECK(1);
     FaBlok *parm_list = stack->Pop();
     FaBlok *input_set = stack->Pop();
-    if (parm_list->IsParameterList()||parm_list->ObjectExpression())
+    if (parm_list->IsParameterList() || parm_list->ObjectExpression())
     {
 
         operation_parameters p;
@@ -1970,7 +1971,7 @@ SJIBOLETH_HANDLER(executeGremlinOut)
 
     rxUNUSED(t);
     STACK_CHECK(1);
-    auto *parms = MatchParameters::SetOutputType(stack, GRAPH_TRAVERSE_IN, TRAVERSE_GETDATA, TRAVERSE_FINAL_EDGE);
+    auto *parms = MatchParameters::SetOutputType(stack, GRAPH_TRAVERSE_OUT, TRAVERSE_GETDATA, TRAVERSE_FINAL_VERTEX);
     return executeGremlinTraverse(stack, parms);
 }
 END_SJIBOLETH_HANDLER_X(executeGremlinOut)
@@ -1981,7 +1982,7 @@ SJIBOLETH_HANDLER(executeGremlinIn)
 
     rxUNUSED(t);
     STACK_CHECK(1);
-    auto *parms = MatchParameters::SetOutputType(stack, GRAPH_TRAVERSE_IN, TRAVERSE_GETDATA, TRAVERSE_FINAL_EDGE);
+    auto *parms = MatchParameters::SetOutputType(stack, GRAPH_TRAVERSE_IN, TRAVERSE_GETDATA, TRAVERSE_FINAL_VERTEX);
     return executeGremlinTraverse(stack, parms);
 }
 END_SJIBOLETH_HANDLER_X(executeGremlinIn)
@@ -2003,7 +2004,7 @@ SJIBOLETH_HANDLER(executeGremlinOutTriplet)
 
     rxUNUSED(t);
     STACK_CHECK(1);
-    auto *parms = MatchParameters::SetOutputType(stack, GRAPH_TRAVERSE_IN, TRAVERSE_GETDATA, TRAVERSE_FINAL_EDGE);
+    auto *parms = MatchParameters::SetOutputType(stack, GRAPH_TRAVERSE_OUT, TRAVERSE_GETDATA, TRAVERSE_FINAL_EDGE);
     return executeGremlinTraverse(stack, parms);
 }
 END_SJIBOLETH_HANDLER_X(executeGremlinOutTriplet)
@@ -2036,7 +2037,7 @@ SJIBOLETH_HANDLER(executeGremlinOutEdge)
 
     rxUNUSED(t);
     STACK_CHECK(1);
-    auto *parms = MatchParameters::SetOutputType(stack, GRAPH_TRAVERSE_IN, TRAVERSE_GETDATA, TRAVERSE_FINAL_EDGE);
+    auto *parms = MatchParameters::SetOutputType(stack, GRAPH_TRAVERSE_OUT, TRAVERSE_GETDATA, TRAVERSE_FINAL_EDGE);
     return executeGremlinTraverse(stack, parms);
 }
 END_SJIBOLETH_HANDLER_X(executeGremlinOutEdge)
@@ -2448,8 +2449,8 @@ void executeGremlinAddEdgeUsingSubjectEdgeNamesObject(SilNikParowy_Kontekst *sta
         no_vertex_parms--;
     }
 
-    FaBlok *input_set = et->parameter_list->Dequeue();    // iri of subject
-    FaBlok *pred = et->parameter_list->Dequeue(); // predicate(type)
+    FaBlok *input_set = et->parameter_list->Dequeue(); // iri of subject
+    FaBlok *pred = et->parameter_list->Dequeue();      // predicate(type)
     FaBlok *inv_pred;
     if (no_vertex_parms >= 4)
         inv_pred = et->parameter_list->Dequeue();
@@ -2553,7 +2554,8 @@ SJIBOLETH_HANDLER(executeGremlinAddProperty)
 
     FaBlok *pl = stack->Pop();
     FaBlok *input_set = stack->Pop();
-    if(input_set == 0){
+    if (input_set == 0)
+    {
         stack->AddError("No input set");
         return C_ERR;
     }
@@ -2968,7 +2970,7 @@ FaBlok *getAllKeysByField(int dbNo, const char *regex, int on_matched, rxString 
     allkeys = strcmp(pattern, "*") == 0;
     while ((obj = rxScanKeys(dbNo, &iter, (char **)&key)) != NULL)
     {
-        if(rxGetObjectType(obj) != rxOBJ_HASH)
+        if (rxGetObjectType(obj) != rxOBJ_HASH)
             continue;
         if (*key == '^')
             continue;
@@ -3101,11 +3103,12 @@ int AddMemberToKeysetForMatch(int db, unsigned char *vstr, size_t vlen, FaBlok *
     void *members = rxFindSetKey(db, edge_key);
     if (members != NULL)
     {
-        void *si = NULL;
-        rxString member;
-        int64_t l;
-        while (rxScanSetMembers(members, &si, (char **)&member, &l) != NULL)
-        {
+        auto mob = rxHarvestSetmembers(members);
+        char **p = (char **)&mob->members;
+        for (size_t n = 0; n < mob->member_count; ++n){
+            char *member = *p;
+            rxServerLog(rxLL_NOTICE, "AddMemberToKeysetForMatch for %s : %d: %s", edge_key, n, p);
+            ++p;
             int msegments = 0;
             rxString *mparts = rxStringSplitLen(member, strlen(member), "|", 1, &msegments);
             if (!rxStringMatch(parts[0], mparts[0], MATCH_IGNORE_CASE))
@@ -3131,8 +3134,8 @@ int AddMemberToKeysetForMatch(int db, unsigned char *vstr, size_t vlen, FaBlok *
             {
                 kd->AddKey(link /*terminal->key*/, mobj);
             }
-            rxStringFree(member);
         }
+        rxFreeSetmembers(mob);
     }
     else
     {
@@ -3205,15 +3208,15 @@ int matchEdges(int db, Graph_Leg *leg, FaBlok *kd, GraphStack<Graph_Leg> *bsf_q,
     }
     int numkeys = 0;
 
-    void *si = NULL;
-    rxString elesds;
-    int64_t intobj;
-    void *m;
-    while ((m = rxScanSetMembers(zobj, &si, (char **)&elesds, &intobj)) != NULL)
+    auto mob = rxHarvestSetmembers(zobj);
+    char **p = (char **)&mob->members;
+    for (size_t n = 0; n < mob->member_count; ++n)
     {
+        char *elesds = *p;
+        rxServerLog(rxLL_NOTICE, "matchEdges for %s : %d: %s", key, n, elesds);
         int segments = 0;
         rxString *parts = rxStringSplitLen(elesds, strlen(elesds), "|", 1, &segments);
-        double weight = atof(parts[3]);
+        double weight = segments > 3 ? atof(parts[3]) : 1.0;
         rxString link = rxStringNew(parts[1] + 1);
         int link_segments = 0;
         rxString *link_parts = rxStringSplitLen(link, strlen(link), ":", 1, &link_segments);
@@ -3308,8 +3311,9 @@ int matchEdges(int db, Graph_Leg *leg, FaBlok *kd, GraphStack<Graph_Leg> *bsf_q,
         rxStringFreeSplitRes(parts, segments);
         rxStringFreeSplitRes(link_parts, link_segments);
         rxStringFree(link);
-        rxStringFree(elesds);
+        ++p;
     }
+        rxFreeSetmembers(mob);
     rxStringFree(key);
     return numkeys;
 }

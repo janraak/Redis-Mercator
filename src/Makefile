@@ -98,10 +98,10 @@ DEBUG += -g -ggdb -fpermissive
 all: sdsWrapper.xo indexIntercepts.xo rxSuite.xo  rxSuiteHelpers.xo rxIndexer.so rxQuery.so rxIndexStore.so rxMercator.so rxRule.xo  rxRule.so sjiboleth.so rxGraphdb.so 
 
 .c.xo: 
-	$(CC) -o $@ -I.. -I. $(CFLAGS) $(SHOBJ_CFLAGS)  -isystem -DUSE_JEMALLOC -D_POSIX_C_SOURCE=199309L  $(INCLUDE_PATHS) -fPIC -Werror=main -c $<
+	$(CC) -o $@ -I.. -I. $(CFLAGS) $(SHOBJ_CFLAGS) -std=c99  -isystem -DUSE_JEMALLOC -D_POSIX_C_SOURCE=199309L  $(INCLUDE_PATHS) -fPIC -Werror=main -c $<
 
 .c.o: 
-	$(CC) -o $@ -I.. -I. $(CFLAGS) $(SHOBJ_CFLAGS)  -isystem -DUSE_JEMALLOC -D_POSIX_C_SOURCE=199309L  $(INCLUDE_PATHS) -fPIC -Werror=main -c $<
+	$(CC) -o $@ -I.. -I. $(CFLAGS) $(SHOBJ_CFLAGS) -std=c99  -isystem -DUSE_JEMALLOC -D_POSIX_C_SOURCE=199309L  $(INCLUDE_PATHS) -fPIC -Werror=main -c $<
 
 OBSOLETEFLAGS=-std=c99 
 FILT = $(filter-out $(OBSOLETEFLAGS), $(CFLAGS))

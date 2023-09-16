@@ -362,9 +362,12 @@ static void *execTextLoadThread(void *ptr)
             {
                 ++a;
                 argS = (const char *)rxGetContainedObject(argv[a]);
-                char cwd[FILENAME_MAX]; // create string buffer to hold path
-                GetCurrentDir(cwd, FILENAME_MAX);
-                rxString path = rxStringFormat("%s/data/%s", cwd, argS);
+                // char cwd[FILENAME_MAX]; // create string buffer to hold path
+                // GetCurrentDir(cwd, FILENAME_MAX);
+                // rxString path = rxStringFormat("%s/data/%s", cwd, argS);
+
+                auto *config = getRxSuite();
+                const char *path = rxStringFormat("%s/data/%s", config->wget_root, argS);
                 loaded_file = (char *)readFileIntoSds(path);
             }
             else if (rxStringMatch(argS, "INDEX_SCORING", MATCH_IGNORE_CASE))

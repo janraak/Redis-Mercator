@@ -842,7 +842,7 @@ void *CreateClusterAsync_Go(void *privData)
             clustering_requested = 2;
         else if (rxStringMatch(q, REDIS_VERSION_ARG, MATCH_IGNORE_CASE) && strlen(q) == strlen(REDIS_VERSION_ARG))
         {
-            redis_version = multiplexer->GetArgument(j + 1);
+            redis_version = (char *)multiplexer->GetArgument(j + 1);
             that_cmd = rxStringAppend(that_cmd, redis_version, ' ');
             ++j;
         }
@@ -868,7 +868,7 @@ void *CreateClusterAsync_Go(void *privData)
     if (controller_path)
     {
         rxServerLog(rxLL_NOTICE, "#1000 #CreateClusterAsync_Go: SCOPE: %s", controller_path);
-        char *first_slash = strchr(controller_path, '/');
+        char *first_slash = (char *)strchr(controller_path, '/');
         const char *tail = NULL;
         if (first_slash)
         {
@@ -1452,7 +1452,7 @@ void *ClusterStartAsync_Go(void *privData)
         return multiplexer->StopThread();
     }
 
-    start_cluster(multiplexer->ctx, sha1);
+    start_cluster(multiplexer->ctx, (char*)sha1);
     multiplexer->result_text = sha1;
     return multiplexer->StopThread();
 }

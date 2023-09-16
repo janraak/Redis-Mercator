@@ -107,7 +107,7 @@ if role == 'data':
     else:
         print("rxRule already loaded")
     if not "rxGraphdb" in module_config:
-        redis_client.execute_command("MODULE LOAD {}/extensions/src/rxGraphdb.so INDEX {} {} 0 DATA {} {} 0 DEFAULT_OPERATOR &".format(path, ihost, iport, host, port))
+        redis_client.execute_command("MODULE LOAD {}/extensions/src/rxGraphdb.so INDEX {} {} 0 DATA {} {} 0 DEFAULT_OPERATOR & DATA-DIR {}/data".format(path, ihost, iport, host, port, path))
         print("rxGraphdb loaded")
     else:
         print("rxGraphdb already loaded")

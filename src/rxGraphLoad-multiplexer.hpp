@@ -279,12 +279,19 @@ public:
         rxString arg = rxStringNew(argS);
         rxStringToUpper(arg);
         rxString keyword = rxStringNew("FILE");
+        rxServerLog(rxLL_NOTICE, "Load: %s", argS);
         // TODO fixed bugs from use of stashes!!!!!!
-        if (argc == 3 && strcmp(keyword, arg) == 0)
+        if (argc >= 3 && rxStringMatch(keyword, arg, 1))
         {
-            const char *pathS = RedisModule_StringPtrLen(argv[2], &len);
+            auto *config = getRxSuite();
+            const char *pathS = rxStringFormat( "%s/%s", config->wget_root, RedisModule_StringPtrLen(argv[2], &len));
+            rxServerLog(rxLL_NOTICE, "Load json graph from: %s", pathS);
+            printf("Load json graph from: %s\n", pathS);
             rxString path = rxStringNew(pathS);
             rxString graph = readFileIntoSds(path);
+            rxServerLog(rxLL_NOTICE, "Load json graph: %s", graph);
+            printf("Load json graph: %s\n", graph);
+
             rxStashCommand(this->request, "", 1, graph);
             rxStringFree(arg);
         }
