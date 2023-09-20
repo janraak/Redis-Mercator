@@ -566,11 +566,11 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
                                   executeParseCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "rxFetch",
-                                  passthru, "readonly", 1, 1, 0) == REDISMODULE_ERR)
+                                  passthru, "readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     if (RedisModule_CreateCommand(ctx, "rxDescribe",
-                                  passthru, "readonly", 1, 1, 0) == REDISMODULE_ERR)
+                                  passthru, "readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     redisNodeInfo *index_config = rxIndexNode();

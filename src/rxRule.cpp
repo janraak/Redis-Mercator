@@ -195,25 +195,25 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
                                                 index_config->host_reference,
                                                 data_config->host_reference);
     if (RedisModule_CreateCommand(ctx, "RULE.SET",
-                                  rxRuleSet, "admin write", 1, 1, 0) == REDISMODULE_ERR)
+                                  rxRuleSet, "admin write", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "RULEADD",
-                                  rxRuleSet, "admin write", 1, 1, 0) == REDISMODULE_ERR)
+                                  rxRuleSet, "admin write", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "RULE.APPLY",
-                                  rxApply, "write", 1, 1, 0) == REDISMODULE_ERR)
+                                  rxApply, "write", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "RXTRIGGER",
-                                  rxApply, "write", 1, 1, 0) == REDISMODULE_ERR)
+                                  rxApply, "write", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "RULE.LIST",
-                                  rxRuleList, "admin readonly", 1, 1, 0) == REDISMODULE_ERR)
+                                  rxRuleList, "admin readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "RULE.DEL",
-                                  rxRuleDel, "admin write", 1, 1, 0) == REDISMODULE_ERR)
+                                  rxRuleDel, "admin write", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "RULE.GET",
-                                  rxRuleGet, "admin readonly", 1, 1, 0) == REDISMODULE_ERR)
+                                  rxRuleGet, "admin readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     rxServerLog(rxLL_NOTICE, "OnLoad rxRule. Done!");

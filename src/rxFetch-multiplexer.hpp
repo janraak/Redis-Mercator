@@ -95,10 +95,10 @@ public:
         {
             rxServerLog(rxLL_NOTICE, "corrupted bucket\n");
         }
-        if (this->dup_matchOperation != this->matchOperation)
-        {
-            rxServerLog(rxLL_NOTICE, "corrupted matchOperation\n");
-        }
+        // if (this->dup_matchOperation != this->matchOperation)
+        // {
+        //     rxServerLog(rxLL_NOTICE, "corrupted matchOperation\n");
+        // }
     }
 
     ~RxFetchMultiplexer()

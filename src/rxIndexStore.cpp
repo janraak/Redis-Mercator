@@ -258,7 +258,7 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **, int)
         return REDISMODULE_ERR;
 
     if (RedisModule_CreateCommand(ctx, "rxAdd",
-                                  rx_add, "write", 1, 1, 0) == REDISMODULE_ERR)
+                                  rx_add, "write no-monitor", 1, 1, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
 
@@ -267,15 +267,15 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **, int)
         return REDISMODULE_ERR;
 
     if (RedisModule_CreateCommand(ctx, "rxBegin",
-                                  rx_begin_key, "write", 1, 1, 0) == REDISMODULE_ERR)
+                                  rx_begin_key, "write no-monitor", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     if (RedisModule_CreateCommand(ctx, "rxCommit",
-                                  rx_commit_key, "write", 1, 1, 0) == REDISMODULE_ERR)
+                                  rx_commit_key, "write no-monitor", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     if (RedisModule_CreateCommand(ctx, "rxRollback",
-                                  rx_rollback_key, "write", 1, 1, 0) == REDISMODULE_ERR)
+                                  rx_rollback_key, "write", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     if (RedisModule_CreateCommand(ctx, "rxDescribe",

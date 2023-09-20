@@ -56,7 +56,7 @@ def load_scenarios(argv):
     all_files = []
     dir_path = os.path.dirname(os.path.realpath(__file__))
     MODULE_DIR = "{}/{}".format(dir_path, filter["folder"])
-    # pdb.set_trace()
+    # #pdb.set_trace()
     # The directory containing your modules needs to be on the search path.
     sys.path.append(MODULE_DIR)
 
@@ -76,7 +76,7 @@ def load_scenarios(argv):
         for t in callables:
             if str(inspect.signature(t[1])) != "(cluster_id, controller, data, index)":
                 print("ignored: {} signature: {}".format(t[0], inspect.signature(t[1])))
-                # pdb.set_trace()
+                # #pdb.set_trace()
                 continue
             if type(filter["includes"]) == type(list):
                 for i in filter["includes"]:
@@ -115,11 +115,20 @@ def get_redis_path(redis_client):
     path = '/'.join(segments[0:len(segments)-2])
     return path
 
+def find_local_ip():
+    for l in os.popen("ip -o -4 a").read().split("\n"):
+        xface = l.split(' ')
+        if xface[1] != 'lo':
+            for c in range(2, len(xface)):
+                if(xface[c] == 'inet'):
+                    return xface[c+1].split('/')[0]
+    return '127.0.0.1'
 
 def prepare_controller():
-    redis_client = redis.StrictRedis('localhost', 6380, 0)
+    ip = find_local_ip()
+    redis_client = redis.StrictRedis(ip, 6380, 0)
     redis_path = get_redis_path(redis_client)
-
+    #pdb.set_trace()
     module_config = which_mercator_modules_has_been_loaded(redis_client)
     if not "rxMercator" in module_config:
         r = redis_client.execute_command(
@@ -129,13 +138,14 @@ def prepare_controller():
             "MODULE LOAD {}/extensions/src/rxMercator.so".format(redis_path))
         print("rxMercator loaded")
         r = redis_client.execute_command(
-            "mercator.add.server localhost 127.0.0.1 6GB BASE 6381 2")
+            "mercator.add.server localhost {} 6GB BASE 6381 2".format(ip))
         print("rxMercator server added")
     return redis_client
 
 
 def connect_to_redis(node):
     redis_client = redis.StrictRedis(node["ip"], node["port"], 0)
+    #pdb.set_trace()
     return redis_client
 
 
@@ -168,6 +178,7 @@ def run_test(scenario, cluster_id, controller, data_node, index_node, flushall =
     fnc = scenario[1]
     print("{} ... ".format(fname), end="")    
     if flushall:
+
         controller.execute_command("mercator.flush.cluster {}".format(cluster_id))
         data_node.flushall()
         index_node.flushall()
@@ -193,6 +204,7 @@ def main(argv):
 
     controller = prepare_controller()
     cluster_info = create_cluster(controller)
+    #pdb.set_trace()
     data_node = connect_to_redis(cluster_info["data"])
     index_node = connect_to_redis(cluster_info["index"])
 

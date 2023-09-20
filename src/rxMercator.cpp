@@ -207,6 +207,47 @@ void freeSha1(rxString sha1)
 {
     rxStringFree(sha1);
 }
+#include <stdio.h>      
+#include <sys/types.h>
+#include <ifaddrs.h>
+#include <netinet/in.h> 
+#include <string.h> 
+#include <arpa/inet.h>
+
+bool address_is_local(const char *address){
+    struct ifaddrs * ifAddrStruct=NULL;
+    struct ifaddrs * ifa=NULL;
+    void * tmpAddrPtr=NULL;
+    bool is_local = false;
+    getifaddrs(&ifAddrStruct);
+
+    for (ifa = ifAddrStruct; ifa != NULL; ifa = ifa->ifa_next) {
+        if (!ifa->ifa_addr) {
+            continue;
+        }
+        if (ifa->ifa_addr->sa_family == AF_INET) { // check it is IP4
+            // is a valid IP4 Address
+            tmpAddrPtr=&((struct sockaddr_in *)ifa->ifa_addr)->sin_addr;
+            char addressBuffer[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
+            if(strcmp(address, addressBuffer)){
+                is_local = true;
+                break;
+            }
+        } else if (ifa->ifa_addr->sa_family == AF_INET6) { // check it is IP6
+            // is a valid IP6 Address
+            tmpAddrPtr=&((struct sockaddr_in6 *)ifa->ifa_addr)->sin6_addr;
+            char addressBuffer[INET6_ADDRSTRLEN];
+            inet_ntop(AF_INET6, tmpAddrPtr, addressBuffer, INET6_ADDRSTRLEN);
+            if(strcmp(address, addressBuffer)){
+                is_local = true;
+                break;
+            }
+        } 
+    }
+    if (ifAddrStruct!=NULL) freeifaddrs(ifAddrStruct);
+    return is_local;
+}
 
 std::string execWithPipe(const char *cmd, char *address)
 {
@@ -223,12 +264,13 @@ std::string execWithPipe(const char *cmd, char *address)
 
     rxString ssh_cmd = rxStringFormat("ssh -i /home/%s/.ssh/id_rsa_%s %s@%s \"%s\"",
                                       username, username, username, address, cmd);
-    rxString to_run = ssh_cmd;
+    rxString to_run = address_is_local(address) ? cmd : ssh_cmd;
 
     long long start = ustime();
     long long stop = ustime();
     int tally = 0;
 
+    printf("%s", to_run);
     rxServerLog(rxLL_WARNING, "%s", to_run);
 
     // Open pipe to file
@@ -274,13 +316,14 @@ std::string exec(const char *cmd, char *address)
 
     rxString ssh_cmd = rxStringFormat("ssh -i /home/%s/.ssh/id_rsa_%s %s@%s \"%s\"",
                                       username, username, username, address, cmd);
-    rxString to_run = ssh_cmd;
+    rxString to_run = address_is_local(address) ? cmd : ssh_cmd;
 
     long long start = ustime();
     long long stop = ustime();
     int tally = 0;
     do
     {
+        printf("%s", to_run);
         rxServerLog(rxLL_WARNING, "cli:  ");
         int rc = system(to_run);
         rxServerLog(rxLL_WARNING, " rc = %d %s \n", rc, to_run);
@@ -2131,17 +2174,17 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 
     rxRegisterConfig((void **)argv, argc);
 
-    if (RedisModule_CreateCommand(ctx, "mercator.info.config", rx_info_config, "admin write", 1, 1, 0) == REDISMODULE_ERR)
+    if (RedisModule_CreateCommand(ctx, "mercator.info.config", rx_info_config, "admin write", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
-    if (RedisModule_CreateCommand(ctx, "mercator.config.info", rx_info_config, "admin write", 1, 1, 0) == REDISMODULE_ERR)
+    if (RedisModule_CreateCommand(ctx, "mercator.config.info", rx_info_config, "admin write", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     if (argc == 1 && strcmp((char *)rxGetContainedObject(argv[0]), "CLIENT") == 0)
     {
-        RedisModule_CreateCommand(ctx, "mercator.config", rx_setconfig, "admin write", 1, 1, 0);
+        RedisModule_CreateCommand(ctx, "mercator.config", rx_setconfig, "admin write", 0, 0, 0);
         rx_setconfig(NULL, NULL, 0);
-        RedisModule_CreateCommand(ctx, "mercator.healthcheck", rx_healthcheck, "admin write", 1, 1, 0);
-        RedisModule_CreateCommand(ctx, "mercator.instance.status", rx_healthcheck, "admin write", 1, 1, 0);
+        RedisModule_CreateCommand(ctx, "mercator.healthcheck", rx_healthcheck, "admin write", 0, 0, 0);
+        RedisModule_CreateCommand(ctx, "mercator.instance.status", rx_healthcheck, "admin write", 0, 0, 0);
         libpath = getenv("LD_LIBRARY_PATH");
         if (libpath)
             rxServerLog(rxLL_NOTICE, "3) rxMercator LD_LIBRARY_PATH=%s", libpath);
@@ -2149,52 +2192,52 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     }
     else
     {
-        if (RedisModule_CreateCommand(ctx, "mercator.create.cluster", rx_create_cluster, "admin write", 1, 1, 0) == REDISMODULE_ERR)
+        if (RedisModule_CreateCommand(ctx, "mercator.create.cluster", rx_create_cluster, "admin write", 0, 0, 0) == REDISMODULE_ERR)
             return REDISMODULE_ERR;
 
-        if (RedisModule_CreateCommand(ctx, "mercator.destroy.cluster", rx_destroy_cluster, "admin write", 1, 1, 0) == REDISMODULE_ERR)
+        if (RedisModule_CreateCommand(ctx, "mercator.destroy.cluster", rx_destroy_cluster, "admin write", 0, 0, 0) == REDISMODULE_ERR)
             return REDISMODULE_ERR;
 
-        if (RedisModule_CreateCommand(ctx, "mercator.start.cluster", rx_start_cluster, "admin write", 1, 1, 0) == REDISMODULE_ERR)
+        if (RedisModule_CreateCommand(ctx, "mercator.start.cluster", rx_start_cluster, "admin write", 0, 0, 0) == REDISMODULE_ERR)
             return REDISMODULE_ERR;
 
-        if (RedisModule_CreateCommand(ctx, "mercator.stop.cluster", rx_stop_cluster, "admin write", 1, 1, 0) == REDISMODULE_ERR)
+        if (RedisModule_CreateCommand(ctx, "mercator.stop.cluster", rx_stop_cluster, "admin write", 0, 0, 0) == REDISMODULE_ERR)
             return REDISMODULE_ERR;
 
-        if (RedisModule_CreateCommand(ctx, "mercator.kill.cluster", rx_kill_cluster, "admin write", 1, 1, 0) == REDISMODULE_ERR)
+        if (RedisModule_CreateCommand(ctx, "mercator.kill.cluster", rx_kill_cluster, "admin write", 0, 0, 0) == REDISMODULE_ERR)
             return REDISMODULE_ERR;
 
-        if (RedisModule_CreateCommand(ctx, "mercator.snapshot.cluster", rx_snapshot_cluster, "readonly", 1, 1, 0) == REDISMODULE_ERR)
+        if (RedisModule_CreateCommand(ctx, "mercator.snapshot.cluster", rx_snapshot_cluster, "readonly", 0, 0, 0) == REDISMODULE_ERR)
             return REDISMODULE_ERR;
 
-        if (RedisModule_CreateCommand(ctx, "mercator.info.cluster", rx_info_cluster, "admin write", 1, 1, 0) == REDISMODULE_ERR)
+        if (RedisModule_CreateCommand(ctx, "mercator.info.cluster", rx_info_cluster, "admin write", 0, 0, 0) == REDISMODULE_ERR)
             return REDISMODULE_ERR;
 
-        if (RedisModule_CreateCommand(ctx, "mercator.cluster.info", rx_info_cluster, "admin write", 1, 1, 0) == REDISMODULE_ERR)
+        if (RedisModule_CreateCommand(ctx, "mercator.cluster.info", rx_info_cluster, "admin write", 0, 0, 0) == REDISMODULE_ERR)
             return REDISMODULE_ERR;
 
-        if (RedisModule_CreateCommand(ctx, "mercator.flush.cluster", rx_flush_cluster, "admin write", 1, 1, 0) == REDISMODULE_ERR)
+        if (RedisModule_CreateCommand(ctx, "mercator.flush.cluster", rx_flush_cluster, "admin write", 0, 0, 0) == REDISMODULE_ERR)
             return REDISMODULE_ERR;
 
-        if (RedisModule_CreateCommand(ctx, "mercator.add.server", rx_add_server, "admin write", 1, 1, 0) == REDISMODULE_ERR)
+        if (RedisModule_CreateCommand(ctx, "mercator.add.server", rx_add_server, "admin write", 0, 0, 0) == REDISMODULE_ERR)
             return REDISMODULE_ERR;
 
-        if (RedisModule_CreateCommand(ctx, "mercator.attach.controller", rx_add_controller, "admin write", 1, 1, 0) == REDISMODULE_ERR)
+        if (RedisModule_CreateCommand(ctx, "mercator.attach.controller", rx_add_controller, "admin write", 0, 0, 0) == REDISMODULE_ERR)
             return REDISMODULE_ERR;
 
-        if (RedisModule_CreateCommand(ctx, "mercator.help", rx_help, "readonly", 1, 1, 0) == REDISMODULE_ERR)
+        if (RedisModule_CreateCommand(ctx, "mercator.help", rx_help, "readonly", 0, 0, 0) == REDISMODULE_ERR)
             return REDISMODULE_ERR;
 
-        if (RedisModule_CreateCommand(ctx, "mercator.start.monitor", rx_start_monitor, "admin write", 1, 1, 0) == REDISMODULE_ERR)
+        if (RedisModule_CreateCommand(ctx, "mercator.start.monitor", rx_start_monitor, "admin write", 0, 0, 0) == REDISMODULE_ERR)
             return REDISMODULE_ERR;
 
-        if (RedisModule_CreateCommand(ctx, "mercator.stop.monitor", rx_stop_monitor, "admin write", 1, 1, 0) == REDISMODULE_ERR)
+        if (RedisModule_CreateCommand(ctx, "mercator.stop.monitor", rx_stop_monitor, "admin write", 0, 0, 0) == REDISMODULE_ERR)
             return REDISMODULE_ERR;
 
-        if (RedisModule_CreateCommand(ctx, "mercator.redis.install", rx_install_redis, "admin write", 1, 1, 0) == REDISMODULE_ERR)
+        if (RedisModule_CreateCommand(ctx, "mercator.redis.install", rx_install_redis, "admin write", 0, 0, 0) == REDISMODULE_ERR)
             return REDISMODULE_ERR;
 
-        if (RedisModule_CreateCommand(ctx, "mercator.redis.status", rx_status_redis, "admin write", 1, 1, 0) == REDISMODULE_ERR)
+        if (RedisModule_CreateCommand(ctx, "mercator.redis.status", rx_status_redis, "admin write", 0, 0, 0) == REDISMODULE_ERR)
             return REDISMODULE_ERR;
 
         libpath = getenv("LD_LIBRARY_PATH");

@@ -267,22 +267,16 @@ rax *rxSetToRax(void *obj)
     rax *r = raxNew();
     rxString member;
     int64_t member_len;
-    setTypeIterator *si = setTypeInitIterator(obj);
 
-#if REDIS_VERSION_NUM < 0x00070200
-    while (setTypeNext(si, (sds *)&member, &member_len) != -1)
+    rxSetMembers *mob = rxHarvestSetmembers(obj);
+    char **p = (char **)&mob->members;
+    for (size_t n = 0; n < mob->member_count; ++n)
     {
-        raxInsert(r, (unsigned char *)member, member_len, NULL, NULL);
+        char *member = *p;
+        raxInsert(r, (unsigned char *)member, strlen(member_len), NULL, NULL);
+        ++p;
     }
-#else
-    char *m;
-    int64_t llele;
-    while (setTypeNext(si, &m, &member_len, &llele) != -1)
-    {
-        raxInsert(r, (unsigned char *)m, member_len, NULL, NULL);
-    }
-#endif
-    setTypeReleaseIterator(si);
+    rxFreeSetmembers(mob);
     return r;
 }
 
@@ -725,8 +719,12 @@ void *rxCommitKeyRetainValue(int dbNo, const char *key, void *old_state)
     void *si = NULL;
     rxString old_member;
     int64_t l;
-    while (rxScanSetMembers(old_state, &si, (char **)&old_member, &l) != NULL)
+
+    rxSetMembers *mob = rxHarvestSetmembers(old_state);
+    char **p = (char **)&mob->members;
+    for (size_t n = 0; n < mob->member_count; ++n)
     {
+        char *member = *p;
         // Any Old state member not in new state is removed from index entry!
         if (new_members == NULL || raxFind(new_members, (unsigned char *)old_member, strlen(old_member)) == raxNotFound)
         {
@@ -752,7 +750,9 @@ void *rxCommitKeyRetainValue(int dbNo, const char *key, void *old_state)
             }
         }
         rxStringFree((old_member));
+        ++p;
     }
+    rxFreeSetmembers(mob);
 
     if (new_members != NULL)
         raxFree(new_members);
