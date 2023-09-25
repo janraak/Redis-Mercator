@@ -516,7 +516,8 @@ FaBlok *FaBlok::Copy(rxString set_name, int value_type, RaxCopyCallProc *fnCallb
                 else
                 rxServerLog(rxLL_NOTICE, "standing on %x -> ODD", v);
             rxStringFree(k);
-            if (fnCallback == NULL || fnCallback(ri.key, ri.key_len, ri.data, privData))
+            auto result = (fnCallback == NULL) ? true : fnCallback(ri.key, ri.key_len, ri.data, privData);
+            if (result != 0)
             {
                 void *old_data = NULL;
                 raxTryInsert(out->keyset, ri.key, ri.key_len, ri.data, &old_data);

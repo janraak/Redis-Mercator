@@ -80,6 +80,7 @@ struct for_filters_parameters
     rxString pattern;
     int plen;
     rxComputeProc operatorFn;
+    rxComparisonProc comparisonFn;
     rxString max_pattern;
 };
 struct for_calculations_parameters
@@ -157,7 +158,7 @@ static bool ExecuteObjectExpression(unsigned char *, size_t, void *data, void *p
     return true;
 }
 
-static bool FilterTypes(unsigned char *, size_t, void *data, void *privData)
+static int FilterTypes(unsigned char *, size_t, void *data, void *privData)
 {
     for_filters_parameters params = ((operation_parameters *)privData)->for_filters;
 
@@ -165,6 +166,7 @@ static bool FilterTypes(unsigned char *, size_t, void *data, void *privData)
         return rxMatchHasValue(data, params.field, params.pattern, params.plen) == params.must_match;
     else
     {
+        params.comparisonFn = (rxComparisonProc)params.operatorFn;
         rxString value = rxStringEmpty();
         bool must_free = false;
         switch (rxGetObjectType(data))
@@ -179,7 +181,7 @@ static bool FilterTypes(unsigned char *, size_t, void *data, void *privData)
         }
         if (params.max_pattern != NULL)
             return ((rxComparisonProc2)params.operatorFn)(value ? value : "0", params.flen, params.pattern, params.max_pattern);
-        int rc = params.operatorFn(value ? value : "0", params.flen, params.pattern);
+        int rc = params.comparisonFn(value ? value : "0", params.flen, params.pattern);
         if (must_free && value)
             rxStringFree(value);
         return rc;
@@ -2588,7 +2590,7 @@ SJIBOLETH_HANDLER(executeGremlinAddProperty)
             // TODO: Allow multiple properties to be set!
             // while (pl->parameter_list->Size() >= 2)
             // {
-            if (stack->module_contex)
+            if (stack->module_contex || targetObjectIterator.data == NULL)
                 redis_HSET(stack, key, a->setname, v->setname, data_config->host_reference);
             else
             {
@@ -2648,8 +2650,6 @@ SJIBOLETH_HANDLER(executeGremlinRedisCommand)
         raxIterator keysetIterator;
         raxStart(&keysetIterator, input_set->keyset);
         raxSeek(&keysetIterator, "^", NULL, 0);
-        rxString kw_key = rxStringNew("@key");
-        rxString kw_tuple = rxStringNew("@tuple");
         while (raxNext(&keysetIterator))
         {
             rxString key = rxStringNewLen((const char *)keysetIterator.key, keysetIterator.key_len);
@@ -2678,9 +2678,11 @@ SJIBOLETH_HANDLER(executeGremlinRedisCommand)
             FaBlok *p = NULL;
             while ((p = pl->parameter_list->Next()) != NULL)
             {
-                if (strcmp(p->setname, kw_key) == 0)
+                if (strcmp(p->setname, "*") == 0)
+                    parts[n] = rxStringNew(p->setname);
+                else if (rxStringMatch(p->setname, "@key", 1))
                     parts[n] = key;
-                else if (strcmp(p->setname, kw_tuple) == 0)
+                else if (rxStringMatch(p->setname, "@tuple", 1))
                     parts[n] = tuple;
                 else
                     parts[n] = rxStringNew(p->setname);
@@ -2693,8 +2695,6 @@ SJIBOLETH_HANDLER(executeGremlinRedisCommand)
             rxStringFree(key);
             rxStringFree(tuple);
         }
-        rxStringFree(kw_key);
-        rxStringFree(kw_tuple);
         raxStop(&keysetIterator);
         FaBlok::Delete(pl);
     }

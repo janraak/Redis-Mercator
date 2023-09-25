@@ -33,4 +33,4 @@ echo $SAVED
 cd $SAVED
 pwd
 cd sys_tests
-python3 _runner.py runs 1 >run_logs/_sys_tests.log   </dev/null
+python3 _runner.py runs 1  >run_logs/_sys_tests.log   </dev/null

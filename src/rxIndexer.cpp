@@ -126,7 +126,6 @@ void postFlushCallback(void *p);
 BEGIN_COMMAND_INTERCEPTOR(indexingHandlerXaddCommand)
 rxUNUSED(executor);
 rxString okey = (rxString)rxGetContainedObject(argv[1]);
-rxUNUSED(okey);
 
 auto *collector = raxNew();
 executor->Memoize("@@TEXT_PARSER@@", (void *)text_parser);
@@ -134,7 +133,8 @@ executor->Memoize("@@collector@@", (void *)collector);
 
 ParsedExpression *parsed_text;
 int key_type = rxOBJ_STREAM;
-rxUNUSED(key_type);
+
+   bool use_bracket = true;
 
 int j = 2;
 rxString currentArg = (rxString)rxGetContainedObject(argv[j]);
@@ -179,12 +179,13 @@ while (j < argc)
     j = j + 2;
 }
 
-// TextDialect::FlushIndexables(collector, okey, key_type, NULL, bool use_bracket);
-// RedisClientPool<redisContext>::Release(NULL);
-rxRaxFreeWithCallback(collector, freeIndexableObject);
-executor->Forget("@@TEXT_PARSER@@");
-executor->Forget("@@collector@@");
-// TODO: executor->Reset();
+    if (raxSize(collector) > 0)
+        TextDialect::FlushIndexables(collector, okey, key_type, index_info.index_update_request_queue, use_bracket);
+    raxFree(collector);
+    collector = NULL;
+
+    rxStashCommand(index_info.index_update_request_queue, "RXTRIGGER", 1, okey);
+rxUNUSED(okey);
 
 END_COMMAND_INTERCEPTOR(indexingHandlerXaddCommand)
 

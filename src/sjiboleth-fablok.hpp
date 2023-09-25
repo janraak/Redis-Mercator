@@ -53,7 +53,7 @@ extern "C"
 #define EDGE_TEMPLATE (UCHAR)0x5
 
 #endif
-typedef bool RaxCopyCallProc(unsigned char *s, size_t len, void *data, void *privData);
+typedef int RaxCopyCallProc(unsigned char *s, size_t len, void *data, void *privData);
 
 
 class SilNikParowy;

@@ -719,9 +719,9 @@ public:
                 sep[0] = ',';
             }
             this->edges.Stop();
-            json = rxStringFormat("%s%s", json, "]");
+            json = rxStringAppend(json, "]", ' ');
         }
-        json = rxStringFormat("%s%s", json, "}");
+        json = rxStringAppend(json, "}", ' ');
         return json;
     }
 

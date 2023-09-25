@@ -451,7 +451,7 @@ double rxGetHashFieldAsDouble(void *o, const char *field)
 
 rxString rxHashAsJson(const char *key, void *o)
 {
-    rxString json = rxStringFormat("{\"%s\":{", key);
+    rxString json = rxStringFormat("{\"key\": \"%s\", \"value\":{", key);
 
     hashTypeIterator *hi = hashTypeInitIterator((robj *)o);
     char sep[2];
@@ -467,7 +467,7 @@ rxString rxHashAsJson(const char *key, void *o)
         rxStringFree(v);
     }
     hashTypeReleaseIterator(hi);
-    json = rxStringFormat(json, "%s}}", json);
+    json = rxStringAppend(json, "}", '}');
     return json;
 }
 
@@ -896,10 +896,10 @@ int compareEquals(const char *l, int, const char *r)
     {
         double v = atof(l);
         double t = atof(r);
-        return v == t;
+        return (v == t )? 1 : 0;
     }
     else
-        return strcmp(l, r) != 0;
+        return (strcmp(l, r) == 0 )? 1 : 0;
 }
 
 int compareGreaterEquals(const char *l, int, const char *r)
@@ -908,10 +908,10 @@ int compareGreaterEquals(const char *l, int, const char *r)
     {
         double v = atof(l);
         double t = atof(r);
-        return v >= t;
+        return (v >= t )? 1 : 0;
     }
     else
-        return strcmp(l, r) >= 0;
+        return (strcmp(l, r) >= 0 )? 1 : 0;
 }
 
 int compareGreater(const char *l, int, const char *r)
@@ -920,10 +920,10 @@ int compareGreater(const char *l, int, const char *r)
     {
         double v = atof(l);
         double t = atof(r);
-        return v > t;
+        return (v > t )? 1 : 0;
     }
     else
-        return strcmp(l, r) > 0;
+        return (strcmp(l, r) > 0 )? 1 : 0;
 }
 
 int compareLessEquals(const char *l, int, const char *r)
@@ -932,10 +932,10 @@ int compareLessEquals(const char *l, int, const char *r)
     {
         double v = atof(l);
         double t = atof(r);
-        return v <= t;
+        return (v <= t )? 1 : 0;
     }
     else
-        return strcmp(l, r) <= 0;
+        return (strcmp(l, r) <= 0 )? 1 : 0;
 }
 
 int compareLess(const char *l, int, const char *r)
@@ -944,10 +944,11 @@ int compareLess(const char *l, int, const char *r)
     {
         double v = atof(l);
         double t = atof(r);
-        return v < t;
+        int rc = (v < t )? 1 : 0;
+        return rc;
     }
     else
-        return strcmp(l, r) < 0;
+        return (strcmp(l, r) < 0 )? 1 : 0;
 }
 
 int compareNotEquals(const char *l, int, const char *r)
@@ -956,10 +957,10 @@ int compareNotEquals(const char *l, int, const char *r)
     {
         double v = atof(l);
         double t = atof(r);
-        return v != t;
+        return (v != t )? 1 : 0;
     }
     else
-        return strcmp(l, r) == 0;
+        return (strcmp(l, r) != 0 )? 1 : 0;
 }
 
 // TODO: Float arithmetic

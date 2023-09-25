@@ -288,7 +288,6 @@ public:
                 {
                     rxString cmd = rxStringFormat("RXADD %s %s RULE %s 1", key, objT, this->setName);
                     redisReply *rcc = (redisReply *)redisCommand(redis_node, cmd);
-                    rxServerLogRaw(rxLL_WARNING, rxStringFormat( " %s: %s --> %s\n", cmd, index_config->host_reference, rcc->str));
                     freeReplyObject(rcc);
                     rxStringFree(cmd);
                     RedisClientPool<redisContext>::Release(redis_node, "RULE::Apply");
@@ -316,7 +315,6 @@ public:
             {
                 rxString cmd = rxStringFormat("RXDEL %s %s RULE %s", key, objT, this->setName);
                 redisReply *rcc = (redisReply *)redisCommand(redis_node, cmd);
-                rxServerLogRaw(rxLL_WARNING, rxStringFormat( " %s: %s --> %s\n", cmd, index_config->host_reference, rcc->str));
                 freeReplyObject(rcc);
                 rxStringFree(cmd);
                 RedisClientPool<redisContext>::Release(redis_node, "RULE::Apply");
