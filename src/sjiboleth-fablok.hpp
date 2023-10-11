@@ -19,7 +19,7 @@ extern "C"
 
 #include <stddef.h>
 #include <stdint.h>
-#include "rax.h"
+#include "../../src/rax.h"
 #include "sdsWrapper.h"
 
 #include "rxSuite.h"
@@ -136,7 +136,7 @@ public:
       FaBlok *Right();
       FaBlok *Left();
 
-      FaBlok *Copy(rxString set_name, int value_type, RaxCopyCallProc *fnCallback, void *privData);
+      FaBlok *Copy(const char* set_name, int value_type, RaxCopyCallProc *fnCallback, void *privData);
 
       int CopyTo(FaBlok *out);
       int MergeInto(FaBlok *out);

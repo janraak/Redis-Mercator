@@ -116,7 +116,7 @@ const char *HELP_STRING = "RX Query Commands:\n"
 
 #define HASHTYPE 'H'
 #define STRINGTYPE 'S'
-#include "adlist.h"
+#include "../../src/adlist.h"
 
 // rxString hashToJson(robj *o, rxString json)
 // {
@@ -298,6 +298,7 @@ int executeParseCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 
 int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
+    loadCtx = ctx;
     if (rxGetMemoryUsedPercentage() > 95.0)
     {
         RedisModule_ReplyWithSimpleString(ctx, "Short on memory! Query command not executed.");
@@ -348,7 +349,7 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         }
         else
         {
-            query = rxStringAppend(query, q, ' ');
+            query = rxStringFormat("%s %s", query, q);
         }
     }
     if(strstr(query,"HEALTH_CHECK_SHIFT")){

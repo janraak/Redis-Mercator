@@ -6,14 +6,13 @@
 #include "stddef.h"
 #include "stdint.h"
 #include "stdlib.h"
-#include "util.h"
+#include "../../src/util.h"
 #include <stdarg.h>
 #include <stdio.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <zmalloc.h>
-#include <rax.h>
-#include <rax.h>
+#include "../../src/zmalloc.h"
+#include "../../src/rax.h"
 #define REDISMODULE_EXPERIMENTAL_API
 #include "../../src/redismodule.h"
 
@@ -80,9 +79,9 @@ rxString rxStringFormat(const char *fmt, ...)
 
 rxString rxStringAppend(const char *current, const char *extra, char sep)
 {
-    rxString *new = rxStringFormat("%s%c%s", current, sep, extra);
+    auto appended = rxStringFormat("%s%c%s", current, sep, extra);
     rxStringFree(current);
-    return new;
+    return appended;
 }
 
 rxString rxStringTrim(rxString s, const char *cset)

@@ -12,7 +12,7 @@ extern "C"
 #include <pthread.h>
 #include <unistd.h>
 
-#include "rax.h"
+#include "../../src/rax.h"
 #include "rxSuiteHelpers.h"
     extern raxNode *raxNewNode(size_t children, int datafield);
 

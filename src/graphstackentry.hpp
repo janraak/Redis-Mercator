@@ -1,21 +1,15 @@
 #ifndef __GRAPHSTACKENTRY_HPP__
 #define __GRAPHSTACKENTRY_HPP__
 
-
 #include <cstdarg>
 #include <typeinfo>
 
 #include "client-pool.hpp"
 #include "simpleQueue.hpp"
 
-
-
-
-
 template class RedisClientPool<struct client>;
 
 #include "graphstackentry.h"
-
 
 const char *CRLF = "\r\n";
 const char *COLON = ":";
@@ -58,24 +52,28 @@ const char *WOK = "WOK";
 struct client *graphStackEntry_fakeClient = NULL;
 #include "graphstackentry_abbreviated.hpp"
 
+extern RedisModuleCtx *loadCtx;
+
 void ExecuteRedisCommand(SimpleQueue *ctx, void *stash, const char *host_reference)
 {
     int argc = *((int *)stash);
-    if(argc <= 0){
+    if (argc <= 0)
+    {
         rxServerLog(rxLL_WARNING, "Odd request %p,  arg count: %d", stash, argc);
         return;
     }
     void **argv = (void **)(stash + sizeof(void *));
     auto *c = (struct client *)RedisClientPool<struct client>::Acquire(host_reference, "_FAKE", "ExecuteRedisCommand");
+    rxSetDatabase(c, loadCtx);
     rxAllocateClientArgs(c, argv, argc);
     rxString commandName = (rxString)rxGetContainedObject(argv[0]);
     void *command_definition = rxLookupCommand((rxString)commandName);
-    if(command_definition)
+    if (command_definition)
         rxClientExecute(c, command_definition);
     else
         rxServerLog(rxLL_WARNING, "Unknown command %s,  arg count: %d", commandName, argc);
     RedisClientPool<struct client>::Release(c, "ExecuteRedisCommand");
-    if(ctx)
+    if (ctx)
         enqueueSimpleQueue(ctx, stash);
 }
 
@@ -85,19 +83,20 @@ void ExecuteRedisCommandRemote(SimpleQueue *ctx, void *stash, const char *host_r
     int argc = *((int *)stash);
     void **argv = (void **)(stash + sizeof(void *));
     int commandline_length = 1;
-    for(int n = 0 ; n < argc; ++n ){
-        auto *s = (const char*)rxGetContainedObject(argv[n]);
+    for (int n = 0; n < argc; ++n)
+    {
+        auto *s = (const char *)rxGetContainedObject(argv[n]);
         commandline_length += 3 + strlen(s);
     }
 
-    char *cmd = (char*)rxMemAlloc(commandline_length);
+    char *cmd = (char *)rxMemAlloc(commandline_length);
     memset(cmd, 0x00, commandline_length);
-    auto *s = (const char*)rxGetContainedObject(argv[0]);
+    auto *s = (const char *)rxGetContainedObject(argv[0]);
     strcpy(cmd, s);
     for (int n = 1; n < argc; ++n)
     {
         auto *s = (const char *)rxGetContainedObject(argv[n]);
-        if (strchr(s, ' ')||strchr(s, '%'))
+        if (strchr(s, ' ') || strchr(s, '%'))
         {
             strcat(cmd, " \"");
             strcat(cmd, s);
@@ -109,20 +108,22 @@ void ExecuteRedisCommandRemote(SimpleQueue *ctx, void *stash, const char *host_r
             strcat(cmd, s);
         }
     }
-    if(saved_redisClient == NULL)
+    if (saved_redisClient == NULL)
         saved_redisClient = RedisClientPool<redisContext>::Acquire(host_reference, "_CLIENT", "ExecuteRedisCommandRemote");
 
     // auto *rcc = (redisReply *)redisCommandArgv(saved_redisClient, argc, argv, &argv_len);
     auto *rcc = (redisReply *)redisCommand(saved_redisClient, cmd, NULL);
-    if(rcc != NULL){
+    if (rcc != NULL)
+    {
         freeReplyObject(rcc);
     }
-    if(saved_redisClient->err > 0){
+    if (saved_redisClient->err > 0)
+    {
         rxServerLog(rxLL_WARNING, "Execution error %s for %s", saved_redisClient->errstr, cmd);
         // RedisClientPool<redisContext>::Release(saved_redisClient);
     }
     rxMemFree(cmd);
-    if(ctx)
+    if (ctx)
         enqueueSimpleQueue(ctx, stash);
 }
 
@@ -365,24 +366,24 @@ public:
         return strcmp(this->token_key, PREDICATE) == 0;
     }
 
-    void AddTriplet(rxString subject_key, rxString predicate_key, rxString inverse_predicate_key, rxString object_key, double ){
+    void AddTriplet(rxString subject_key, rxString predicate_key, rxString inverse_predicate_key, rxString object_key, double)
+    {
         auto *colon1 = (char *)strchr(predicate_key, ':');
         *colon1 = 0x00;
         auto *colon2 = (char *)strchr(inverse_predicate_key, ':');
         *colon2 = 0x00;
         rxString traversal = rxStringFormat("\"g:predicate('%s','%s').subject('%s').object('%s')\"",
-                                   predicate_key, inverse_predicate_key,
-                                   subject_key,
-                                   object_key);
+                                            predicate_key, inverse_predicate_key,
+                                            subject_key,
+                                            object_key);
         *colon1 = ':';
         *colon2 = ':';
 
         rxStashCommand(this->ctx, "RXQUERY", 1, traversal);
         rxStringFree(traversal);
-        
     }
 
-    void Link(rxString edge_key, rxString vertice, const char *direction, double )
+    void Link(rxString edge_key, rxString vertice, const char *direction, double)
     {
         rxString type;
         char *colon = strstr((char *)edge_key, COLON);
@@ -399,10 +400,10 @@ public:
             type = rxStringNewLen(type + 1, strlen(type) - 1);
         rxString link = rxStringEmpty();
         link = rxStringFormat("%s%s|%s|%s\%0.0f",
-                            link, type,
-                            vertice,
-                            direction,
-                            weight);
+                              link, type,
+                              vertice,
+                              direction,
+                              weight);
         rxStashCommand(this->ctx, WREDIS_CMD_SADD, 2, edge_key, link);
         rxStringFree(link);
     }

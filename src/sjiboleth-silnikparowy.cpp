@@ -11,7 +11,7 @@ extern "C"
 #include "sdsWrapper.h"
 #include "string.h"
 
-#include "rax.h"
+#include "../../src/rax.h"
 #include "rxSuiteHelpers.h"
     extern raxNode *raxNewNode(size_t children, int datafield);
 

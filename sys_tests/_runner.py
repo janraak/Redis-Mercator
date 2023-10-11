@@ -23,6 +23,7 @@ filter = {"folder":"scenarios", "runs":2}
 
 import glob, importlib, os, pathlib, sys
 parameter_names = ["testset", "include", "exclude", "runs"]
+
 def parse_arguments(argv):
     n = 0
     folder = "scenarios"
@@ -49,6 +50,7 @@ def parse_arguments(argv):
                     excludes.append(argv[n])
                     n += 1
             n += 1
+    print("{}".format({"folder":folder, "includes":includes, "excludes":excludes, "runs":runs}))
     return {"folder":folder, "includes":includes, "excludes":excludes, "runs":runs}
 
 def load_scenarios(argv):
@@ -210,7 +212,7 @@ def main(argv):
 
     dataset1 = download_testdata(data_node, "dataset1.txt")
     cluster_id = cluster_info["cluster_id"].decode('utf-8')
-    for n in range(0,filter["runs"]):
+    for n in range(1,filter["runs"]):
         print("------ run {}".format(n))
         flushall = True
         for file in scenarios:

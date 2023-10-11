@@ -1,6 +1,6 @@
 #ifndef __RXSUITEHELPERS_H__
 #define __RXSUITEHELPERS_H__
-#include "version.h"
+#include "../../src/version.h"
 
 #undef _GNU_SOURCE
 #undef _DEFAULT_SOURCE
@@ -15,9 +15,9 @@ extern "C"
 // With redis 7.2.0 fmacro.h may cause compilation errors
 #define _REDIS_FMACRO_H 
 #endif
-#include "ae.h"
+#include "../../src/ae.h"
 // 
-#include "rax.h"
+#include "../../src/rax.h"
 #include "../../src/dict.h"
 #include "sdsWrapper.h"
 
@@ -79,6 +79,9 @@ extern "C"
     void rxClientExecute(void *cO, void *pO);
 
     int rxGetServerPort();
+    void *rxGetDatabase(int dbno);
+
+    void rxSetDatabase(void *c, void *orgC);
 
     int rxIsAddrBound(char *addr, int port);
 #define MATCH_IS_FALSE 0
@@ -125,6 +128,7 @@ extern "C"
      rxString rxHashAsJson(const char *key, void *o);
      struct rxHashTypeIterator *rxHashTypeInitIterator(void *subject);
      void rxHashTypeReleaseIterator(struct rxHashTypeIterator *hi);
+     int rxDbDelete(int dbNo, const char *key);
 
      int rxHashTypeNext(struct rxHashTypeIterator *hi);
 
@@ -153,6 +157,7 @@ extern "C"
     int rxAddSetMember(const char *key, int dbNo, rxString member);
     double rxDeleteSortedSetMember(const char *key, int dbNo, rxString member);
     int rxDeleteSetMember(const char *key, int dbNo, rxString member);
+    int rxDeleteSetMember2(void *sobj, int dbNo, rxString member);
 
     void *rxRemoveKeyRetainValue(int dbNo, const char *key);
     void *rxRestoreKeyRetainValue(int dbNo, const char *key, void *obj);

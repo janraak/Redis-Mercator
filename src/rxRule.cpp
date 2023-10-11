@@ -160,9 +160,12 @@ int rxRuleGet(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     return REDISMODULE_OK;
 }
 
+
+extern RedisModuleCtx *loadCtx;
+
 int rxApply(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
-    rxUNUSED(ctx);
+    loadCtx = ctx;
     rxUNUSED(argc);
     rxString key = (char *)rxGetContainedObject(argv[1]);
     rxServerLog(rxLL_DEBUG,"Applying all rules to: %s\n", key);

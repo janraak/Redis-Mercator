@@ -13,20 +13,20 @@
 #include <string>
 
 #include <fcntl.h>
-#include <sys/stat.h>
 #include <stdlib.h>
 #include <string.h>
-#include <version.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
+#include <version.h>
 
 #include "client-pool.hpp"
 
 using std::string;
 #include "graphstack.hpp"
 #include "rxGraphLoad-multiplexer.hpp"
+#include "rxSuite.h"
 #include "rxTextLoad-multiplexer.hpp"
 #include "rxWget-multiplexer.hpp"
-#include "rxSuite.h"
 #include "sjiboleth.hpp"
 
 extern "C"
@@ -534,6 +534,14 @@ void emit_triplet(Triplet *triplet, string &json, string &json_sep, RedisModuleD
     json_sep.assign((","));
 }
 
+const char *combine_result_to_json(const char *entities, const char *triplets)
+{
+
+    auto result = rxStringFormat("{\"entities\":%s\", triplets\":%s}", entities, triplets);
+
+    return result;
+}
+
 int g_get(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     size_t rootKey_len;
@@ -574,19 +582,48 @@ int g_get(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     RedisModule_FreeDict(ctx, entities_emitted);
     RedisModule_FreeDict(ctx, entities_visited);
     RedisModule_FreeDict(ctx, triplets_emitted);
-    string result("{\"entities\":");
-    result.append(entities);
-    result.append(", \"triplets\":");
-    result.append(triplets);
-    result.append("}");
 
-    return RedisModule_ReplyWithSimpleString(ctx, strdup(result.c_str()));
+    return RedisModule_ReplyWithSimpleString(ctx, combine_result_to_json(entities.c_str(), triplets.c_str()));
+}
+extern "C" int moduleConfigApplyConfig(list *module_configs, const char **err, const char **err_arg_name);
+
+extern RedisModuleCtx *loadCtx;
+RedisModuleCtx *ctx = NULL;
+void *currentDatabase = NULL;
+
+const char *get_deeper(const char *rootKey, size_t rootKey_len, size_t max_graph_length)
+{
+
+    RedisModuleDict *entities_emitted = RedisModule_CreateDict(loadCtx);
+    RedisModuleDict *triplets_emitted = RedisModule_CreateDict(loadCtx);
+    RedisModuleDict *entities_visited = RedisModule_CreateDict(loadCtx);
+
+    string entities(BEGIN_ARRAY);
+    string entities_sep(EMPTY_STRING);
+    string triplets(BEGIN_ARRAY);
+    string triplets_sep(EMPTY_STRING);
+    // string entities_sep(EMPTY_STRING);
+
+    Triplet root((char *)rootKey, rootKey_len);
+    root.Expand(loadCtx, entities, entities_sep, triplets, triplets_sep, max_graph_length, entities_emitted, triplets_emitted, entities_visited);
+
+    triplets.append(END_ARRAY);
+    entities.append(END_ARRAY);
+
+    RedisModule_FreeDict(ctx, entities_emitted);
+    RedisModule_FreeDict(ctx, entities_visited);
+    RedisModule_FreeDict(ctx, triplets_emitted);
+    return combine_result_to_json(entities.c_str(), triplets.c_str());
 }
 
 int get_deep(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
+    if (ctx)
+        {
+            loadCtx = ctx;
+        }
     size_t rootKey_len;
-    size_t max_graph_length = 8;
+    size_t max_graph_length = 3;
     string entities(BEGIN_ARRAY);
     string entities_sep(EMPTY_STRING);
     string triplets(BEGIN_ARRAY);
@@ -598,33 +635,18 @@ int get_deep(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     }
 
     const char *rootKey = RedisModule_StringPtrLen(argv[1], &rootKey_len);
-    RedisModuleDict *entities_emitted = RedisModule_CreateDict(ctx);
-    RedisModuleDict *triplets_emitted = RedisModule_CreateDict(ctx);
-    RedisModuleDict *entities_visited = RedisModule_CreateDict(ctx);
-    Triplet root((char *)rootKey, rootKey_len);
-    root.Expand(ctx, entities, entities_sep, triplets, triplets_sep, max_graph_length, entities_emitted, triplets_emitted, entities_visited);
+    const char *graph = get_deeper(rootKey, rootKey_len, max_graph_length);
 
-    triplets.append(END_ARRAY);
-    entities.append(END_ARRAY);
-
-    RedisModule_FreeDict(ctx, entities_emitted);
-    RedisModule_FreeDict(ctx, entities_visited);
-    RedisModule_FreeDict(ctx, triplets_emitted);
-    string result("{\"entities\":");
-    result.append(entities);
-    result.append(", \"triplets\":");
-    result.append(triplets);
-    result.append("}");
-
-    return RedisModule_ReplyWithSimpleString(ctx, strdup(result.c_str()));
+    return RedisModule_ReplyWithSimpleString(ctx, graph);
 }
 
-/* This function must be present on each R
-edis module. It is used in order to
+/* This function must be present on each Redis module. It is used in order to
  * register the commands into the Redis server. */
 int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     initRxSuite();
+
+    loadCtx = ctx;
 
     if (RedisModule_Init(ctx, "rxGraphdb", 1, REDISMODULE_APIVER_1) == REDISMODULE_ERR)
     {
@@ -654,9 +676,8 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     return REDISMODULE_OK;
 }
 
-int RedisModule_OnUnload(RedisModuleCtx *ctx)
+int RedisModule_OnUnload(RedisModuleCtx *)
 {
-    UNUSED(ctx);
     finalizeRxSuite();
     return REDISMODULE_OK;
 }

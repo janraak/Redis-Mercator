@@ -6,7 +6,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "redismodule.h"
+#include "../../src/redismodule.h"
 #include "rxSuite.h"
 
 #include <ctype.h>

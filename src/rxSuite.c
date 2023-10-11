@@ -4,7 +4,7 @@
 extern "C"
 {
 #endif
-#include "server.h"
+#include "../../src/server.h"
 #define REDISMODULE_EXPERIMENTAL_API
 #include "../../src/redismodule.h"
 

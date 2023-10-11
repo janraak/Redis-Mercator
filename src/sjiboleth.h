@@ -127,4 +127,8 @@ extern "C"
 
 #endif
 
+
+// Saved context for asyn functions
+extern RedisModuleCtx *loadCtx;
+
 #endif

@@ -5,7 +5,7 @@
 extern "C"
 {
 #endif
-#include "adlist.h"
+#include "../../src/adlist.h"
 #include <stddef.h>
 #ifdef __cplusplus
 }

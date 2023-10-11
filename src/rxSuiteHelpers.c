@@ -9,9 +9,10 @@ extern "C"
 #include <sched.h>
 #include <signal.h>
 
+#include "../../src/rax.h"
 #include "../../src/sds.h"
 #include "../../src/server.h"
-#include "rax.h"
+#include "../../src/redismodule.h"
     extern struct client *createAOFClient(void);
     void raxRecursiveFree(rax *rax, raxNode *n, void (*free_callback)(void *));
     unsigned long getClusterConnectionsCount(void);
@@ -616,6 +617,16 @@ static void HarvestMember(rax *bucket, unsigned char *key, int k_len, double sco
     raxInsert(bucket, key, k_len, member, &old);
 }
 
+extern int dbGenericDelete(redisDb *db, robj *key, int async);
+extern int dbSyncDelete(redisDb *db, robj *key);
+int rxDbDelete(int dbNo, const char *key)
+{
+    robj *k = createStringObject(key, strlen(key));
+    int rc = dbSyncDelete(&server.db[dbNo], k);
+    freeStringObject(k);
+    return rc;
+}
+
 extern int setTypeAdd(robj *subject, sds value);
 int rxAddSetMember(const char *key, int dbNo, rxString member)
 {
@@ -629,14 +640,22 @@ int rxAddSetMember(const char *key, int dbNo, rxString member)
     }
     return setTypeAdd(sobj, (sds)member);
 }
+
 int rxDeleteSetMember(const char *key, int dbNo, rxString member)
 {
     robj *sobj = (robj *)rxFindSetKey(dbNo, key);
     if (sobj != NULL)
     {
-        if (setTypeIsMember(sobj, (sds)member))
-            return setTypeRemove(sobj, (sds)member);
+        // if (setTypeIsMember(sobj, (sds)member))
+        return setTypeRemove(sobj, (sds)member);
     }
+    return 0;
+}
+
+int rxDeleteSetMember2(void *sobj, int dbNo, rxString member)
+{
+    // if (setTypeIsMember(sobj, (sds)member))
+    return setTypeRemove((robj *)sobj, (sds)member);
     return 0;
 }
 
@@ -717,14 +736,13 @@ void *rxCommitKeyRetainValue(int dbNo, const char *key, void *old_state)
                            : NULL;
 
     void *si = NULL;
-    rxString old_member;
     int64_t l;
 
     rxSetMembers *mob = rxHarvestSetmembers(old_state);
     char **p = (char **)&mob->members;
     for (size_t n = 0; n < mob->member_count; ++n)
     {
-        char *member = *p;
+        char *old_member = *p;
         // Any Old state member not in new state is removed from index entry!
         if (new_members == NULL || raxFind(new_members, (unsigned char *)old_member, strlen(old_member)) == raxNotFound)
         {
@@ -749,7 +767,6 @@ void *rxCommitKeyRetainValue(int dbNo, const char *key, void *old_state)
                 }
             }
         }
-        rxStringFree((old_member));
         ++p;
     }
     rxFreeSetmembers(mob);
@@ -896,10 +913,10 @@ int compareEquals(const char *l, int, const char *r)
     {
         double v = atof(l);
         double t = atof(r);
-        return (v == t )? 1 : 0;
+        return (v == t) ? 1 : 0;
     }
     else
-        return (strcmp(l, r) == 0 )? 1 : 0;
+        return (strcmp(l, r) == 0) ? 1 : 0;
 }
 
 int compareGreaterEquals(const char *l, int, const char *r)
@@ -908,10 +925,10 @@ int compareGreaterEquals(const char *l, int, const char *r)
     {
         double v = atof(l);
         double t = atof(r);
-        return (v >= t )? 1 : 0;
+        return (v >= t) ? 1 : 0;
     }
     else
-        return (strcmp(l, r) >= 0 )? 1 : 0;
+        return (strcmp(l, r) >= 0) ? 1 : 0;
 }
 
 int compareGreater(const char *l, int, const char *r)
@@ -920,10 +937,10 @@ int compareGreater(const char *l, int, const char *r)
     {
         double v = atof(l);
         double t = atof(r);
-        return (v > t )? 1 : 0;
+        return (v > t) ? 1 : 0;
     }
     else
-        return (strcmp(l, r) > 0 )? 1 : 0;
+        return (strcmp(l, r) > 0) ? 1 : 0;
 }
 
 int compareLessEquals(const char *l, int, const char *r)
@@ -932,10 +949,10 @@ int compareLessEquals(const char *l, int, const char *r)
     {
         double v = atof(l);
         double t = atof(r);
-        return (v <= t )? 1 : 0;
+        return (v <= t) ? 1 : 0;
     }
     else
-        return (strcmp(l, r) <= 0 )? 1 : 0;
+        return (strcmp(l, r) <= 0) ? 1 : 0;
 }
 
 int compareLess(const char *l, int, const char *r)
@@ -944,11 +961,11 @@ int compareLess(const char *l, int, const char *r)
     {
         double v = atof(l);
         double t = atof(r);
-        int rc = (v < t )? 1 : 0;
+        int rc = (v < t) ? 1 : 0;
         return rc;
     }
     else
-        return (strcmp(l, r) < 0 )? 1 : 0;
+        return (strcmp(l, r) < 0) ? 1 : 0;
 }
 
 int compareNotEquals(const char *l, int, const char *r)
@@ -957,10 +974,10 @@ int compareNotEquals(const char *l, int, const char *r)
     {
         double v = atof(l);
         double t = atof(r);
-        return (v != t )? 1 : 0;
+        return (v != t) ? 1 : 0;
     }
     else
-        return (strcmp(l, r) != 0 )? 1 : 0;
+        return (strcmp(l, r) != 0) ? 1 : 0;
 }
 
 // TODO: Float arithmetic
@@ -1217,6 +1234,29 @@ int rxGetServerPort()
     return server.port ? server.port : server.tls_port;
 }
 
+void *rxGetDatabase(int dbno)
+{
+
+    return NULL;
+}
+
+extern client *moduleGetReplyClient(struct RedisModuleCtx *ctx);
+extern int RM_GetSelectedDb(struct RedisModuleCtx *ctx);
+void rxSetDatabase(void *c, void *orgC)
+{
+    if((long long int)orgC < 7){
+        serverLog(LL_NOTICE, "rxSetDatabase invalid RedisModuleCtx *ctx: %p", orgC);
+        return;
+    }
+
+    int dbNo = 0;
+    // TODO: Find better way to get the correct database
+    //RM_GetSelectedDb((struct RedisModuleCtx *)orgC);
+    //
+    redisDb *db = (&server.db[dbNo]);
+    ((client *)c)->db = db;
+}
+
 rxSetMembers *rxHarvestSetmembers(void *obj)
 {
     size_t member_count = 0;
@@ -1242,10 +1282,12 @@ rxSetMembers *rxHarvestSetmembers(void *obj)
     int64_t member_len;
 
 #if REDIS_VERSION_NUM < 0x00070200
-    while (setTypeNext(si, &member, &member_len) != -1){
+    while (setTypeNext(si, &member, &member_len) != -1)
+    {
 #else
     int64_t llele;
-    while (setTypeNext(si, &member, &member_len, &llele) != -1){
+    while (setTypeNext(si, &member, &member_len, &llele) != -1)
+    {
 #endif
         ++member_count;
         total_member_size = total_member_size + strlen(member);
@@ -1260,11 +1302,13 @@ rxSetMembers *rxHarvestSetmembers(void *obj)
     char **p = &mob->members;
     char *m = (char *)((void *)p) + member_count * sizeof(void *);
 #if REDIS_VERSION_NUM < 0x00070200
-    while (setTypeNext(si, &member, &member_len) != -1){
+    while (setTypeNext(si, &member, &member_len) != -1)
+    {
 #else
     int64_t llele;
-    while (setTypeNext(si, &member, &member_len, &llele) != -1){
-#endif 
+    while (setTypeNext(si, &member, &member_len, &llele) != -1)
+    {
+#endif
 
         strcpy(m, member);
         *p = m;
@@ -1278,6 +1322,7 @@ rxSetMembers *rxHarvestSetmembers(void *obj)
 
 rxSetMembers *rxFreeSetmembers(rxSetMembers *mob)
 {
-    rxMemFree(mob);
+    if (mob)
+        rxMemFree(mob);
     return NULL;
 }

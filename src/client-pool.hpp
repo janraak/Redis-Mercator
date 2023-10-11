@@ -9,7 +9,7 @@ extern "C"
 #include <stdint.h>
 #include "rxSuite.h"
 
-#include "rax.h"
+#include "../../src/rax.h"
 #include "../../deps/hiredis/hiredis.h"
 #include "../../deps/hiredis/async.h"
 

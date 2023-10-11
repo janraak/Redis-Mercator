@@ -17,6 +17,7 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 #ifdef __cplusplus
+    extern const char *get_deeper(const char *rootKey, size_t rootKey_len, size_t max_graph_length);
 }
 #endif
 

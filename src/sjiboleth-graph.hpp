@@ -6,7 +6,7 @@ extern "C"
 {
 #endif
 
-#include "rax.h"
+#include "../../src/rax.h"
 #include "rxSuiteHelpers.h"
 #include "rxSuiteHelpers.h"
 #include "sdsWrapper.h"
@@ -101,19 +101,15 @@ public:
         */
         auto opti = *((int *)parm);
         double balance = ((Graph_Leg *)left)->length - ((Graph_Leg *)right)->length;
-        ////printf("%s :: %s => %f :: %f => %f * %d ==> ", ((Graph_Leg *)left)->key, ((Graph_Leg *)right)->key, ((Graph_Leg *)left)->length, ((Graph_Leg *)right)->length, balance, opti);
         opti = 1;
         if (balance < 0)
         {
-            ////printf("1\n");
             return 1 * opti; // l < r
         }
         if (balance > 0)
         {
-            ////printf("-1\n");
             return -1 * opti; // l > r
         }
-        ////printf("0\n");
         return 0; // l == r
     }
 

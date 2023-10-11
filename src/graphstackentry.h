@@ -12,7 +12,7 @@
 extern "C"
 {
 #endif
-#include "adlist.h"
+#include "../../src/adlist.h"
 #include "sdsWrapper.h"
 #include <stddef.h>
 #include "../../deps/hiredis/hiredis.h"
