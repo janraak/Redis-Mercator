@@ -202,6 +202,7 @@ FaBlok::FaBlok()
 
 FaBlok *FaBlok::Init(void *r)
 {
+    this->claims = 0;
     this->pid = getpid();
     this->thread_id = pthread_self();
 
@@ -293,7 +294,6 @@ FaBlok *FaBlok::New(const char *sn, UCHAR value_type)
     strncpy(s, sn, l);
     s[l] = 0x00;
     auto *fab = ((FaBlok *)(fabSpace + sizeof(rax)))->Init(fabSpace);
-
     fab->setname = s;
     fab->value_type = value_type;
 

@@ -121,10 +121,8 @@ int rxRuleSet(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     return REDISMODULE_OK;
 }
 
-int rxRuleList(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
+int rxRuleList(RedisModuleCtx *ctx, RedisModuleString **, int )
 {
-    rxUNUSED(argv);
-    rxUNUSED(argc);
     return BusinessRule::WriteList(ctx);
 }
 
@@ -152,21 +150,24 @@ int rxRuleDel(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     return REDISMODULE_OK;
 }
 
-int rxRuleGet(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
+int rxRuleGet(RedisModuleCtx *ctx, RedisModuleString **, int )
 {
-    rxUNUSED(argv);
-    rxUNUSED(argc);
     RedisModule_ReplyWithSimpleString(ctx, "Command not yet implemented!");
     return REDISMODULE_OK;
 }
 
 
+int rxRuleWait(RedisModuleCtx *ctx, RedisModuleString **, int )
+{
+    RedisModule_ReplyWithSimpleString(ctx, "Command not yet implemented!");
+    return REDISMODULE_OK;
+}
+
 extern RedisModuleCtx *loadCtx;
 
-int rxApply(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
+int rxApply(RedisModuleCtx *ctx, RedisModuleString **argv, int )
 {
     loadCtx = ctx;
-    rxUNUSED(argc);
     rxString key = (char *)rxGetContainedObject(argv[1]);
     rxServerLog(rxLL_DEBUG,"Applying all rules to: %s\n", key);
     rxString response = BusinessRule::ApplyAll(key);
@@ -217,6 +218,9 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "RULE.GET",
                                   rxRuleGet, "admin readonly", 0, 0, 0) == REDISMODULE_ERR)
+        return REDISMODULE_ERR;
+    if (RedisModule_CreateCommand(ctx, "RULE.WAIT",
+                                  rxRuleWait, "admin readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     rxServerLog(rxLL_NOTICE, "OnLoad rxRule. Done!");

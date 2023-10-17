@@ -79,7 +79,7 @@ rxString rxStringFormat(const char *fmt, ...)
 
 rxString rxStringAppend(const char *current, const char *extra, char sep)
 {
-    auto appended = rxStringFormat("%s%c%s", current, sep, extra);
+    rxString appended = rxStringFormat("%s%c%s", current, sep, extra);
     rxStringFree(current);
     return appended;
 }

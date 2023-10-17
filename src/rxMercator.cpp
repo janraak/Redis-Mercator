@@ -848,33 +848,33 @@ void *CreateClusterAsync_Go(void *privData)
     int clustering_requested = 0;
     int start_requested = 0;
     const char *controller_path = NULL;
+    char *tag = NULL;
     char *redis_version = (char *)REDIS_VERSION;
-    rxString that_cmd = rxStringNew(multiplexer->GetArgument(0));
+    char *stage = NULL;
+    rxString that_cmd = rxStringFormat("%s", multiplexer->GetArgument(0));
     rxString c_ip = multiplexer->GetArgument(1);
     for (int j = 1; j < multiplexer->argc; ++j)
     {
         auto q = multiplexer->GetArgument(j);
         that_cmd = rxStringAppend(that_cmd, q, ' ');
-        if (rxStringMatch(q, REPLICATION_ARG, MATCH_IGNORE_CASE) && strlen(q) == strlen(REPLICATION_ARG))
+        if (rxStringMatch(REPLICATION_ARG, q, MATCH_IGNORE_CASE) && strlen(q) == strlen(REPLICATION_ARG))
             replication_requested = 1;
-        else if (rxStringMatch(q, CLUSTERING_ARG, MATCH_IGNORE_CASE) && strlen(q) == strlen(CLUSTERING_ARG))
+        else if (rxStringMatch(CLUSTERING_ARG, q, MATCH_IGNORE_CASE) && strlen(q) == strlen(CLUSTERING_ARG))
             clustering_requested = 2;
-        else if (rxStringMatch(q, REDIS_VERSION_ARG, MATCH_IGNORE_CASE) && strlen(q) == strlen(REDIS_VERSION_ARG))
+        else if (rxStringMatch(REDIS_VERSION_ARG, q, MATCH_IGNORE_CASE) && strlen(q) == strlen(REDIS_VERSION_ARG))
         {
             redis_version = (char *)multiplexer->GetArgument(j + 1);
             that_cmd = rxStringAppend(that_cmd, redis_version, ' ');
             ++j;
         }
-        else if (rxStringMatch(q, CONTROLLER_ARG, MATCH_IGNORE_CASE) && strlen(q) == strlen(CONTROLLER_ARG))
+        else if (rxStringMatch(CONTROLLER_ARG, q, MATCH_IGNORE_CASE) && strlen(q) == strlen(CONTROLLER_ARG))
         {
             controller_path = multiplexer->GetArgument(j + 1);
             that_cmd = rxStringAppend(that_cmd, controller_path, ' ');
             ++j;
         }
-        else if (rxStringMatch(q, START_ARG, MATCH_IGNORE_CASE) && strlen(q) == strlen(START_ARG))
+        else if (rxStringMatch(START_ARG, q, MATCH_IGNORE_CASE) && strlen(q) == strlen(START_ARG))
             start_requested = 4;
-        // else
-        //     c_ip = rxStringNew(q);
         rxStringFree(q);
     }
     if (!redis_version)

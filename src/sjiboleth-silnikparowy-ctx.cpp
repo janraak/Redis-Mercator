@@ -134,13 +134,23 @@ void SilNikParowy_Kontekst::ClearStack()
 
 void SilNikParowy_Kontekst::DumpStack()
 {
-    return;
     this->StartHead();
     FaBlok *kd;
     int n = 0;
     while ((kd = this->Next()) != NULL)
     {
-        rxServerLog(rxLL_DEBUG, "%2d %p temp=%d type=%d size=%d %s", n++, kd, kd->is_temp, kd->value_type, kd->size, kd->setname);
+        rxServerLog(rxLL_NOTICE, "%2d\t%p temp=%d type=%d size=%d %s", n++, kd, kd->is_temp, kd->value_type, kd->size, kd->setname);
+        if (kd->IsParameterList())
+        {
+            GraphStack<FaBlok> *pl = kd->parameter_list;
+            pl->StartHead();
+            FaBlok *p;
+            int pn = 0;
+            while ((p = pl->Next()) != NULL)
+            {
+                rxServerLog(rxLL_NOTICE, ".%2d\t%p temp=%d type=%d size=%d %s", pn++, p, p->is_temp, p->value_type, p->size, p->setname);
+            }
+        }
     }
     this->Stop();
 }
@@ -198,6 +208,21 @@ void SilNikParowy_Kontekst::Memoize(char const *field, /*T*/ void *value)
     if(this->memoization == NULL)
         this->memoization = raxNew();
     raxInsert(this->memoization, (UCHAR *)field, strlen(field), value, NULL);
+}
+
+void SilNikParowy_Kontekst::ClearMemoizations()
+{
+    if (this->memoization != NULL)
+    {
+        raxIterator clearanceIterator;
+        raxStart(&clearanceIterator, this->memoization);
+        while (raxNext(&clearanceIterator))
+        {
+            raxRemove(this->memoization, clearanceIterator.data, strlen(clearanceIterator.data), NULL);
+            raxSeek(&clearanceIterator, "^", NULL, 0);
+        }
+        raxStop(&clearanceIterator);
+    }
 }
 
 /*template<typename T>T */ void *SilNikParowy_Kontekst::Recall(char const *field)

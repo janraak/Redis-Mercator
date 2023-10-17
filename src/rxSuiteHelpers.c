@@ -462,14 +462,17 @@ rxString rxHashAsJson(const char *key, void *o)
     {
         rxString f = hashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_KEY);
         rxString v = hashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_VALUE);
-        json = rxStringFormat("%s%s\"%s\":\"%s\"", json, sep, f, v);
+        rxString njson = rxStringFormat("%s%s\"%s\":\"%s\"", json, sep, f, v);
         sep[0] = ',';
         rxStringFree(f);
         rxStringFree(v);
+        rxStringFree(json);
+        json = njson;
     }
     hashTypeReleaseIterator(hi);
-    json = rxStringAppend(json, "}", '}');
-    return json;
+    rxString njson = rxStringFormat("%s}", json);
+    rxStringFree(json);
+    return njson;
 }
 
 // Embeded robj setter

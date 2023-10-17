@@ -39,14 +39,14 @@ def SD_103_Business_Rules_and_or_Triggers(cluster_id, controller, data, index):
     reset_match_calls()
     succes_tally += match("get dataset",data.execute_command("g.wget", "https://roxoft.dev/assets/bedrock1.txt").decode(), 
                           'bedrock1.txt')
-    succes_tally += match("add rule",data.execute_command("RULE.SET", "age_restriction", "(has(type,Purchase).inout(Purchase).lt(age,21)).property(status,age_check).redis(rpush, agecheck, @graph)").decode(), 
+    succes_tally += match("add rule",data.execute_command("RULE.SET", "age_restriction", "(has(type,Sale).inout(Sale).lt(age,21)).property(status,age_check).redis(rpush, agecheck, @graph)").decode(), 
                           'Rule for: age_restriction Expression: Expression appears to be incorrect!')
     succes_tally += match("add persona",data.execute_command("RXQUERY", "G:AddV(bambam,MALE).property(age,9).AddV(fred,MALE).property(age, 47)"), 
                           "{}".format([[b'key', b'fred', b'type', b'H', b'score', b'1.000000']]))
-    succes_tally += match("add purchase 1",data.execute_command("RXQUERY", "G:AddV(P00001,Purchase).property(item,amstel).property(category,beer).predicate(Purchase).subject(bambam).object(P00001)"),
-                           "{}".format([[b'key', b'Purchase:P00001:bambam', b'type', b'H', b'score', b'1.000000'], [b'key', b'Purchase:bambam:P00001', b'type', b'H', b'score', b'1.000000']]))
-    succes_tally += match("add purchase 2",data.execute_command("RXQUERY", "G:AddV(P00002,Purchase).property(item,amstel).property(category,beer).predicate(Purchase).subject(fred).object(P00002)"), 
-                          "{}".format([[b'key', b'Purchase:P00002:fred', b'type', b'H', b'score', b'1.000000'], [b'key', b'Purchase:fred:P00002', b'type', b'H', b'score', b'1.000000']]))
+    succes_tally += match("add purchase 1",data.execute_command("RXQUERY", "G:AddV(P00001,Sale).property(item,amstel).property(category,beer).predicate(Sale).subject(bambam).object(P00001)"),
+                           "{}".format([[b'key', b'Sale:P00001:bambam', b'type', b'H', b'score', b'1.000000'], [b'key', b'Sale:bambam:P00001', b'type', b'H', b'score', b'1.000000']]))
+    succes_tally += match("add purchase 2",data.execute_command("RXQUERY", "G:AddV(P00002,Sale).property(item,amstel).property(category,beer).predicate(Sale).subject(fred).object(P00002)"), 
+                          "{}".format([[b'key', b'Sale:P00002:fred', b'type', b'H', b'score', b'1.000000'], [b'key', b'Sale:fred:P00002', b'type', b'H', b'score', b'1.000000']]))
     succes_tally += match("backup db","{}".format(data.execute_command("BGSAVE")), "True")
     bambam = data.hgetall("bambam")
     succes_tally += match("check bambam", bambam, "{}".format( {b'type': b'MALE', b'age': b'9'}))
@@ -61,11 +61,11 @@ def SD_103_Business_Rules_and_or_Triggers(cluster_id, controller, data, index):
         if agecheck_length == 0: time.sleep(1)
 
     succes_tally += match("rule list", data.execute_command("RULE.LIST"), 
-                          "{}".format([[b'name', b'age_restriction', b'rule', b' type Purchase , HAS Purchase INOUT age 21 , LT . . status age_check , PROPERTY rpush agecheck , @graph , REDIS . .', b'no of applies', 10, b'no of skips', 16, b'no of hits', 3, b'no of misses', 7]]))
+                          "{}".format([[b'name', b'age_restriction', b'rule', b' type Sale , HAS Sale INOUT age 21 , LT . . status age_check , PROPERTY rpush agecheck , @graph , REDIS . .', b'no of applies', 10, b'no of skips', 16, b'no of hits', 3, b'no of misses', 7]]))
 
 
     succes_tally += match("check queue", data.lrange("agecheck", 0, 1000), 
-                          "{}".format([b'{"entities":[{"iri":"bambam", "entity":"vertice","type": "MALE","age": "9","status": "age_check"},{"iri":"P00001", "entity":"vertice","type": "Purchase","item": "amstel","category": "beer"}]", triplets":[]}', b'{"entities":[{"iri":"bambam", "entity":"vertice","type": "MALE","age": "9","status": "age_check"},{"iri":"P00001", "entity":"vertice","type": "Purchase","item": "amstel","category": "beer"}]", triplets":[]}', b'{"entities":[{"iri":"bambam", "entity":"vertice","type": "MALE","age": "9","status": "age_check"},{"iri":"P00001", "entity":"vertice","type": "Purchase","item": "amstel","category": "beer"}]", triplets":[]}']))
+                          "{}".format([b'{"entities":[{"iri":"bambam", "entity":"vertice","type": "MALE","age": "9","status": "age_check"},{"iri":"P00001", "entity":"vertice","type": "Sale","item": "amstel","category": "beer"}]", triplets":[]}', b'{"entities":[{"iri":"bambam", "entity":"vertice","type": "MALE","age": "9","status": "age_check"},{"iri":"P00001", "entity":"vertice","type": "Sale","item": "amstel","category": "beer"}]", triplets":[]}', b'{"entities":[{"iri":"bambam", "entity":"vertice","type": "MALE","age": "9","status": "age_check"},{"iri":"P00001", "entity":"vertice","type": "Sale","item": "amstel","category": "beer"}]", triplets":[]}']))
 
     if(succes_tally !=     get_match_calls()): 
         raise AssertionError( "FAILED: SD_103_Business_Rules_and_or_Triggers, {} of {} steps failed".format(get_match_calls() - succes_tally, get_match_calls()))
@@ -75,6 +75,13 @@ def SD_103_Business_Rules_and_or_Triggers(cluster_id, controller, data, index):
 #
 # The rule:
 # * Buyers under 21 are prohited to be alcoholic beverages
+# 
+# The rule works on sales orders
+#    The purchased product is tested for alcohol, using a traverse from the Sale to the Product and Back.
+#    Since the product may be on many orders we AND the result with our working set to limit our scope to modified keys only.
+#
+#    An age check is performed on the buyer, using a traverse from the Sale to the Buyer and Back.
+#    Since the buyer may have multiple sales we AND the result with our working set to limit our scope to modified keys only.
 #
 
 def SD_103_Business_Rules_and_or_Triggers_with_Traversal(cluster_id, controller, data, index):
@@ -83,27 +90,44 @@ def SD_103_Business_Rules_and_or_Triggers_with_Traversal(cluster_id, controller,
     succes_tally = 0
     succes_tally += match("get dataset",data.execute_command("g.wget", "https://roxoft.dev/assets/bedrock1.txt").decode(), 
                           'bedrock1.txt')
-    succes_tally += match("add rule",data.execute_command("RULE.SET", "age_restriction", ".v(Purchase).as(order).in(Purchase).has(type,beer).use(order).in(Buyer).LT(age,21).property(verification,age).inout(Buyer).as(breach).redis(rpush,kettle2,@graph).drop().reset().use(breach)").decode(), 
+    succes_tally += match("add rule",data.execute_command("RULE.SET", "age_restriction", "has(type,sale).as(workset).(in(Item).has(type,beer).out(Item).use(workset) & ) " 
+                          ".(in(Buyer).LT(age,21).property(verification,age).out(Buyer).use(workset) &)" 
+                          ".as(breach).redis(rpush,kettle2,@graph).drop().reset().use(breach))").decode(), 
                           'Rule for: age_restriction Expression: Expression appears to be incorrect!')
     succes_tally += match("add persona",data.execute_command("RXQUERY", "G:AddV(bambam,MALE).property(age,9).AddV(fred,MALE).property(age, 47).AddV(barney,MALE).property(age, 44)"), 
                           "{}".format([[b'key', b'barney', b'type', b'H', b'score', b'1.000000']]))
     succes_tally += match("link father/son",data.execute_command("RXQUERY", "G:predicate(father_of).subject(barney).object(bambam).predicate(son_of).subject(bambam).object(barney)"),
                            "{}".format([[b'key', b'son_of:bambam:barney', b'type', b'H', b'score', b'1.000000'], [b'key', b'son_of:bambam:father_of:bambam:barney', b'type', b'H', b'score', b'1.000000'], [b'key', b'son_of:bambam:father_of:barney:bambam', b'type', b'H', b'score', b'1.000000'], [b'key', b'son_of:barney:bambam', b'type', b'H', b'score', b'1.000000'], [b'key', b'son_of:father_of:bambam:barney:bambam', b'type', b'H', b'score', b'1.000000'], [b'key', b'son_of:father_of:barney:bambam:bambam', b'type', b'H', b'score', b'1.000000']]))
     
-    succes_tally += match("add products",data.execute_command("RXQUERY", "G:AddV(BottledWater,nonalcoholic).AddV(7up,nonalcoholic).AddV(RedBull,sports).AddV(Amstel,beer)"), 
+    succes_tally += match("add products",data.execute_command("RXQUERY", "G:AddV(BottledWater,nonalcoholic).AddV(sevenUp,nonalcoholic).AddV(RedBull,sports).AddV(Amstel,beer)"), 
                           "{}".format([[b'key', b'Amstel', b'type', b'H', b'score', b'1.000000']]))
     
-    succes_tally += match("add purchase 1.1",data.execute_command("RXQUERY", "G:AddV(P00001,Purchase).predicate(Buyer).subject(bambam).object(P00001).predicate(Item).subject(Amstel).object(P00001)"),
-                           "{}".format([[b'key', b'Item:Amstel:Buyer:P00001:bambam', b'type', b'H', b'score', b'1.000000'], [b'key', b'Item:Amstel:Buyer:bambam:P00001', b'type', b'H', b'score', b'1.000000'], [b'key', b'Item:Amstel:P00001', b'type', b'H', b'score', b'1.000000'], [b'key', b'Item:Buyer:P00001:bambam:Amstel', b'type', b'H', b'score', b'1.000000'], [b'key', b'Item:Buyer:bambam:P00001:Amstel', b'type', b'H', b'score', b'1.000000'], [b'key', b'Item:P00001:Amstel', b'type', b'H', b'score', b'1.000000']]))
+    succes_tally += match("add purchase 0.0",data.execute_command("RXQUERY", "G:AddV(P00000,Sale).predicate(Buyer).subject(bambam).object(P00000)"),
+                           "{}".format([[b'key', b'Buyer:P00000:bambam', b'type', b'H', b'score', b'1.000000'], [b'key', b'Buyer:bambam:P00000', b'type', b'H', b'score', b'1.000000']]))
     
-    succes_tally += match("add purchase 1.2",data.execute_command("RXQUERY", "G:AddV(P00001,Purchase).predicate(Buyer).subject(bambam).object(P00001).predicate(Item).subject(Amstel).object(P00001)"),
-                           "{}".format([[b'key', b'Item:Amstel:Buyer:P00001:bambam', b'type', b'H', b'score', b'1.000000'], [b'key', b'Item:Amstel:Buyer:bambam:P00001', b'type', b'H', b'score', b'1.000000'], [b'key', b'Item:Amstel:P00001', b'type', b'H', b'score', b'1.000000'], [b'key', b'Item:Buyer:P00001:bambam:Amstel', b'type', b'H', b'score', b'1.000000'], [b'key', b'Item:Buyer:bambam:P00001:Amstel', b'type', b'H', b'score', b'1.000000'], [b'key', b'Item:P00001:Amstel', b'type', b'H', b'score', b'1.000000']]))
+    succes_tally += match("add purchase 0.1",data.execute_command("RXQUERY", "G:predicate(Item).subject(Amstel).object(P00000)"),
+                           "{}".format([[b'key', b'Item:Amstel:P00000', b'type', b'H', b'score', b'1.000000'], [b'key', b'Item:P00000:Amstel', b'type', b'H', b'score', b'1.000000']]))
     
-    succes_tally += match("add purchase 2.1",data.execute_command("RXQUERY", "G:AddV(P00002,Purchase).predicate(Buyer).subject(fred).object(P00002).predicate(Item).subject(Amstel).object(P00002)"), 
-                          "{}".format([[b'key', b'Item:Amstel:Buyer:P00002:fred', b'type', b'H', b'score', b'1.000000'], [b'key', b'Item:Amstel:Buyer:fred:P00002', b'type', b'H', b'score', b'1.000000'], [b'key', b'Item:Amstel:P00002', b'type', b'H', b'score', b'1.000000'], [b'key', b'Item:Buyer:P00002:fred:Amstel', b'type', b'H', b'score', b'1.000000'], [b'key', b'Item:Buyer:fred:P00002:Amstel', b'type', b'H', b'score', b'1.000000'], [b'key', b'Item:P00002:Amstel', b'type', b'H', b'score', b'1.000000']]))
+    succes_tally += match("add purchase 0.2",data.execute_command("RXQUERY", "G:predicate(Item).subject(BottledWater).object(P00000)"), 
+                          "{}".format([[b'key', b'Item:BottledWater:P00000', b'type', b'H', b'score', b'1.000000'], [b'key', b'Item:P00000:BottledWater', b'type', b'H', b'score', b'1.000000']]))
     
-    succes_tally += match("add purchase 2.2",data.execute_command("RXQUERY", "G:AddV(P00002,Purchase).predicate(Buyer).subject(fred).object(P00002).predicate(Item).subject(RedBull).object(P00002)"), 
-                          "{}".format([[b'key', b'Item:Buyer:P00002:fred:RedBull', b'type', b'H', b'score', b'1.000000'], [b'key', b'Item:Buyer:fred:P00002:RedBull', b'type', b'H', b'score', b'1.000000'], [b'key', b'Item:P00002:RedBull', b'type', b'H', b'score', b'1.000000'], [b'key', b'Item:RedBull:Buyer:P00002:fred', b'type', b'H', b'score', b'1.000000'], [b'key', b'Item:RedBull:Buyer:fred:P00002', b'type', b'H', b'score', b'1.000000'], [b'key', b'Item:RedBull:P00002', b'type', b'H', b'score', b'1.000000']]))
+    succes_tally += match("add purchase 1.0",data.execute_command("RXQUERY", "G:AddV(P00001,Sale).predicate(Buyer).subject(bambam).object(P00001)"),
+                           "{}".format([[b'key', b'Buyer:P00001:bambam', b'type', b'H', b'score', b'1.000000'], [b'key', b'Buyer:bambam:P00001', b'type', b'H', b'score', b'1.000000']]))
+    
+    succes_tally += match("add purchase 1.1",data.execute_command("RXQUERY", "G:predicate(Item).subject(Amstel).object(P00001)"),
+                           "{}".format([[b'key', b'Item:Amstel:P00001', b'type', b'H', b'score', b'1.000000'], [b'key', b'Item:P00001:Amstel', b'type', b'H', b'score', b'1.000000']]))
+    
+    succes_tally += match("add purchase 1.2",data.execute_command("RXQUERY", "G:predicate(Item).subject(BottledWater).object(P00001)"), 
+                          "{}".format([[b'key', b'Item:BottledWater:P00001', b'type', b'H', b'score', b'1.000000'], [b'key', b'Item:P00001:BottledWater', b'type', b'H', b'score', b'1.000000']]))
+        
+    succes_tally += match("add purchase 2.0",data.execute_command("RXQUERY", "G:AddV(P00002,Sale).predicate(Buyer).subject(fred).object(P00002)"), 
+                          "{}".format([[b'key', b'Buyer:P00002:fred', b'type', b'H', b'score', b'1.000000'], [b'key', b'Buyer:fred:P00002', b'type', b'H', b'score', b'1.000000']]))
+
+    succes_tally += match("add purchase 2.1",data.execute_command("RXQUERY", "G:predicate(Item).subject(Amstel).object(P00002)"), 
+                          "{}".format([[b'key', b'Item:Amstel:P00002', b'type', b'H', b'score', b'1.000000'], [b'key', b'Item:P00002:Amstel', b'type', b'H', b'score', b'1.000000']]))
+    
+    succes_tally += match("add purchase 2.2",data.execute_command("RXQUERY", "G:predicate(Item).subject(RedBull).object(P00002)"), 
+                          "{}".format([[b'key', b'Item:P00002:RedBull', b'type', b'H', b'score', b'1.000000'], [b'key', b'Item:RedBull:P00002', b'type', b'H', b'score', b'1.000000']]))
     
     succes_tally += match("backup db","{}".format(data.execute_command("BGSAVE")), "True")
     bambam = data.hgetall("bambam")
@@ -124,11 +148,11 @@ def SD_103_Business_Rules_and_or_Triggers_with_Traversal(cluster_id, controller,
                           "{}".format([[b'key', b'bambam', b'score', b'1.000000', b'value', [b'type', b'MALE', b'age', b'9', b'verification', b'age']]]))
 
     succes_tally += match("rule list", data.execute_command("RULE.LIST"), 
-                          "{}".format([[b'name', b'age_restriction', b'rule', b' Purchase V order AS Purchase IN type beer , HAS order USE Buyer IN age 21 , LT verification age , PROPERTY Buyer INOUT breach AS rpush kettle2 , @graph , REDIS DROP RESET breach USE . . . . . . . . . . . . . .', b'no of applies', 12, b'no of skips', 96, b'no of hits', 1, b'no of misses', 11]]))
+                          "{}".format([[b'name', b'age_restriction', b'rule', b' type sale , HAS workset AS Item IN type beer , HAS Item OUT workset USE & . . . . Buyer IN age 21 , LT verification age , PROPERTY Buyer OUT workset USE & . . . . . breach AS rpush kettle2 , @graph , REDIS DROP RESET breach USE . . . . . .', b'no of applies', 13, b'no of skips', 64, b'no of hits', 1, b'no of misses', 12]]))
 
 
     succes_tally += match("check queue", data.lrange("kettle2", 0, 1000), 
-                          "{}".format( [b'{"entities":[{"iri":"P00001", "entity":"vertice","type": "Purchase"},{"iri":"Amstel", "entity":"vertice","type": "beer"},{"iri":"bambam", "entity":"vertice","type": "MALE","age": "9","verification": "age"}]", triplets":[{"predicate":"Buyer:P00001:bambam", "subject":"bambam", "object":"Item:Buyer:P00001:bambam:Amstel", "depth":1},{"predicate":"bambam", "subject":"son_of:bambam:barney", "object":"father_of:bambam:barney", "depth":2}]}']))
+                          "{}".format([b'{"entities":[{"iri":"P00001", "entity":"vertice","type": "Sale"},{"iri":"BottledWater", "entity":"vertice","type": "nonalcoholic"},{"iri":"Amstel", "entity":"vertice","type": "beer"},{"iri":"bambam", "entity":"vertice","type": "MALE","age": "9","verification": "age"}]", triplets":[{"predicate":"bambam", "subject":"son_of:bambam:barney", "object":"father_of:bambam:barney", "depth":2}]}']))
 
     if(succes_tally != get_match_calls()): 
         raise AssertionError( "FAILED: SD_103_Business_Rules_and_or_Triggers, {} of {} steps failed".format(get_match_calls() - succes_tally, get_match_calls()))

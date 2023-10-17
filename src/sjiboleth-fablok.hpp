@@ -110,6 +110,8 @@ public:
       pid_t pid;
       pthread_t thread_id;
 
+      int claims;
+
   protected:
       friend class SilNikParowy;
       friend class SilNikParowy_Kontekst;
@@ -198,7 +200,9 @@ protected:
     bool CanDeleteResult();
     bool IsMemoized(char const *field);
     void Memoize(char const *field, /*T*/void *value);
-    /*template<typename T>T */ void *Forget(char const  *field);
+    void ClearMemoizations();
+
+    /*template<typename T>T */ void *Forget(char const *field);
     /*template<typename T>T */ void *Recall(char const  *field);
     FaBlok *GetOperationPair(char const  *operation, int load_left_and_or_right);
         int FetchKeySet(FaBlok *out, FaBlok *left, FaBlok *right, ParserToken *token);
@@ -298,6 +302,7 @@ public:
 #define UNWRAP_SJIBOLETH_HANDLER_PARAMETERS()       \
     auto *t = (ParserToken *)tO;                    \
     rxUNUSED(t);                                    \
-    auto *stack = (SilNikParowy_Kontekst *)stackO;  
+    auto *stack = (SilNikParowy_Kontekst *)stackO;  \
+    rxUNUSED(stack);                                
 
 #endif

@@ -1440,6 +1440,9 @@ SJIBOLETH_HANDLER(executeGremlinComparePropertyToValue)
             PushResult(kd, stack);
         }
     }
+    rxServerLog(rxLL_NOTICE, "executeGremlinComparePropertyToValue %s 0000", t->TokenAsSds());
+    stack->DumpStack();
+    rxServerLog(rxLL_NOTICE, "executeGremlinComparePropertyToValue %s 9999", t->TokenAsSds());
 }
 END_SJIBOLETH_HANDLER(executeGremlinComparePropertyToValue)
 
@@ -2727,6 +2730,7 @@ END_SJIBOLETH_HANDLER(executeGremlinAddProperty)
 
     Special tokens:
         @key
+        @graph
         @tuple
 
 
@@ -2804,6 +2808,9 @@ SJIBOLETH_HANDLER(executeGremlinRedisCommand)
         ERROR("Incorrect parameters for executeGremlinRedisCommand, must be [<token> | <literal>]...");
     }
     PushResult(input_set, stack);
+    rxServerLog(rxLL_NOTICE, "REDIS 0000");
+    stack->DumpStack();
+    rxServerLog(rxLL_NOTICE, "REDIS 9999");
 }
 END_SJIBOLETH_HANDLER(executeGremlinRedisCommand)
 
@@ -2871,9 +2878,49 @@ SJIBOLETH_HANDLER(executeResetStack)
 }
 END_SJIBOLETH_HANDLER(executeResetStack)
 
+/*
+ Push a copy of the top stack onto the stack
+
+ Allows a subtraversal and continuation
+ */
+SJIBOLETH_HANDLER(executePushDupStack)
+{
+    rxServerLog(rxLL_NOTICE, "executePushDupStack 0000");
+    if (stack->HasEntries())
+    {
+            FaBlok *input_set = stack->Pop();
+        PushResult(input_set->Copy(NULL, input_set->value_type, NULL, NULL), stack);
+        PushResult(input_set, stack);
+        stack->DumpStack();
+    }
+    rxServerLog(rxLL_NOTICE, "executePushDupStack 9999");
+}
+END_SJIBOLETH_HANDLER(executePushDupStack)
+
+/*
+ Pops the the top stack from the stack
+
+ To continue after a subtraversal
+ */
+SJIBOLETH_HANDLER(executePopStack)
+{
+    rxServerLog(rxLL_NOTICE, "executePopStack 0000");
+    if (stack->HasEntries())
+    {
+        FaBlok *input_set = stack->Pop();
+        FaBlok::Delete(input_set);
+    }
+    stack->DumpStack();
+    rxServerLog(rxLL_NOTICE, "executePopStack 9999");
+}
+END_SJIBOLETH_HANDLER(executePopStack)
+
 SJIBOLETH_HANDLER(debugBreak)
 {
     rxServerLog(rxLL_NOTICE, "----- BREAKPOINT ---- %d stackentries", stack->Size());
+    rxServerLog(rxLL_NOTICE, "debugBreak 0000");
+    stack->DumpStack();
+    rxServerLog(rxLL_NOTICE, "debugBreak 9999");
 }
 END_SJIBOLETH_HANDLER(debugBreak)
 
@@ -3017,6 +3064,8 @@ bool GremlinDialect::RegisterDefaultSyntax()
     this->RegisterSyntax("{", 50, -1, -1, NULL);
     this->RegisterSyntax("}", 50, -1, -1, &executeObjectExpression);
     this->RegisterSyntax("reset", 50, -1, -1, &executeResetStack);
+    this->RegisterSyntax("pushdup", 50, -1, -1, &executePushDupStack);
+    this->RegisterSyntax("pop", 50, -1, -1, &executePopStack);
     this->RegisterSyntax("break", 50, -1, -1, &debugBreak);
     this->RegisterSyntax("note", 50, -1, -1, &executeComment);
     return true;

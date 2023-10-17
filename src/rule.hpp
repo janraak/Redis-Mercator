@@ -250,6 +250,7 @@ public:
         if(data_config->executor == NULL)
             data_config->executor = (void *)new SilNikParowy_Kontekst(data_config, NULL);
         rax *set = ((SilNikParowy_Kontekst *)data_config->executor)->Execute(this->rule, key);
+        ((SilNikParowy_Kontekst *)data_config->executor)->ClearMemoizations();
         FaBlok::ClearCache();
 
         const char *objT = "?";
