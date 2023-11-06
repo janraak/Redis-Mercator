@@ -328,7 +328,8 @@ void freeCompletedRedisRequests()
         if (argc > 1)
         {
             rxString key = (rxString)rxGetContainedObject(argv[1]);
-            rxStashCommand(index_info.index_rxRuleApply_request_queue, "RULE.APPLY", 1, key);
+            BusinessRule::Touched(key);
+            // rxStashCommand(index_info.index_rxRuleApply_request_queue, "RULE.APPLY", 1, key);
         }
 
         FreeStash(index_request);
@@ -790,6 +791,7 @@ static void startIndexerThreads()
     t->key_indexing_request_queue = new SimpleQueue("IXREQ", (void *)execIndexerThread, 1, t->key_indexing_respone_queue);
     t->index_update_request_queue = new SimpleQueue("STREQ", (void *)execUpdateRedisThread, 1, t->index_update_respone_queue);
     rxServerLog(LL_NOTICE, "Indexer started");
+    SetIndex_info(t);
 
     client_health_interval = 100;
     client_health_cron = rxCreateTimeEvent(1, (aeTimeProc *)rxrule_timer_handler, NULL, NULL);

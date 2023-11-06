@@ -63,7 +63,7 @@ void *initRxSuite()
     {
         rxSuiteShared *shared = zmalloc(sizeof(rxSuiteShared));
         memset(shared, 0x00, sizeof(rxSuiteShared));
-        shared->parserClaimCount = 0;        
+        shared->parserClaimCount = 0;
         rxMercatorShared = shared;
 
         char default_address[48];
@@ -90,8 +90,6 @@ void *initRxSuite()
         shared->controllerNode.database_id = 0;
         shared->controllerNode.is_local = 0;
         shared->controllerNode.executor = NULL;
-
-
     }
     return rxMercatorShared;
 }
@@ -127,6 +125,19 @@ redisNodeInfo *rxControllerNode()
 {
     rxSuiteShared *config = getRxSuite();
     return &config->controllerNode;
+}
+
+void *GetIndex_info()
+{
+    rxSuiteShared *config = getRxSuite();
+    return config->index_info;
+}
+
+void SetIndex_info(void *indexer)
+{
+
+    rxSuiteShared *config = getRxSuite();
+    config->index_info = indexer;
 }
 
 static void extractArgs(RedisModuleString **oargv, int j, redisNodeInfo *node)
@@ -172,7 +183,7 @@ void rxRegisterConfig(void **oargv, int argc)
         {
             ++j;
             const char *s = (const char *)argv[j]->ptr;
-            config->indexScoring = (stringmatch(s,"unweighted", 1)) ? UnweightedIndexScoring: WeightedIndexScoring;
+            config->indexScoring = (stringmatch(s, "unweighted", 1)) ? UnweightedIndexScoring : WeightedIndexScoring;
         }
         else if (stringmatch(arg, "CDN", 1) == 1)
         {
@@ -203,7 +214,8 @@ void rxRegisterConfig(void **oargv, int argc)
     config->indexNode.host_reference = sdscatprintf(sdsempty(), "%s:%d", config->indexNode.host, config->indexNode.port);
     config->dataNode.is_local = config->indexNode.is_local;
     config->dataNode.host_reference = sdscatprintf(sdsempty(), "%s:%d", config->dataNode.host, config->dataNode.port);
-    if(argc == 0){
+    if (argc == 0)
+    {
         config->dataNode.is_local = -1000;
         config->indexNode.is_local = -1000;
     }
@@ -215,37 +227,43 @@ void rxRegisterConfig(void **oargv, int argc)
         config->installScript = sdsnew("__install_rxmercator.sh");
 }
 
-enum indexScoringMethod rxGetIndexScoringMethod(){
+enum indexScoringMethod rxGetIndexScoringMethod()
+{
     rxSuiteShared *config = initRxSuite();
     return config->indexScoring;
 }
 
-void rxSetIndexScoringMethod(enum indexScoringMethod scoringMethod){
+void rxSetIndexScoringMethod(enum indexScoringMethod scoringMethod)
+{
     rxSuiteShared *config = initRxSuite();
     config->indexScoring = scoringMethod;
 }
 
-void rxSetIndexScoringMethodFromString(const char *s){
+void rxSetIndexScoringMethodFromString(const char *s)
+{
     rxSuiteShared *config = initRxSuite();
-            config->indexScoring = (stringmatch(s, "unweighted", 1)) ? UnweightedIndexScoring: WeightedIndexScoring;
+    config->indexScoring = (stringmatch(s, "unweighted", 1)) ? UnweightedIndexScoring : WeightedIndexScoring;
 }
 
-char *rxGetExecutable(){
+char *rxGetExecutable()
+{
     return server.executable;
 }
 
-void rxRegisterCronCommandQueue(CSimpleQueue *queue){
+void rxRegisterCronCommandQueue(CSimpleQueue *queue)
+{
     rxSuiteShared *config = initRxSuite();
     config->cron_command_request_queue = queue;
 }
 
-CSimpleQueue *rxGetCronCommandQueue(){
+CSimpleQueue *rxGetCronCommandQueue()
+{
     rxSuiteShared *config = initRxSuite();
     return config->cron_command_request_queue;
-
 }
 
-void rxSetDataRoot(const char *s){
+void rxSetDataRoot(const char *s)
+{
     rxSuiteShared *config = initRxSuite();
     config->wget_root = sdsnew(s);
 }

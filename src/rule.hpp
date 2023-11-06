@@ -27,7 +27,9 @@ void rxServerLog(int level, const char *fmt, ...);
 #include "../../src/adlist.h"
 // #include "parser.h"
 // #include "queryEngine.h"
+#include "indexIntercepts.h"
 #include "rxSuite.h"
+
 #ifdef __cplusplus
 }
 #endif
@@ -104,10 +106,11 @@ public:
         raxSeek(&ri, "^", NULL, 0);
         while (raxNext(&ri))
         {
-            rxString ruleName = rxStringNewLen((const char*)ri.key, ri.key_len);
+            rxString ruleName = rxStringNewLen((const char *)ri.key, ri.key_len);
             rxStringFree(ruleName);
             BusinessRule *br = (BusinessRule *)ri.data;
-            while(BusinessRule::RegistryLock){
+            while (BusinessRule::RegistryLock)
+            {
                 sched_yield();
             }
             BusinessRule::Forget(br);
@@ -129,7 +132,7 @@ public:
             raxSeek(&ri, "^", NULL, 0);
             while (raxNext(&ri))
             {
-                rxString ruleName = rxStringNewLen((const char*)ri.key, ri.key_len);
+                rxString ruleName = rxStringNewLen((const char *)ri.key, ri.key_len);
                 RedisModule_ReplyWithArray(ctx, 12);
                 BusinessRule *br = (BusinessRule *)ri.data;
                 RedisModule_ReplyWithStringBuffer(ctx, (char *)"name", 4);
@@ -149,7 +152,8 @@ public:
             }
             raxStop(&ri);
             BusinessRule::RegistryLock = false;
-        }else
+        }
+        else
             RedisModule_ReplyWithSimpleString(ctx, "No rules defined");
 
         return REDISMODULE_OK;
@@ -168,17 +172,26 @@ public:
         raxSeek(&ri, "^", NULL, 0);
         while (raxNext(&ri))
         {
-            rxString ruleName = rxStringNewLen((const char*)ri.key, ri.key_len);
+            rxString ruleName = rxStringNewLen((const char *)ri.key, ri.key_len);
             BusinessRule *br = (BusinessRule *)ri.data;
 
-            rxServerLogRaw(rxLL_WARNING, rxStringFormat( "Applying rules: %s to: %s\n", ruleName, key));
+            rxServerLogRaw(rxLL_WARNING, rxStringFormat("Applying rules: %s to: %s\n", ruleName, key));
             bool result = br->Apply(key);
-            rxServerLogRaw(rxLL_WARNING, rxStringFormat( "Applied rules: %s to: %s -> %d\n", ruleName, key, result));
+            rxServerLogRaw(rxLL_WARNING, rxStringFormat("Applied rules: %s to: %s -> %d\n", ruleName, key, result));
             response = rxStringFormat("%s%s -> %d\r", response, ruleName, result);
         }
         raxStop(&ri);
         BusinessRule::RegistryLock = false;
         return response;
+    }
+
+    static void Touched(rxString key)
+    {
+        indexerThread *index_info = (indexerThread *)GetIndex_info();
+
+        if (index_info == NULL || index_info->index_update_respone_queue == NULL)
+            return;
+        rxStashCommand(index_info->index_rxRuleApply_request_queue, "RULE.APPLY", 1, key);
     }
 
     BusinessRule()
@@ -196,9 +209,9 @@ public:
         : BusinessRule()
     {
         this->setName = rxStringNew(setName);
-        rxServerLogRaw(rxLL_WARNING, rxStringFormat( "Rule (1): %s as: %s\n", this->setName, query));
+        rxServerLogRaw(rxLL_WARNING, rxStringFormat("Rule (1): %s as: %s\n", this->setName, query));
         this->rule = this->RuleParser->Parse(query);
-        rxServerLogRaw(rxLL_WARNING, rxStringFormat( "Rule (2): %s as: %s\n", this->setName, this->rule->ToString()));
+        rxServerLogRaw(rxLL_WARNING, rxStringFormat("Rule (2): %s as: %s\n", this->setName, this->rule->ToString()));
     };
 
     ~BusinessRule()
@@ -206,7 +219,8 @@ public:
         if (this->rule)
         {
             BusinessRule *old;
-            while(BusinessRule::RegistryLock){
+            while (BusinessRule::RegistryLock)
+            {
                 sched_yield();
             }
             raxRemove(BusinessRule::RuleRegistry, (UCHAR *)this->setName, strlen(this->setName), (void **)&old);
@@ -220,9 +234,10 @@ public:
 
     static BusinessRule *Find(rxString name)
     {
-        if(BusinessRule::RuleRegistry == NULL)
+        if (BusinessRule::RuleRegistry == NULL)
             return NULL;
-        while(BusinessRule::RegistryLock){
+        while (BusinessRule::RegistryLock)
+        {
             sched_yield();
         }
         auto *br = (BusinessRule *)raxFind(BusinessRule::RuleRegistry, (UCHAR *)name, strlen(name));
@@ -247,7 +262,7 @@ public:
         // rxString rpn = this->rule->ToString();
         this->apply_count++;
         FaBlok::ClearCache();
-        if(data_config->executor == NULL)
+        if (data_config->executor == NULL)
             data_config->executor = (void *)new SilNikParowy_Kontekst(data_config, NULL);
         rax *set = ((SilNikParowy_Kontekst *)data_config->executor)->Execute(this->rule, key);
         ((SilNikParowy_Kontekst *)data_config->executor)->ClearMemoizations();

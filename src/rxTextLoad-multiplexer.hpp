@@ -243,7 +243,6 @@ static void *extractRowAsHash(SimpleQueue *, char *row_start, char *row_end, cha
     return NULL;
 }
 
-
 /*
     Use column 1 as key
     Join column 2...n as <field>:<value>;
@@ -367,8 +366,13 @@ static void *execTextLoadThread(void *ptr)
                 // rxString path = rxStringFormat("%s/data/%s", cwd, argS);
 
                 auto *config = getRxSuite();
-                const char *path = rxStringFormat("%s/data/%s", config->wget_root, argS);
+                const char *path = rxStringFormat("%s/%s", config->wget_root, argS);
                 loaded_file = (char *)readFileIntoSds(path);
+                if (!loaded_file)
+                {
+                    path = rxStringFormat("%s/data/%s", config->wget_root, argS);
+                    loaded_file = (char *)readFileIntoSds(path);
+                }
             }
             else if (rxStringMatch(argS, "INDEX_SCORING", MATCH_IGNORE_CASE))
             {

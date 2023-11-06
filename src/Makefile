@@ -112,34 +112,34 @@ FILT = $(filter-out $(OBSOLETEFLAGS), $(CFLAGS))
 .cpp.o:
 	c++  -o $@ -I.. -I. $(CXXFLAGS) $(WARNNING) $(FILT) $(SHOBJ_CFLAGS)  $(INCLUDE_PATHS)  -fpermissive -isystem -DUSE_JEMALLOC  -Werror=main -std=c++20 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -isystem -DUSE_JEMALLOC  -fPIC  $<
 
-rxGraphdb.so: ../../src/redismodule.h rxGraphdb.cpp graphstack.hpp   rxSuite.xo  rxSuiteHelpers.xo   sjiboleth.so  client-pool.hpp  client-pool.cpp tls.xo sdsWrapper.xo  rxSessionMemory.xo
-	g++ -o rxGraphdb.so  $(CXXFLAGS) -shared  $(WARNNING) $(FILT) $(SHOBJ_CFLAGS)  $(INCLUDE_PATHS) -g -ggdb -fpermissive  -fPIC  rxGraphdb.cpp  rxSuite.xo  rxSuiteHelpers.xo  sjiboleth.so  client-pool.cpp tls.xo  sdsWrapper.xo   rxSessionMemory.xo
+rxGraphdb.so: ../../src/redismodule.h rxGraphdb.cpp graphstack.hpp   rxSuite.xo  rxSuiteHelpers.xo   sjiboleth.so  client-pool.hpp  client-pool.cpp tls.xo sdsWrapper.xo  rxSessionMemory.o
+	g++ -o rxGraphdb.so  $(CXXFLAGS) -shared  $(WARNNING) $(FILT) $(SHOBJ_CFLAGS)  $(INCLUDE_PATHS) -g -ggdb -fpermissive  -fPIC  rxGraphdb.cpp  rxSuite.xo  rxSuiteHelpers.xo  sjiboleth.so  client-pool.cpp tls.xo  sdsWrapper.xo   rxSessionMemory.o
 
-sjiboleth.so: ../../src/redismodule.h sjiboleth.cpp sjiboleth.hpp   rxSuite.xo  rxSuiteHelpers.xo  sjiboleth.cpp sjiboleth-silnikparowy.cpp  sjiboleth-silnikparowy-ctx.cpp sjiboleth-generic.cpp sjiboleth-gremlin.cpp sjiboleth-json.cpp sjiboleth-query.cpp sjiboleth-text.cpp  sjiboleth-fablok.cpp rxSuite.xo  rxSuiteHelpers.xo sjiboleth.cpp         sjiboleth-generic.cpp  sjiboleth-parser.cpp  sjiboleth-text.cpp  sjiboleth-gremlin.cpp  sjiboleth-query.cpp   sjibolethWrapper.cpp sjiboleth-fablok.cpp  sjiboleth.xo  sjiboleth-json.cpp sjiboleth.hpp graphstack.hpp makefile client-pool.hpp client-pool.cpp tls.xo sdsWrapper.xo tls.xo   rxSessionMemory.xo
-	g++ -o sjiboleth.so  $(CXXFLAGS) -shared  $(WARNNING) $(FILT) $(SHOBJ_CFLAGS)  $(INCLUDE_PATHS)  -g -ggdb -fpermissive   -isystem -DUSE_JEMALLOC -Werror=main -std=c++20 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -isystem -DUSE_JEMALLOC   -fPIC  sjiboleth.cpp  sjiboleth-fablok.cpp sjiboleth-generic.cpp  sjiboleth-gremlin.cpp  sjiboleth-json.cpp  sjiboleth-parser.cpp  sjiboleth-query.cpp sjiboleth-text.cpp  sjibolethWrapper.cpp   rxSuiteHelpers.xo client-pool.cpp tls.xo  sdsWrapper.xo tls.xo  rxSessionMemory.xo
+sjiboleth.so: ../../src/redismodule.h sjiboleth.cpp sjiboleth.hpp   rxSuite.xo  rxSuiteHelpers.xo  sjiboleth.cpp sjiboleth-silnikparowy.cpp  sjiboleth-silnikparowy-ctx.cpp sjiboleth-generic.cpp sjiboleth-gremlin.cpp sjiboleth-json.cpp sjiboleth-query.cpp sjiboleth-text.cpp  sjiboleth-fablok.cpp rxSuite.xo  rxSuiteHelpers.xo sjiboleth.cpp         sjiboleth-generic.cpp  sjiboleth-parser.cpp  sjiboleth-text.cpp  sjiboleth-gremlin.cpp  sjiboleth-query.cpp   sjibolethWrapper.cpp sjiboleth-fablok.cpp  sjiboleth.xo  sjiboleth-json.cpp sjiboleth.hpp graphstack.hpp makefile client-pool.hpp client-pool.cpp tls.xo sdsWrapper.xo tls.xo   rxSessionMemory.o
+	g++ -o sjiboleth.so  $(CXXFLAGS) -shared  $(WARNNING) $(FILT) $(SHOBJ_CFLAGS)  $(INCLUDE_PATHS)  -g -ggdb -fpermissive   -isystem -DUSE_JEMALLOC -Werror=main -std=c++20 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -isystem -DUSE_JEMALLOC   -fPIC  sjiboleth.cpp  sjiboleth-fablok.cpp sjiboleth-generic.cpp  sjiboleth-gremlin.cpp  sjiboleth-json.cpp  sjiboleth-parser.cpp  sjiboleth-query.cpp sjiboleth-text.cpp  sjibolethWrapper.cpp   rxSuiteHelpers.xo client-pool.cpp tls.xo  sdsWrapper.xo tls.xo  rxSessionMemory.o
 
 makefile:
 	echo "build complete"
 
-rxRule.so: ../../src/redismodule.h rxRule.cpp rule.hpp    rxSuite.xo  rxSuiteHelpers.xo   sjiboleth.so   client-pool.hpp client-pool.cpp tls.xo simpleQueue.hpp   simpleQueue.cpp   sdsWrapper.xo  rxSessionMemory.xo rxGraphdb.so
-	g++ -o rxRule.so  -shared -g -ggdb -fpermissive  $(SHOBJ_CFLAGS)   $(INCLUDE_PATHS)  -fPIC  rxGraphdb.so rxRule.cpp rxSuiteHelpers.xo rxSuite.xo  sjiboleth.so  client-pool.cpp tls.xo  simpleQueue.cpp   sdsWrapper.xo  rxSessionMemory.xo
+rxRule.so: ../../src/redismodule.h rxRule.cpp rule.hpp    rxSuite.xo  rxSuiteHelpers.xo   sjiboleth.so   client-pool.hpp client-pool.cpp tls.xo simpleQueue.hpp   simpleQueue.cpp   sdsWrapper.xo  rxSessionMemory.o rxGraphdb.so
+	g++ -o rxRule.so  -shared -g -ggdb -fpermissive  $(SHOBJ_CFLAGS)   $(INCLUDE_PATHS)  -fPIC  rxGraphdb.so rxRule.cpp rxSuiteHelpers.xo rxSuite.xo  sjiboleth.so  client-pool.cpp tls.xo  simpleQueue.cpp   sdsWrapper.xo  rxSessionMemory.o
 
-rxIndexer.so: ../../src/redismodule.h rxIndexer.cpp rxIndexer.hpp rule.hpp  rxSuite.xo  rxSuiteHelpers.xo  sjiboleth.so indexIntercepts.xo simpleQueue.hpp client-pool.hpp client-pool.cpp tls.xo sdsWrapper.xo  rxSessionMemory.xo
-	g++ -o rxIndexer.so  -shared -g -ggdb -fpermissive  $(SHOBJ_CFLAGS)   $(INCLUDE_PATHS)  -fPIC rxIndexer.cpp rxSuiteHelpers.xo rxSuite.xo sjiboleth.so  indexIntercepts.xo client-pool.cpp tls.xo sdsWrapper.xo  rxSessionMemory.xo  rxGraphdb.so
+rxIndexer.so: ../../src/redismodule.h rxIndexer.cpp rxIndexer.hpp rule.hpp  rxSuite.xo  rxSuiteHelpers.xo  sjiboleth.so indexIntercepts.xo simpleQueue.hpp client-pool.hpp client-pool.cpp tls.xo sdsWrapper.xo  rxSessionMemory.o
+	g++ -o rxIndexer.so  -shared -g -ggdb -fpermissive  $(SHOBJ_CFLAGS)   $(INCLUDE_PATHS)  -fPIC rxIndexer.cpp rxSuiteHelpers.xo rxSuite.xo sjiboleth.so  indexIntercepts.xo client-pool.cpp tls.xo sdsWrapper.xo  rxSessionMemory.o  rxGraphdb.so
 
-rxQuery.so: ../../src/redismodule.h rxQuery.cpp rxQuery.hpp rule.hpp  rxSuite.xo  rxSuiteHelpers.xo  sjiboleth.so  sdsWrapper.xo  rxSessionMemory.xo rxGraphdb.so
-	g++ -o rxQuery.so -shared -g -ggdb -fpermissive   $(SHOBJ_CFLAGS)   $(INCLUDE_PATHS)  -fPIC rxQuery.cpp rxSuiteHelpers.xo rxSuite.xo sjiboleth.so  rxSessionMemory.xo   sdsWrapper.xo rxGraphdb.so
+rxQuery.so: ../../src/redismodule.h rxQuery.cpp rxQuery.hpp rule.hpp  rxSuite.xo  rxSuiteHelpers.xo  sjiboleth.so  sdsWrapper.xo  rxSessionMemory.o rxGraphdb.so
+	g++ -o rxQuery.so -shared -g -ggdb -fpermissive   $(SHOBJ_CFLAGS)   $(INCLUDE_PATHS)  -fPIC rxQuery.cpp rxSuiteHelpers.xo rxSuite.xo sjiboleth.so  rxSessionMemory.o   sdsWrapper.xo rxGraphdb.so
 
-rxIndexStore.so: ../../src/redismodule.h rxIndexStore.cpp rxIndexStore.hpp command-multiplexer.hpp  rxFetch-multiplexer.hpp rxDescribe-multiplexer.hpp rxIndex.hpp rxSuiteHelpers.xo   sdsWrapper.xo  rxSessionMemory.xo
-	g++ -o rxIndexStore.so -shared -g -ggdb -fpermissive   $(SHOBJ_CFLAGS)   $(INCLUDE_PATHS)  -fPIC rxIndexStore.cpp rxSuiteHelpers.xo   rxSuite.xo   sdsWrapper.xo  rxSessionMemory.xo  rxGraphdb.so
+rxIndexStore.so: ../../src/redismodule.h rxIndexStore.cpp rxIndexStore.hpp command-multiplexer.hpp  rxFetch-multiplexer.hpp rxDescribe-multiplexer.hpp rxIndex.hpp rxSuiteHelpers.xo   sdsWrapper.xo  rxSessionMemory.o
+	g++ -o rxIndexStore.so -shared -g -ggdb -fpermissive   $(SHOBJ_CFLAGS)   $(INCLUDE_PATHS)  -fPIC rxIndexStore.cpp rxSuiteHelpers.xo   rxSuite.xo   sdsWrapper.xo  rxSessionMemory.o  rxGraphdb.so
 
-rxMercator.so: ../../src/redismodule.h rxMercator.cpp rxMercatorMonitor.cpp rxMercatorMonitor.hpp rxMercator.hpp  rxSuiteHelpers.xo   sjiboleth.so client-pool.hpp client-pool.cpp tls.xo sdsWrapper.xo  rxSessionMemory.xo
-	g++ -o rxMercator.so  -shared -g -ggdb -fpermissive  $(SHOBJ_CFLAGS)   $(INCLUDE_PATHS) -Wvarargs -fPIC rxMercator.cpp rxMercatorMonitor.cpp rxSuiteHelpers.xo   sjiboleth.xo rxSuite.xo sjiboleth.so   client-pool.cpp tls.xo  sdsWrapper.xo  rxSessionMemory.xo rxGraphdb.so
+rxMercator.so: ../../src/redismodule.h rxMercator.cpp rxMercatorMonitor.cpp rxMercatorMonitor.hpp rxMercator.hpp  rxSuiteHelpers.xo   sjiboleth.so client-pool.hpp client-pool.cpp tls.xo sdsWrapper.xo  rxSessionMemory.o
+	g++ -o rxMercator.so  -shared -g -ggdb -fpermissive  $(SHOBJ_CFLAGS)   $(INCLUDE_PATHS) -Wvarargs -fPIC rxMercator.cpp rxMercatorMonitor.cpp rxSuiteHelpers.xo   sjiboleth.xo rxSuite.xo sjiboleth.so   client-pool.cpp tls.xo  sdsWrapper.xo  rxSessionMemory.o rxGraphdb.so
 rxSuite.xo:       ../../src/server.h ../../src/dict.h rxSuite.h rxSuite.c sdsWrapper.xo
 
-rxSuiteHelpers.xo:       ../../src/server.h rxSuiteHelpers.h rxSuiteHelpers.c sdsWrapper.xo  rxSessionMemory.xo
+rxSuiteHelpers.xo:       ../../src/server.h rxSuiteHelpers.h rxSuiteHelpers.c sdsWrapper.xo  rxSessionMemory.o
 
-indexIntercepts.xo: indexIntercepts.c indexIntercepts.h  simpleQueue.hpp sdsWrapper.xo  rxSessionMemory.xo
+indexIntercepts.xo: indexIntercepts.c indexIntercepts.h  simpleQueue.hpp sdsWrapper.xo  rxSessionMemory.o
 
 %.o: %.cpp $(CPPSOURCES) rxGraphdb.so
 	$(CXX) -o $@ $(CXXFLAGS)   $(WARNNING) $(CFLAGS) $(SHOBJ_CFLAGS) -std=c++20 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -s  -DUSE_JEMALLOC $(INCLUDE_PATHS) -fPIC  -c $< 

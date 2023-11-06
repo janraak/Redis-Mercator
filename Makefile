@@ -10,18 +10,18 @@ install:
 
 test:
 	# cd src && $(MAKE) $@
-	# /home/pi/redis/redis-6.0.10/src/redis-server --bind 0.0.0.0 --dbfilename data.rdb --maxmemory 6G &
+	# ..//src/redis-server --bind 0.0.0.0 --dbfilename data.rdb --maxmemory 6G &
 	# python3 sys_tests/rxIndexStore.py 
 	# python3 sys_tests/gremlin_001.py 
 	sys_tests/__test_mercator.sh
 
 I:
 	# cd src && $(MAKE) $@
-	# /home/pi/redis/redis-6.0.10/src/redis-server --bind 0.0.0.0 --dbfilename data.rdb --maxmemory 6G &
+	# ..//src/redis-server --bind 0.0.0.0 --dbfilename data.rdb --maxmemory 6G &
 	python3 sys_tests/index_test_000.py 
 
 S:
-	# /home/pi/redis/redis-6.0.10/src/redis-server --bind 0.0.0.0 --dbfilename data.rdb --maxmemory 6G &
+	# ..//src/redis-server --bind 0.0.0.0 --dbfilename data.rdb --maxmemory 6G &
 	python3 sys_tests/rxIndexStore.py 
 	python3 sys_tests/gremlin_001.py 
 	# ../src/redis-cli  test.json test1 'j:{"woonplaatsen":["Oosthuizen, NH, NL", "Amsterdam, NH, NL", "Enkhuizen, NH, NL", "Hoogkarspel, NH, NL", "Oosthuizen, NH, NL", "shoreline,wa,usa"]}'
@@ -35,12 +35,12 @@ S:
 	
 	../src/redis-cli   rxindex off
 	../src/redis-cli   flushall
-	../src/redis-cli  g.set2 file "/home/pi/redis/redis-6.0.10/extensions/graph/nwtsty-en.graph2.json"
+	../src/redis-cli  g.set2 file "..//extensions/graph/nwtsty-en.graph2.json"
 	../src/redis-cli   keys *
 
 T:
 	 cd src ; $(MAKE) 
-	# /home/pi/redis/redis-6.0.10/src/redis-server --bind 0.0.0.0 --dbfilename data.rdb --maxmemory 6G &
+	# ..//src/redis-server --bind 0.0.0.0 --dbfilename data.rdb --maxmemory 6G &
 	python3 sys_tests/rxIndexStore.py 
 	python3 sys_tests/gremlin_001.py 
 	# ../src/redis-cli  test.json test1 'j:{"woonplaatsen":["Oosthuizen, NH, NL", "Amsterdam, NH, NL", "Enkhuizen, NH, NL", "Hoogkarspel, NH, NL", "Oosthuizen, NH, NL", "shoreline,wa,usa"]}'
@@ -54,8 +54,14 @@ T:
 	
 	../src/redis-cli   rxindex off
 	../src/redis-cli   flushall
-	../src/redis-cli  g.set2 file "/home/pi/redis/redis-6.0.10/extensions/graph/nwtsty-en.graph copy.json"
+	../src/redis-cli  g.set2 file "..//extensions/graph/nwtsty-en.graph copy.json"
 	../src/redis-cli   keys *
+
+
+SANITY:
+	cd sys_tests
+	python3 sys_tests/_runner.py runs 1 testset sanity_check
+	python3 sys_tests/_runner.py runs 1 testset scenarios
 
 V:
 	# cd src ; $(MAKE) 

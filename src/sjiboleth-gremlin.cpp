@@ -1,4 +1,5 @@
 #include <cstring>
+#include <cassert>
 
 #include "sjiboleth-fablok.hpp"
 #include "sjiboleth-graph.hpp"
@@ -8,6 +9,7 @@
 #include "graphstackentry.hpp"
 #include "rxGraphdb.h"
 #include "sdsWrapper.h"
+#include "rule.hpp"
 
 #include <math.h>
 
@@ -2329,8 +2331,10 @@ void CommitEdge(SilNikParowy_Kontekst *stack, FaBlok *edge_set)
                 edge_set = persistTriplet(stack, edge_set, subject_key, predicates[0], predicates[1], object_key, 1.0, data_config);
                 edge_set = persistTriplet(stack, edge_set, object_key, predicates[1], predicates[0], subject_key, 1.0, data_config);
             }
+            BusinessRule::Touched(object_key);
         }
         raxStop(&object_iterator);
+        BusinessRule::Touched(subject_key);
     }
     raxStop(&subject_iterator);
     rxStringFreeSplitRes(predicates, predicates_count);
@@ -2714,7 +2718,7 @@ SJIBOLETH_HANDLER(executeGremlinAddProperty)
     }
     else
     {
-        rxServerLog(rxLL_NOTICE, "parameter list: %s %x\ninput_set: %s %d entries", pl->setname, pl->parameter_list, input_set->setname, raxSize(input_set->keyset));
+        rxServerLog(rxLL_NOTICE, "parameter list: %s %p\ninput_set: %s %ld entries", pl->setname, pl->parameter_list, input_set->setname, raxSize(input_set->keyset));
         raxShow(input_set->keyset);
         ERROR("Incorrect parameters for AddProperty, must be [<a>, <v>]...");
     }
@@ -3267,7 +3271,7 @@ int AddMemberToKeysetForMatch(int db, unsigned char *vstr, size_t vlen, FaBlok *
         for (size_t n = 0; n < mob->member_count; ++n)
         {
             char *member = *p;
-            rxServerLog(rxLL_NOTICE, "AddMemberToKeysetForMatch for %s : %d: %s", edge_key, n, p);
+            rxServerLog(rxLL_NOTICE, "AddMemberToKeysetForMatch for %s : %ld: %s", edge_key, n, p);
             ++p;
             int msegments = 0;
             rxString *mparts = rxStringSplitLen(member, strlen(member), "|", 1, &msegments);
