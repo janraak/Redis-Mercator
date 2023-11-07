@@ -175,7 +175,13 @@ extern "C"
     int canDequeueSimpleQueue(SimpleQueue *qO)
     {
         SimpleQueue *q = (SimpleQueue *)qO;
-        return q->Dequeue() ? 1 : 0;
+        return q->Dequeue() ? 1 : 0; 
+    }
+
+    int lengthSimpleQueue(SimpleQueue *qO)
+    {
+        SimpleQueue *q = (SimpleQueue *)qO;
+        return q->QueueLength(); 
     }
 #ifdef __cplusplus
 }
@@ -191,6 +197,7 @@ extern "C"
     extern void enqueueSimpleQueue(SimpleQueue *q, void *o);
     extern void *dequeueSimpleQueue(SimpleQueue *q);
     int canDequeueSimpleQueue(SimpleQueue *qO);
+    int lengthSimpleQueue(SimpleQueue *qO);
 #ifdef __cplusplus
 }
 #endif

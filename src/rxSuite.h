@@ -47,24 +47,25 @@ extern "C"
         UnweightedIndexScoring
     };
 
-    typedef struct
-    {
-        // dict *OperationMap;
-        // dict *KeysetCache;
-        int parserClaimCount;
-        redisNodeInfo indexNode;
-        redisNodeInfo dataNode;
-        redisNodeInfo controllerNode;
-        void *index_info;
-        enum indexScoringMethod indexScoring;
-        const char *defaultQueryOperator;
-        const char *cdnRootUrl;
-        const char *startScript;
-        const char *installScript;
-        const char *ssh_identity;
-        const char *wget_root;
-        CSimpleQueue *cron_command_request_queue;
-    } rxSuiteShared;
+typedef struct
+{
+    // dict *OperationMap;
+    // dict *KeysetCache;
+    int parserClaimCount;
+    int debugMessages;
+    redisNodeInfo indexNode;
+    redisNodeInfo dataNode;
+    redisNodeInfo controllerNode;
+    void *index_info;
+    enum indexScoringMethod indexScoring;
+    const char *defaultQueryOperator;
+    const char *cdnRootUrl;
+    const char *startScript;
+    const char *installScript;
+    const char *ssh_identity;
+    const char *wget_root;
+    CSimpleQueue *cron_command_request_queue;
+} rxSuiteShared;
 
     void *initRxSuite();
     rxSuiteShared *getRxSuite();

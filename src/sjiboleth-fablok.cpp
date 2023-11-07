@@ -510,11 +510,11 @@ FaBlok *FaBlok::Copy(rxString set_name, int value_type, RaxCopyCallProc *fnCallb
             if(v != ri.data){
                 rxServerLogRaw(rxLL_NOTICE, "Changed object");
             }
-            rxServerLog(rxLL_NOTICE, "%s\ncallback on %x -> %x : %s",k , ri.data, rxGetContainedObject(ri.data), (char *)rxGetContainedObject(ri.data));
-            if(v)
-                rxServerLog(rxLL_NOTICE, "standing on %x -> %x : %s", v, rxGetContainedObject(v), (char *)rxGetContainedObject(v));
-                else
-                rxServerLog(rxLL_NOTICE, "standing on %x -> ODD", v);
+            // rxServerLog(rxLL_NOTICE, "%s\ncallback on %x -> %x : %s",k , ri.data, rxGetContainedObject(ri.data), (char *)rxGetContainedObject(ri.data));
+            // if(v)
+            //     rxServerLog(rxLL_NOTICE, "standing on %x -> %x : %s", v, rxGetContainedObject(v), (char *)rxGetContainedObject(v));
+            //     else
+            //     rxServerLog(rxLL_NOTICE, "standing on %x -> ODD", v);
             rxStringFree(k);
             auto result = (fnCallback == NULL) ? true : fnCallback(ri.key, ri.key_len, ri.data, privData);
             if (result != 0)

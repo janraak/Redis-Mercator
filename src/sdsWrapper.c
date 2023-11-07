@@ -18,6 +18,7 @@
 
 extern void serverLogHexDump(int level, char *descr, void *value, size_t len);
 
+#include "rxSuite.h"
 #include "sdsWrapper.h"
 
 rxString rxStringNew(const char *s)
@@ -161,6 +162,8 @@ int rxStringMatch(const char *p, const char *s, int nocase)
 extern void serverLogRaw(int level, const char *msg);
 void rxServerLogRaw(int level, const char *msg)
 {
+    if(getRxSuite()->debugMessages != 16924)
+        return;
     serverLogRaw(level, msg);
 }
 
@@ -184,6 +187,8 @@ void serverLog(int level, const char *fmt, ...)
 
 void rxServerLog(int level, const char *fmt, ...)
 {
+    if(getRxSuite()->debugMessages != 16924)
+        return;
     va_list ap;
     char msg[2048];
 

@@ -155,8 +155,7 @@ rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, vo
             break;
         case _expression:
         case _operator:
-            if (t->IsObjectExpression() 
-            && ((t->Options() && PARSER_OPTION_DELAY_OBJECT_EXPRESSION) == PARSER_OPTION_DELAY_OBJECT_EXPRESSION))
+            if (t->IsObjectExpression() && ((t->Options() && PARSER_OPTION_DELAY_OBJECT_EXPRESSION) == PARSER_OPTION_DELAY_OBJECT_EXPRESSION))
             {
                 auto tmp = generate_uuid();
                 kd = FaBlok::Get(tmp.c_str(), KeysetDescriptor_TYPE_OBJECT_EXPRESSION);

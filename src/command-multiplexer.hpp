@@ -39,6 +39,8 @@ public:
 
     // const char *name;
     pthread_t multiplexer_thread;
+        long long start_time;
+
     enum state
     {
         undefined,
@@ -104,6 +106,14 @@ extern "C"
     {
         auto *multiplexer = (Multiplexer *)clientData;
 
+        long long now = ustime();
+        if( (now - multiplexer->start_time) > 5 * 60 * 1000 * 1000){
+            pthread_cancel(multiplexer->multiplexer_thread);
+            multiplexer->Done();
+            RedisModule_UnblockClient(multiplexer->bc, clientData);
+            return -1;
+        }
+
         switch (multiplexer->state)
         {
         case Multiplexer::not_started:
@@ -113,6 +123,7 @@ extern "C"
             return multiplexer->delay_ms;
         case Multiplexer::done:
         default:
+            pthread_cancel(multiplexer->multiplexer_thread);
             multiplexer->Done();
             RedisModule_UnblockClient(multiplexer->bc, clientData);
             return -1;
@@ -120,20 +131,16 @@ extern "C"
     }
 
     /* Reply callback command multiplexer */
-    int multiplexer_Continuation_Handler(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
+    int multiplexer_Continuation_Handler(RedisModuleCtx *ctx, RedisModuleString **, int )
     {
-        REDISMODULE_NOT_USED(argv);
-        REDISMODULE_NOT_USED(argc);
         auto *bci = (Multiplexer *)RedisModule_GetBlockedClientPrivateData(ctx);
         bci->Write(ctx);
         return REDIS_OK;
     }
 
     /* Timeout callback command Multiplexer */
-    int multiplexer_Timeout(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
+    int multiplexer_Timeout(RedisModuleCtx *ctx, RedisModuleString **, int )
     {
-        REDISMODULE_NOT_USED(argv);
-        REDISMODULE_NOT_USED(argc);
         return RedisModule_ReplyWithSimpleString(ctx, "Request timedout");
     }
 
@@ -203,11 +210,14 @@ int Multiplexer::Async(RedisModuleCtx *ctx, runner handler)
 {
     this->bc = RedisModule_BlockClient(ctx, multiplexer_Continuation_Handler, multiplexer_Timeout, multiplexer_FreeData, this->Timeout());
     this->delay_ms = 25;
+    this->start_time = ustime();
     this->cron_id = rxCreateTimeEvent(1, (aeTimeProc *)multiplexer_async_Cron, this, NULL);
 
     this->state = not_started;
     this->ctx = ctx;
     pthread_create(&this->multiplexer_thread, NULL, handler, this);
+    this->start_time = ustime();
+
     pthread_setname_np(this->multiplexer_thread, "ASYNC");
     return 1;
 };

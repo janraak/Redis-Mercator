@@ -187,11 +187,20 @@ public:
 
     static void Touched(rxString key)
     {
-        indexerThread *index_info = (indexerThread *)GetIndex_info();
+        auto index_info = (indexerThread *)GetIndex_info();
 
         if (index_info == NULL || index_info->index_update_respone_queue == NULL)
             return;
         rxStashCommand(index_info->index_rxRuleApply_request_queue, "RULE.APPLY", 1, key);
+    }
+
+    static int QueuedTouchesCount()
+    {
+        auto index_info = (indexerThread *)GetIndex_info();
+
+        if (index_info == NULL || index_info->index_update_respone_queue == NULL)
+            return 0;
+        return lengthSimpleQueue(index_info->index_rxRuleApply_request_queue);
     }
 
     BusinessRule()

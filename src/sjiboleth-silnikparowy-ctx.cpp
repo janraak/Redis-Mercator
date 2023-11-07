@@ -134,6 +134,8 @@ void SilNikParowy_Kontekst::ClearStack()
 
 void SilNikParowy_Kontekst::DumpStack()
 {
+    if(getRxSuite()->debugMessages != 16924)
+        return;
     this->StartHead();
     FaBlok *kd;
     int n = 0;

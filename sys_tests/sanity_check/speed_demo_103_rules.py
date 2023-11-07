@@ -81,7 +81,7 @@ def SD_103_Business_Rules_and_or_Triggers(cluster_id, controller, data, index):
 #    Since the product may be on many orders we AND the result with our working set to limit our scope to modified keys only.
 #
 #    An age check is performed on the buyer, using a traverse from the Sale to the Buyer and Back.
-#    Since the buyer may have multiple sales we AND the result with our working set to limit our scope to modified keys only.
+#    Since the buyer may have multiple sales , the any orders we AND the result with our working set to limit our scope to modified keys only.
 #
 
 def SD_103_Business_Rules_and_or_Triggers_with_Traversal(cluster_id, controller, data, index):
@@ -148,11 +148,11 @@ def SD_103_Business_Rules_and_or_Triggers_with_Traversal(cluster_id, controller,
                           "{}".format([[b'key', b'bambam', b'score', b'1.000000', b'value', [b'type', b'MALE', b'age', b'9', b'verification', b'age']]]))
 
     succes_tally += match("rule list", data.execute_command("RULE.LIST"), 
-                          "{}".format([[b'name', b'age_restriction', b'rule', b' type sale , HAS workset AS Item IN type beer , HAS Item OUT workset USE & . . . . Buyer IN age 21 , LT verification age , PROPERTY Buyer OUT workset USE & . . . . . breach AS rpush kettle2 , @graph , REDIS DROP RESET breach USE . . . . . .', b'no of applies', 13, b'no of skips', 64, b'no of hits', 1, b'no of misses', 12]]))
+                          "{}".format([[b'name', b'age_restriction', b'rule', b' type Sale , HAS Sale INOUT age 21 , LT . . status age_check , PROPERTY rpush agecheck , @graph , REDIS . .', b'no of applies', 18, b'no of skips', 16, b'no of hits', 5, b'no of misses', 13]]))
 
 
     succes_tally += match("check queue", data.lrange("kettle2", 0, 1000), 
-                          "{}".format([b'{"entities":[{"iri":"P00001", "entity":"vertice","type": "Sale"},{"iri":"BottledWater", "entity":"vertice","type": "nonalcoholic"},{"iri":"Amstel", "entity":"vertice","type": "beer"},{"iri":"bambam", "entity":"vertice","type": "MALE","age": "9","verification": "age"}]", triplets":[{"predicate":"bambam", "subject":"son_of:bambam:barney", "object":"father_of:bambam:barney", "depth":2}]}']))
+                          "{}".format([b'{"entities":[{"iri":"P00000", "entity":"vertice","type": "Sale"},{"iri":"bambam", "entity":"vertice","type": "MALE","age": "9","verification": "age"},{"iri":"BottledWater", "entity":"vertice","type": "nonalcoholic"},{"iri":"Amstel", "entity":"vertice","type": "beer"}]", triplets":[{"predicate":"bambam", "subject":"Buyer:bambam:P00000", "object":"father_of:bambam:barney", "depth":2}]}', b'{"entities":[{"iri":"P00001", "entity":"vertice","type": "Sale"},{"iri":"Amstel", "entity":"vertice","type": "beer"},{"iri":"BottledWater", "entity":"vertice","type": "nonalcoholic"},{"iri":"bambam", "entity":"vertice","type": "MALE","age": "9","verification": "age"}]", triplets":[{"predicate":"bambam", "subject":"Buyer:bambam:P00000", "object":"father_of:bambam:barney", "depth":2}]}']))
 
     if(succes_tally != get_match_calls()): 
         raise AssertionError( "FAILED: SD_103_Business_Rules_and_or_Triggers, {} of {} steps failed".format(get_match_calls() - succes_tally, get_match_calls()))

@@ -102,7 +102,7 @@ if role == 'data':
     else:
         print("rxQuery already loaded")
     if not "rxRule" in module_config:
-        redis_client.execute_command("MODULE LOAD {}/extensions/src/rxRule.so INDEX {} {} 0 DATA {} {} 0 DEFAULT_OPERATOR &".format(path, ihost, iport, host, port))
+        redis_client.execute_command("MODULE LOAD {}/extensions/src/rxRule.so INDEX {} {} 0 DATA {} {} 0 DEFAULT_OPERATOR & DEBUG".format(path, ihost, iport, host, port))
         print("rxRule loaded")
     else:
         print("rxRule already loaded")

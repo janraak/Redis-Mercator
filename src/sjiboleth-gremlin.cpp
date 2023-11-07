@@ -3377,7 +3377,7 @@ int matchEdges(int db, Graph_Leg *leg, FaBlok *kd, GraphStack<Graph_Leg> *bsf_q,
     for (size_t n = 0; n < mob->member_count; ++n)
     {
         char *elesds = *p;
-        rxServerLog(rxLL_NOTICE, "matchEdges for %s : %d: %s", key, n, elesds);
+        rxServerLog(rxLL_NOTICE, "matchEdges for %s : %ld: %s", key, n, elesds);
         int segments = 0;
         rxString *parts = rxStringSplitLen(elesds, strlen(elesds), "|", 1, &segments);
         double weight = segments > 3 ? atof(parts[3]) : 1.0;

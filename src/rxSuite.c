@@ -63,8 +63,9 @@ void *initRxSuite()
     {
         rxSuiteShared *shared = zmalloc(sizeof(rxSuiteShared));
         memset(shared, 0x00, sizeof(rxSuiteShared));
-        shared->parserClaimCount = 0;
-        rxMercatorShared = shared;
+        shared->parserClaimCount = 0;        
+        shared->debugMessages = 0;        
+       rxMercatorShared = shared;
 
         char default_address[48];
         snprintf(default_address, sizeof(default_address), "127.0.0.1:%d", server.port);
@@ -184,6 +185,10 @@ void rxRegisterConfig(void **oargv, int argc)
             ++j;
             const char *s = (const char *)argv[j]->ptr;
             config->indexScoring = (stringmatch(s, "unweighted", 1)) ? UnweightedIndexScoring : WeightedIndexScoring;
+        }
+        else if (stringmatch(arg, "DEBUG", 1) == 1)
+        {
+            config->debugMessages = 16924;
         }
         else if (stringmatch(arg, "CDN", 1) == 1)
         {
