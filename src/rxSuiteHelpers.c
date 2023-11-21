@@ -47,11 +47,15 @@ zskiplistNode *zslGetElementByRank(zskiplist *zsl, unsigned long rank);
 void installInterceptors(interceptRule *commandTable, int no_of_commands, timeProc *cron_proc)
 {
     rxUNUSED(cron_proc);
+    rxUNUSED(cron_proc);
     for (int j = 0; j < no_of_commands; ++j)
     {
         struct redisCommand *cmd = lookupCommandByCString(commandTable[j].name);
         if (cmd)
         {
+            #if REDIS_VERSION_NUM > 0x00060000
+                commandTable[j].id = cmd->id;
+            #endif
             #if REDIS_VERSION_NUM > 0x00060000
                 commandTable[j].id = cmd->id;
             #endif
@@ -736,26 +740,7 @@ void *rxRestoreKeyRetainValue(int dbNo, const char *key, void *obj)
 
 extern int zsetDel(robj *zobj, sds ele);
 #if REDIS_VERSION_NUM >= 0x00050000
-unsigned long zsetLength(const robj *zobj);
-#elif REDIS_VERSION >= "5.0.9"
-unsigned long zsetLength(const robj *zobj);
-#elif REDIS_VERSION >= "5.0.8"
-unsigned long zsetLength(const robj *zobj);
-#elif REDIS_VERSION >= "5.0.7"
-unsigned long zsetLength(const robj *zobj);
-#elif REDIS_VERSION >= "5.0.6"
-unsigned long zsetLength(const robj *zobj);
-#elif REDIS_VERSION >= "5.0.5"
-unsigned long zsetLength(const robj *zobj);
-#elif REDIS_VERSION >= "5.0.4"
-unsigned long zsetLength(const robj *zobj);
-#elif REDIS_VERSION >= "5.0.3"
-unsigned long zsetLength(const robj *zobj);
-#elif REDIS_VERSION >= "5.0.2"
-unsigned long zsetLength(const robj *zobj);
-#elif REDIS_VERSION >= "5.0.1"
-unsigned long zsetLength(const robj *zobj);
-#elif REDIS_VERSION >= "5.0.0"
+#if REDIS_VERSION_NUM >= 0x00050000
 unsigned long zsetLength(const robj *zobj);
 #else
 unsigned int zsetLength(const robj *zobj);
