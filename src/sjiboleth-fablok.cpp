@@ -8,6 +8,15 @@ extern "C"
 
 #include "../../deps/hiredis/hiredis.h"
 #include "sdsWrapper.h"
+
+#if REDIS_VERSION_NUM < 0x00060200
+#define SDSEMPTY sdsempty
+#else
+#define SDSEMPTY hi_sdsempty
+#endif
+
+
+
 #include "string.h"
 #include <pthread.h>
 #include <unistd.h>
@@ -373,7 +382,7 @@ int FaBlok::FetchKeySet(redisNodeInfo *serviceConfig, const char *rh)
     if (!index_context)
         return C_ERR;
     if ((size_t)index_context->obuf == (size_t)-1)
-        index_context->obuf = hi_sdsempty();
+        index_context->obuf = SDSEMPTY();
     long long start = ustime();
     try
     {
@@ -413,7 +422,7 @@ int FaBlok::FetchKeySet(redisNodeInfo *serviceConfig, const char *lh, const char
     if (index_context == NULL)
         return C_OK;
     if ((size_t)index_context->obuf == (size_t)-1)
-        index_context->obuf = hi_sdsempty();
+        index_context->obuf = SDSEMPTY();
     redisReply *rcc = NULL;
     long long start = ustime();
     if (isdigit(*rh))
