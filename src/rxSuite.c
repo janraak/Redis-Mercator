@@ -141,16 +141,16 @@ void SetIndex_info(void *indexer)
     config->index_info = indexer;
 }
 
-extern void *rxGetContainedObject(void *o);
+extern const char*rxGetContainedString(void *o);
     
 static void extractArgs(RedisModuleString **oargv, int j, redisNodeInfo *node)
 {
     RedisModuleString **argv = (RedisModuleString **)oargv;
-    const char *s = (const char *)rxGetContainedObject(argv[j]);
+    const char *s = rxGetContainedString(argv[j]);
     node->host = sdsnew(s);
-    s = (const char *)rxGetContainedObject(argv[j + 1]);
+    s = rxGetContainedString(argv[j + 1]);
     node->port = atoi(s);
-    s = (const char *)rxGetContainedObject(argv[j + 2]);
+    s = rxGetContainedString(argv[j + 2]);
     node->database_id = atoi(s);
 }
 
@@ -160,7 +160,7 @@ void rxRegisterConfig(void **oargv, int argc)
     rxSuiteShared *config = initRxSuite();
     for (int j = 0; j < argc; ++j)
     {
-        const char *arg = (const char *)argv[j]->ptr;
+        const char *arg = rxGetContainedString(argv[j]);
         if (stringmatch(arg, "INDEX", 1) == 1 && (j + 3) <= argc)
         {
             extractArgs(argv, j + 1, &config->indexNode);
@@ -179,13 +179,13 @@ void rxRegisterConfig(void **oargv, int argc)
         else if (stringmatch(arg, "DEFAULT_OPERATOR", 1) == 1 && (j + 3) <= argc)
         {
             ++j;
-            const char *s = (const char *)argv[j]->ptr;
+            const char *s = rxGetContainedString(argv[j]);
             config->defaultQueryOperator = sdsnew(s);
         }
         else if (stringmatch(arg, "INDEX_SCORING", 1) == 1)
         {
             ++j;
-            const char *s = (const char *)argv[j]->ptr;
+            const char *s = rxGetContainedString(argv[j]);
             config->indexScoring = (stringmatch(s, "unweighted", 1)) ? UnweightedIndexScoring : WeightedIndexScoring;
         }
         else if (stringmatch(arg, "DEBUG", 1) == 1)
@@ -195,25 +195,25 @@ void rxRegisterConfig(void **oargv, int argc)
         else if (stringmatch(arg, "CDN", 1) == 1)
         {
             ++j;
-            const char *s = (const char *)argv[j]->ptr;
+            const char *s = rxGetContainedString(argv[j]);
             config->cdnRootUrl = sdsnew(s);
         }
         else if (stringmatch(arg, "START-SCRIPT", 1) == 1)
         {
             ++j;
-            const char *s = (const char *)argv[j]->ptr;
+            const char *s = rxGetContainedString(argv[j]);
             config->startScript = sdsnew(s);
         }
         else if (stringmatch(arg, "INSTALL-SCRIPT", 1) == 1)
         {
             ++j;
-            const char *s = (const char *)argv[j]->ptr;
+            const char *s = rxGetContainedString(argv[j]);
             config->installScript = sdsnew(s);
         }
         else if (stringmatch(arg, "DATA-DIR", 1) == 1)
         {
             ++j;
-            const char *s = (const char *)argv[j]->ptr;
+            const char *s = rxGetContainedString(argv[j]);
             config->wget_root = sdsnew(s);
         }
     }

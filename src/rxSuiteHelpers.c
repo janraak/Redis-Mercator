@@ -559,6 +559,14 @@ void *rxGetContainedObject(void *o)
     return ro->ptr;
 }
 
+const char*rxGetContainedString(void *o)
+{
+    if (!o)
+        return NULL;
+    robj *ro = (robj *)o;
+    return (const char*)ro->ptr;
+}
+
 int rxHashTypeGetValue(void *o, const char *f, unsigned char **vstr, POINTER *vlen, long long *vll)
 {
     rxString field = rxStringNew(f);

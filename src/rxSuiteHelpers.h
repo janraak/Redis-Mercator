@@ -142,6 +142,7 @@ extern "C"
     void rxFreeObject(void *o);
     void *rxGetContainedObject(void *o);
     void *rxSetContainedObject(void *oO, void *ptr);
+    const char*rxGetContainedString(void *o);
     int rxGetRefcount(void *o);
     rax *rxSetToRax(void *obj);
 
