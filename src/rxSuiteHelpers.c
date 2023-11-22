@@ -51,7 +51,9 @@ void installInterceptors(interceptRule *commandTable, int no_of_commands, timePr
         struct redisCommand *cmd = lookupCommandByCString(commandTable[j].name);
         if (cmd)
         {
-            commandTable[j].id = cmd->id;
+            #if REDIS_VERSION_NUM > 0x00060000
+                commandTable[j].id = cmd->id;
+            #endif
             commandTable[j].redis_proc = (interceptorProc *)cmd->proc;
             cmd->proc = (redisCommandProc *)commandTable[j].proc;
             commandTable[j].no_of_intercepts = 0;
@@ -389,7 +391,6 @@ rxString rxGetHashField(void *oO, const char *f)
         rxServerLog(rxLL_WARNING, "%s is not a hash key", f);
         return NULL;
     }
-    int zzz = hashTypeExists(o, field);
     if (!hashTypeExists(o, field))
         return NULL;
 
@@ -868,7 +869,9 @@ void rxClientExecute(void *cO, void *pO)
 {
     struct redisCommand *p = (struct redisCommand *)pO;
     client *c = (client *)cO;
-    c->user = DefaultUser;
+    #if REDIS_VERSION_NUM > 0x00060000
+        c->user = DefaultUser;
+    #endif
     // replicate = flags & REDISMODULE_ARGV_REPLICATE;
     c->flags |= CLIENT_MODULE;
     c->db = &server.db[0];
@@ -1188,64 +1191,33 @@ rxClientInfo rxGetClientInfoForHealthCheck()
     info.connected_clients = listLength(server.clients) - listLength(server.slaves);
     info.cluster_connections = getClusterConnectionsCount();
     info.blocked_clients = server.blocked_clients;
-    info.tracking_clients = server.tracking_clients;
-    info.clients_in_timeout_table = (unsigned long long)raxSize(server.clients_timeout_table);
     info.total_keys = mh->total_keys;
     info.bytes_per_key = mh->bytes_per_key;
+    #if REDIS_VERSION_NUM > 0x00060000
+        info.tracking_clients = server.tracking_clients;
+        info.clients_in_timeout_table = (unsigned long long)raxSize(server.clients_timeout_table);
+    #else
+        info.tracking_clients = 0;
+        info.clients_in_timeout_table = 0;
+    #endif
     return info;
 }
 
 rxClientInfo rxGetClientInfo()
 {
     return rxGetClientInfoForHealthCheck();
-    // size_t maxin, maxout;
-    // getExpansiveClientsInfo(&maxin, &maxout);
-    // size_t zmalloc_used = zmalloc_used_memory();
-    // size_t total_system_mem = server.system_memory_size;
-    // struct redisMemOverhead *mh = getMemoryOverheadData();
-
-    // /* Peak memory is updated from time to time by serverCron() so it
-    //  * may happen that the instantaneous value is slightly bigger than
-    //  * the peak value. This may confuse users, so we update the peak
-    //  * if found smaller than the current memory usage. */
-    // if (zmalloc_used > server.stat_peak_memory)
-    //     server.stat_peak_memory = zmalloc_used;
-
-    // rxClientInfo info;
-    // info.used_memory = zmalloc_used;
-    // info.used_memory_rss = mh->allocator_rss;
-    // info.used_memory_peak = server.stat_peak_memory;
-    // info.used_memory_peak_perc = mh->peak_perc;
-    // info.used_memory_overhead = mh->overhead_total;
-    // info.used_memory_startup = mh->startup_allocated;
-    // info.used_memory_dataset = mh->dataset;
-
-    // info.total_keys = mh->total_keys;
-    // info.bytes_per_key = mh->bytes_per_key;
-    // info.dataset_perc = mh->dataset_perc;
-    // info.peak_perc = mh->peak_perc;
-    // info.total_frag = mh->total_frag;
-
-    // info.maxmemory = (unsigned long)total_system_mem;
-
-    // info.connected_clients = listLength(server.clients) - listLength(server.slaves);
-    // info.maxclients = server.maxclients;
-    // info.cluster_connections = getClusterConnectionsCount();
-    // info.client_recent_max_input_buffer = maxin;
-    // info.client_recent_max_output_buffer = maxout;
-    // info.blocked_clients = server.blocked_clients;
-    // info.tracking_clients = server.tracking_clients;
-    // info.clients_in_timeout_table = (unsigned long long)raxSize(server.clients_timeout_table);
-
-    // return info;
 }
 
 int rxGetServerPort()
 {
-    return server.port ? server.port : server.tls_port;
+    #if REDIS_VERSION_NUM > 0x00060000
+        return server.port ? server.port : server.tls_port;
+    #else
+        return server.port;
+    #endif
 }
 
-void *rxGetDatabase(int dbno)
+void *rxGetDatabase(int )
 {
 
     return NULL;
