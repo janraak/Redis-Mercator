@@ -220,7 +220,7 @@ void SilNikParowy_Kontekst::ClearMemoizations()
         raxStart(&clearanceIterator, this->memoization);
         while (raxNext(&clearanceIterator))
         {
-            raxRemove(this->memoization, (const char *)clearanceIterator.data, strlen((const char *)clearanceIterator.data), NULL);
+            raxRemove(this->memoization, (unsigned char *)clearanceIterator.data, strlen((const char *)clearanceIterator.data), NULL);
             raxSeek(&clearanceIterator, "^", NULL, 0);
         }
         raxStop(&clearanceIterator);

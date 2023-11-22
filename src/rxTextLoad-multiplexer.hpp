@@ -35,7 +35,7 @@ long long execute_textload_command_cron_id = -1;
 
    Syntax:
 
-            LOAD.TEXT [TAB_SEPAPERATED | COMMA_SEPARATED | SEMICOLON_SEPARATED ] { AS_JSON | AS_HASH | AS_TEXT } %TEXT_BLOCK%
+            LOAD.TEXT [TAB_SEPAPERATED | COMMA_SEPARATED | SEMICOLON_SEPARATED ] { AS_JSON | AS_HASH | AS_TEXT } {KEY %column}  {TYPE %column} %TEXT_BLOCK%
 
             TAB_SEPARATED: The column values are separated by tabs ('\t').
             COMMA_SEPARATED:  The column values are separated by commas (',').
@@ -59,22 +59,29 @@ long long execute_textload_command_cron_id = -1;
 #define AS_STRING "AS_STRING"
 #define USE_CRLF "CRLF"
 #define USE_BAR "BAR"
+#define KEY_COLUMN "KEY"
+#define TYPE_COLUMN "TYPE"
 
 // TODO Assemble hdr array!
-static int getColumnCount(char *start, char *end, char *column_separator)
+static int getColumnCount(char *start, char *end, char *column_separator, char *key_column, int *key_column_no, char *type_column, int *type_column_no)
 {
     int column_count = 0;
-
+    char *prev_tab = start;
     while (start < end)
     {
         char *tab = strstr(start, column_separator);
         if (tab && tab < end)
         {
+            if (key_column && rxStringMatchLen(key_column, strlen(key_column), prev_tab, tab - prev_tab, MATCH_IGNORE_CASE))
+                *key_column_no = column_count;
+            if (type_column && rxStringMatchLen(type_column, strlen(type_column), prev_tab, tab - prev_tab, MATCH_IGNORE_CASE))
+                *type_column_no = column_count;
             ++column_count;
             start = tab + 1;
         }
         else
             return column_count + 1;
+        prev_tab = tab + 1;
     }
     return column_count;
 }
@@ -230,6 +237,13 @@ static void *extractRowAsHash(SimpleQueue *, char *row_start, char *row_end, cha
             auto *rcc = (redisReply *)redisCommand(client, "HSET %s %s %s", key, f, v);
             if (rcc != NULL)
                 freeReplyObject(rcc);
+            if (rxStringMatch(TYPE_COLUMN, f, MATCH_IGNORE_CASE))
+            {
+                auto tkey = rxStringFormat("`%s", v);
+                rcc = (redisReply *)redisCommand(client, "SADD %s %s", tkey, key);
+                if (rcc != NULL)
+                    freeReplyObject(rcc);
+            }
             RedisClientPool<redisContext>::Release(client, "extractRowAsString");
         }
 
@@ -335,6 +349,10 @@ static void *execTextLoadThread(void *ptr)
         rowExtractionProc *rowExtractor = (rowExtractionProc *)extractRowAsHash;
         char *tlob = NULL;
         char *loaded_file = NULL;
+        char *key_column = NULL;
+        int key_column_no = -1;
+        char *type_column = NULL;
+        int type_column_no = -1;
 
         for (int a = 1; a < argc; ++a)
         {
@@ -361,9 +379,6 @@ static void *execTextLoadThread(void *ptr)
             {
                 ++a;
                 argS = (const char *)rxGetContainedObject(argv[a]);
-                // char cwd[FILENAME_MAX]; // create string buffer to hold path
-                // GetCurrentDir(cwd, FILENAME_MAX);
-                // rxString path = rxStringFormat("%s/data/%s", cwd, argS);
 
                 auto *config = getRxSuite();
                 const char *path = rxStringFormat("%s/%s", config->wget_root, argS);
@@ -380,6 +395,16 @@ static void *execTextLoadThread(void *ptr)
                 argS = (const char *)rxGetContainedObject(argv[a]);
                 rxSetIndexScoringMethodFromString(argS);
             }
+            else if (rxStringMatch(argS, KEY_COLUMN, MATCH_IGNORE_CASE))
+            {
+                ++a;
+                key_column = (char *)rxGetContainedObject(argv[a]);
+            }
+            else if (rxStringMatch(argS, TYPE_COLUMN, MATCH_IGNORE_CASE))
+            {
+                ++a;
+                type_column = (char *)rxGetContainedObject(argv[a]);
+            }
             else
                 tlob = (char *)argS;
         }
@@ -394,7 +419,7 @@ static void *execTextLoadThread(void *ptr)
             return NULL;
         }
         rxStringLenMapChars(hdr_start, hdr_end - hdr_start, " ()./+-*%", "_________", 9);
-        int column_count = getColumnCount(hdr_start, hdr_end, column_separator);
+        int column_count = getColumnCount(hdr_start, hdr_end, column_separator, key_column, &key_column_no, type_column, &type_column_no);
 
         rxUNUSED(column_count);
         tlob = hdr_end + strlen(row_separator);

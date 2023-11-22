@@ -141,14 +141,16 @@ void SetIndex_info(void *indexer)
     config->index_info = indexer;
 }
 
+extern void *rxGetContainedObject(void *o);
+    
 static void extractArgs(RedisModuleString **oargv, int j, redisNodeInfo *node)
 {
     RedisModuleString **argv = (RedisModuleString **)oargv;
-    const char *s = (const char *)argv[j]->ptr;
+    const char *s = (const char *)rxGetContainedObject(argv[j]);
     node->host = sdsnew(s);
-    s = (const char *)argv[j + 1]->ptr;
+    s = (const char *)rxGetContainedObject(argv[j + 1]);
     node->port = atoi(s);
-    s = (const char *)argv[j + 2]->ptr;
+    s = (const char *)rxGetContainedObject(argv[j + 2]);
     node->database_id = atoi(s);
 }
 

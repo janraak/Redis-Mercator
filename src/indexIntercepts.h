@@ -16,7 +16,7 @@ typedef void indexerCallBack(void *priv);
 
 typedef void *cmd_interceptions;
 
-typedef void rxRedisCommandProc(void *c);
+typedef void rxRedisCommandProc(client *c);
 
 struct redisCommandInterceptRule
 {

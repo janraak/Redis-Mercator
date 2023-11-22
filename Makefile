@@ -61,6 +61,9 @@ T:
 SANITY:
 	cd sys_tests
 	python3 sys_tests/_runner.py runs 1 testset sanity_check
+
+SCENARIOS:
+	cd sys_tests
 	python3 sys_tests/_runner.py runs 1 testset scenarios
 
 V:

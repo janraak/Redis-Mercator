@@ -149,7 +149,6 @@ const char *HELP_STRING = "Mercator Demo Cluster Manager Commands:\n"
                         "\""
 
 #define FIND_SUBCONTROLLERS "RXGET G:"                    \
-                            "break()"                     \
                             ".v(instance)"                \
                             ".has(role,controller)"       \
                             ".select(address,port,owner)" \
@@ -215,7 +214,9 @@ void freeSha1(rxString sha1)
 #include <arpa/inet.h>
 
 bool address_is_local(const char *address){
-    struct ifaddrs * ifAddrStruct=NULL;
+    if(address == NULL)
+        return true;
+    struct ifaddrs *ifAddrStruct = NULL;
     struct ifaddrs * ifa=NULL;
     void * tmpAddrPtr=NULL;
     bool is_local = false;
@@ -266,10 +267,6 @@ std::string execWithPipe(const char *cmd, char *address)
                                       username, username, username, address, cmd);
     rxString to_run = address_is_local(address) ? cmd : ssh_cmd;
 
-    long long start = ustime();
-    long long stop = ustime();
-    int tally = 0;
-
     // Open pipe to file
     int retries_left = 2;
     while (retries_left > 0)
@@ -281,12 +278,20 @@ std::string execWithPipe(const char *cmd, char *address)
         }
 
         // read till end of process:
-        while (!feof(pipe))
+        if (!feof(pipe))
         {
 
             // use buffer to read and add to result
-            if (fgets(buffer, sizeof(buffer), pipe) != NULL)
-                result += buffer;
+
+            char *b = NULL;
+            do
+            {
+                b = fgets(buffer, sizeof(buffer), pipe);
+                if (b == NULL)
+                    break;
+                result += b;
+            }
+            while(b != NULL);
         }
         pclose(pipe);
         if (result.length() > 0)
@@ -631,6 +636,11 @@ public:
     void *PropagateCommandToAllSubordinateControllers()
     {
         auto *rcc = ExecuteLocal(FIND_SUBCONTROLLERS, LOCAL_STANDARD);
+        if (rcc->elements == 0)
+        {
+            freeReplyObject(rcc);
+            return NULL;
+        }
 
         rxString cmd = rxStringNew(this->GetArgument(0));
         for (int n = 1; n < this->argc; ++n)
@@ -848,9 +858,7 @@ void *CreateClusterAsync_Go(void *privData)
     int clustering_requested = 0;
     int start_requested = 0;
     const char *controller_path = NULL;
-    char *tag = NULL;
     char *redis_version = (char *)REDIS_VERSION;
-    char *stage = NULL;
     rxString that_cmd = rxStringFormat("%s", multiplexer->GetArgument(0));
     rxString c_ip = multiplexer->GetArgument(1);
     for (int j = 1; j < multiplexer->argc; ++j)
@@ -1238,7 +1246,7 @@ int start_redis(rxString command, char *address)
     }
     else if (child_pid == 0)
     { // New process
-        int rc = system(command);
+        system(command);
         exit(0);
     }
     int status;
@@ -1310,7 +1318,7 @@ int start_cluster(RedisModuleCtx *ctx, char *osha1)
         char *address = values->element[1]->str;
         char *port = values->element[3]->str;
         char *role = values->element[5]->str;
-        char *shard = values->element[7]->str;
+        // char *shard = values->element[7]->str;
         char *index_name = values->element[9]->str;
         char *index_address = NULL;
         char *index_port = NULL;
@@ -1350,7 +1358,7 @@ int start_cluster(RedisModuleCtx *ctx, char *osha1)
                 redis_version,
                 cwd);
 
-            int rc = start_redis(startup_command, address);
+            start_redis(startup_command, address);
 
             long long start = ustime();
             long long stop = ustime();
@@ -1422,28 +1430,28 @@ int rx_start_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     return C_OK;
 }
 
-int clusterKillOperationProc(RedisModuleCtx *, redisContext *redis_node, char *sha1, const char *address, char *, void *)
+int clusterKillOperationProc(RedisModuleCtx *, redisContext *redis_node, char *, const char *, char *, void *)
 {
     redisReply *rcc = (redisReply *)redisCommand(redis_node, "SHUTDOWN");
     freeReplyObject(rcc);
     return C_OK;
 }
 
-int clusterStopOperationProc(RedisModuleCtx *, redisContext *redis_node, char *sha1, const char *address, char *, void *)
+int clusterStopOperationProc(RedisModuleCtx *, redisContext *redis_node, char *, const char *, char *, void *)
 {
     redisReply *rcc = (redisReply *)redisCommand(redis_node, "SHUTDOWN");
     freeReplyObject(rcc);
     return C_OK;
 }
 
-int clusterSnapshotOperationProc(RedisModuleCtx *, redisContext *redis_node, char *sha1, const char *address, char *, void *)
+int clusterSnapshotOperationProc(RedisModuleCtx *, redisContext *redis_node, char *, const char *, char *, void *)
 {
     redisReply *rcc = (redisReply *)redisCommand(redis_node, "BGSAVE");
     freeReplyObject(rcc);
     return C_OK;
 }
 
-int clusterFlushOperationProc(RedisModuleCtx *, redisContext *redis_node, const char *sha1, const char *address, char *, void *)
+int clusterFlushOperationProc(RedisModuleCtx *, redisContext *redis_node, const char *, const char *, char *, void *)
 {
     if (!redis_node)
     {
@@ -1625,7 +1633,7 @@ int rx_flush_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     return C_OK;
 }
 
-void propagateCommandAsyncCompletion(redisAsyncContext *, void *r, void *privdata)
+void propagateCommandAsyncCompletion(redisAsyncContext *, void *r, void *)
 {
     redisReply *reply = (redisReply *)r;
     if (reply == NULL)
@@ -1636,6 +1644,11 @@ void propagateCommandAsyncCompletion(redisAsyncContext *, void *r, void *privdat
 void *PropagateCommandToAllSubordinateControllers(CreateClusterAsync *multiplexer, bool async)
 {
     auto *rcc = ExecuteLocal(FIND_SUBCONTROLLERS, LOCAL_STANDARD);
+    if(rcc->elements == 0)
+    {
+        freeReplyObject(rcc);
+        return NULL;
+    }
 
     rxString cmd = rxStringNew(multiplexer->GetArgument(0));
     for (int n = 1; n < multiplexer->argc; ++n)
@@ -1815,7 +1828,6 @@ void *InstallRedisAsync_Go(void *privData)
 
     while (n < nodes->elements)
     {
-        char *node = nodes->element[n]->element[1]->str;
         redisReply *values = nodes->element[n]->element[5];
         char *address = values->element[1]->str;
         rxString install_log = rxStringFormat(">>$HOME/_install_%s.log", redis_version);
@@ -1838,7 +1850,7 @@ void *InstallRedisAsync_Go(void *privData)
                                       redis_version,
                                       install_log,
                                       install_log);
-        execWithPipe("cd $HOME;pwd;ls -d1 redis*.*;ls -1 redis*/src/redis-server;ls -d1 redis*/extensions;ls -1 redis*/extensions/src/*.so", address);
+        execWithPipe(cmd, address);
         rxStringFree(cmd);
         rxStringFree(install_log);
         n++;
@@ -1879,7 +1891,7 @@ void *GetRedisAndMercatorStatusAsync_Go(void *privData)
             n++;
         }
     }
-    multiplexer->InterrogateServerStatus(NULL);
+    //TODO: multiplexer->InterrogateServerStatus(NULL);
 
     return multiplexer->StopThread();
 }

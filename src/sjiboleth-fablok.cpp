@@ -1,4 +1,4 @@
-
+#include "../../src/version.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -7,14 +7,15 @@ extern "C"
 #include <cstdlib>
 
 #include "../../deps/hiredis/hiredis.h"
+
 #include "sdsWrapper.h"
 
 #if REDIS_VERSION_NUM < 0x00060200
 #define SDSEMPTY sdsempty
-#else
+#endif
+#if REDIS_VERSION_NUM >= 0x00060200
 #define SDSEMPTY hi_sdsempty
 #endif
-
 
 
 #include "string.h"
@@ -536,6 +537,178 @@ FaBlok *FaBlok::Copy(rxString set_name, int value_type, RaxCopyCallProc *fnCallb
     }
     out->Close();
     return out;
+}
+
+FaBlok *FaBlok::Copy(rxString set_name, int value_type)
+{
+    return Copy(set_name, value_type, (RaxCopyCallProc *)NULL, NULL);
+}
+
+FaBlok *FaBlok::CopyKeys(rxString set_name, int value_type, RaxCopyCallProc *, void *privData)
+{
+    int is_object = *((bool *)privData);
+
+    FaBlok *out = FaBlok::Get(set_name ? set_name : this->setname, value_type);
+    out->Open();
+    out->AsTemp();
+    if (out->HasKeySet())
+    {
+        // TODO: delete all standing entries
+        // rxRaxFree(this->keyset);
+       // rxServerLog(rxLL_NOTICE, "FaBlok::Copy Purge before copy fab=%p ks=%p for %s", this, this->keyset, this->setname);
+    }
+
+    FaBlok::Cache(out);
+
+    if (this->HasKeySet())
+    {
+        // rxServerLog(rxLL_NOTICE, "FaBlok::Copy fab=%p ks=%p for %s", this, this->keyset, this->setname);
+        raxIterator ri;
+        raxStart(&ri, this->keyset);
+        raxSeek(&ri, "^", NULL, 0);
+        while (raxNext(&ri))
+        {
+            rxString k = rxStringNewLen((const char *)ri.key, ri.key_len);
+            char *colons[4] = {NULL, NULL, NULL, NULL};
+            colons[0] = strchr((char *)k, ':');
+            if (colons[0])
+                colons[1] = strchr(colons[0] + 1, ':');
+            if (colons[1])
+                colons[2] = strchr(colons[1] + 1, ':');
+            if (colons[2])
+                colons[3] = strchr(colons[2] + 1, ':');
+
+            rxString new_key;
+            if(colons[0] == NULL){
+                new_key = rxStringNewLen((const char *)ri.key, ri.key_len);
+            }else             if (is_object == 0 /* Get subject */)
+            {
+                new_key = rxStringNewLen(colons[0] + 1, colons[1] - colons[0] - 1);
+            }
+            else /* Get object */
+            {
+                new_key = rxStringNew(colons[1] + 1);
+            }
+
+            void *v = rxFindKey(0, new_key);
+            rxStringFree(k);
+                void *old_data = NULL;
+                raxTryInsert(out->keyset, (UCHAR*)new_key, strlen(new_key), v, &old_data);
+            rxStringFree(new_key);
+        }
+        raxStop(&ri);
+    }
+    out->Close();
+    return out;
+}
+
+FaBlok *FaBlok::Copy(rxString set_name, int value_type, RaxFilterCallProc *fnCallback, void *privData)
+{
+    FaBlok *out = FaBlok::Get(set_name ? set_name : this->setname, value_type);
+    out->Open();
+    out->AsTemp();
+    if (out->HasKeySet())
+    {
+        // TODO: delete all standing entries
+        // rxRaxFree(this->keyset);
+       // rxServerLog(rxLL_NOTICE, "FaBlok::Copy Purge before copy fab=%p ks=%p for %s", this, this->keyset, this->setname);
+    }
+
+    FaBlok::Cache(out);
+
+    if (this->HasKeySet())
+    {
+       // rxServerLog(rxLL_NOTICE, "FaBlok::Copy fab=%p ks=%p for %s", this, this->keyset, this->setname);
+        raxIterator ri;
+        raxStart(&ri, this->keyset);
+        raxSeek(&ri, "^", NULL, 0);
+        while (raxNext(&ri))
+        {
+            rxString k = rxStringNewLen((const char*)ri.key, ri.key_len);
+            void *v = rxFindKey(0, k);
+            if(v != ri.data){
+                rxServerLogRaw(rxLL_NOTICE, "Changed object");
+            }
+            // rxServerLog(rxLL_NOTICE, "%s\ncallback on %x -> %x : %s",k , ri.data, rxGetContainedObject(ri.data), (char *)rxGetContainedObject(ri.data));
+            // if(v)
+            //     rxServerLog(rxLL_NOTICE, "standing on %x -> %x : %s", v, rxGetContainedObject(v), (char *)rxGetContainedObject(v));
+            //     else
+            //     rxServerLog(rxLL_NOTICE, "standing on %x -> ODD", v);
+            rxStringFree(k);
+            auto result = (fnCallback == NULL) ? true : fnCallback(ri.key, ri.key_len, ri.data, privData);
+            if (result != 0)
+            {
+                void *old_data = NULL;
+                raxTryInsert(out->keyset, ri.key, ri.key_len, ri.data, &old_data);
+            }
+        }
+        raxStop(&ri);
+    }
+    out->Close();
+    return out;
+}
+
+FaBlok *FaBlok::CopyKeys(rxString set_name, int value_type, RaxFilterCallProc *, void *privData)
+{
+    int is_object = *((bool *)privData);
+
+    FaBlok *out = FaBlok::Get(set_name ? set_name : this->setname, value_type);
+    out->Open();
+    out->AsTemp();
+    if (out->HasKeySet())
+    {
+        // TODO: delete all standing entries
+        // rxRaxFree(this->keyset);
+       // rxServerLog(rxLL_NOTICE, "FaBlok::Copy Purge before copy fab=%p ks=%p for %s", this, this->keyset, this->setname);
+    }
+
+    FaBlok::Cache(out);
+
+    if (this->HasKeySet())
+    {
+        // rxServerLog(rxLL_NOTICE, "FaBlok::Copy fab=%p ks=%p for %s", this, this->keyset, this->setname);
+        raxIterator ri;
+        raxStart(&ri, this->keyset);
+        raxSeek(&ri, "^", NULL, 0);
+        while (raxNext(&ri))
+        {
+            rxString k = rxStringNewLen((const char *)ri.key, ri.key_len);
+            char *colons[4] = {NULL, NULL, NULL, NULL};
+            colons[0] = strchr((char *)k, ':');
+            if (colons[0])
+                colons[1] = strchr(colons[0] + 1, ':');
+            if (colons[1])
+                colons[2] = strchr(colons[1] + 1, ':');
+            if (colons[2])
+                colons[3] = strchr(colons[2] + 1, ':');
+
+            rxString new_key;
+            if(colons[0] == NULL){
+                new_key = rxStringNewLen((const char *)ri.key, ri.key_len);
+            }else             if (is_object == 0 /* Get subject */)
+            {
+                new_key = rxStringNewLen(colons[0] + 1, colons[1] - colons[0] - 1);
+            }
+            else /* Get object */
+            {
+                new_key = rxStringNew(colons[1] + 1);
+            }
+
+            void *v = rxFindKey(0, new_key);
+            rxStringFree(k);
+                void *old_data = NULL;
+                raxTryInsert(out->keyset, (UCHAR*)new_key, strlen(new_key), v, &old_data);
+            rxStringFree(new_key);
+        }
+        raxStop(&ri);
+    }
+    out->Close();
+    return out;
+}
+
+FaBlok *FaBlok::CopyKeys(rxString set_name, int value_type, void *privData)
+{
+    return CopyKeys(set_name, value_type, (RaxFilterCallProc *) NULL, privData);
 }
 
 int FaBlok::CopyTo(FaBlok *out)

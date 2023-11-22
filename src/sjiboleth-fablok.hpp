@@ -54,6 +54,7 @@ extern "C"
 
 #endif
 typedef int RaxCopyCallProc(unsigned char *s, size_t len, void *data, void *privData);
+typedef bool RaxFilterCallProc(unsigned char *s, size_t len, void *data, void *privData);
 
 
 class SilNikParowy;
@@ -139,6 +140,11 @@ public:
       FaBlok *Left();
 
       FaBlok *Copy(const char* set_name, int value_type, RaxCopyCallProc *fnCallback, void *privData);
+      FaBlok *Copy(const char* set_name, int value_type);
+      FaBlok *Copy(const char* set_name, int value_type, RaxFilterCallProc *fnCallback, void *privData);
+      FaBlok *CopyKeys(const char* set_name, int value_type, RaxCopyCallProc *fnCallback, void *privData);
+      FaBlok *CopyKeys(const char* set_name, int value_type, RaxFilterCallProc *fnCallback, void *privData);
+      FaBlok *CopyKeys(rxString set_name, int value_type, void *privData);
 
       int CopyTo(FaBlok *out);
       int MergeInto(FaBlok *out);

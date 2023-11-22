@@ -1,6 +1,5 @@
 #include "version.h"
 
-#include "indexIntercepts.h"
 #include "rxSuite.h"
 
 #ifdef __cplusplus
@@ -27,6 +26,8 @@ extern "C"
 }
 #endif
 
+#include "indexIntercepts.h"
+
 extern indexerThread index_info;
 extern void *rxStashCommand2(SimpleQueue *ctx, const char *command, int argt, int argc, void **args);
 
@@ -35,7 +36,7 @@ extern struct redisServer server;
 indexerCallBack *pre_op_indexer_callback = NULL;
 indexerCallBack *post_op_indexer_callback = NULL;
 
-static int __interceptors_installed = NULL;
+static int __interceptors_installed = 0;
 redisCommandProc **standard_command_procs = NULL;
 
 void setCommandIntercept(client *c);
@@ -72,8 +73,8 @@ void flushallCommandIntercept(client *c);
 
 typedef struct interceptions{
     struct __interceptions *next;
-    struct redisCommandInterceptRule **rules;
-    redisCommandProc **standard_command_procs;
+    struct redisCommandInterceptRule *rules;
+    redisCommandProc *standard_command_procs;
     rax *index;
 }interceptions;
 
@@ -376,11 +377,11 @@ void installIndexerInterceptors(indexerCallBack *pre_op, indexerCallBack *post_o
         struct redisCommand *cmd = lookupCommandByCString(interceptorCommandTable[j].name);
         if (cmd)
         {
-            if (cmd->proc != interceptorCommandTable[j].proc)
+            if (cmd->proc != (void (*)(client *))interceptorCommandTable[j].proc)
             {
                 interceptorCommandTable[j].id = cmd->id;
                 standard_command_procs[j] = cmd->proc;
-                cmd->proc = interceptorCommandTable[j].proc;
+                cmd->proc = (void (*)(client *))interceptorCommandTable[j].proc;
             }
         }
     }
@@ -388,7 +389,7 @@ void installIndexerInterceptors(indexerCallBack *pre_op, indexerCallBack *post_o
 
 void uninstallIndexerInterceptors()
 {
-    __interceptors_installed = NULL;
+    __interceptors_installed = 0;
     return;
     if (standard_command_procs == NULL)
         return;

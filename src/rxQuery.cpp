@@ -352,7 +352,8 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
             query = rxStringFormat("%s %s", query, q);
         }
     }
-    if(strstr(query,"HEALTH_CHECK_SHIFT")){
+    if (strstr(query, "HEALTH_CHECK_SHIFT"))
+    {
         printf("Special check: %s\n", query);
     }
     rxUNUSED(target_setname);
@@ -360,12 +361,14 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     sv_query = query;
     try
     {
-        while(*query == ' '){
+        while (*query == ' ')
+        {
             ++query;
         }
         int l = strlen(query);
         char *tail = (char *)query + (l - 1);
-        while(*tail == ' '){
+        while (*tail == ' ')
+        {
             *tail = 0x00;
             --l;
             --tail;
@@ -378,14 +381,15 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         }
 
         const char *g = strstr(query, "g:");
-        if(g == NULL)
+        if (g == NULL)
             g = strstr(query, "G:");
         if (g != NULL)
         {
             parser = GremlinDialect::Get("GremlinDialect");
             query = g + strlen(GREMLIN_PREFX);
         }
-        else{
+        else
+        {
             parser = QueryDialect::Get("QueryDialect");
         }
         list *errors = listCreate();
@@ -416,6 +420,44 @@ int passthru(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     auto *multiplexer = new PassthruMultiplexer(argv, argc);
     multiplexer->Start(ctx);
+    return REDISMODULE_OK;
+}
+
+int addTypeTree(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
+{
+    if (argc < 2)
+        return RedisModule_ReplyWithSimpleString(ctx, HELP_STRING);
+    size_t arg_len;
+    char type_prefix = '`';
+
+    int n = 2;
+    const char *super_type = RedisModule_StringPtrLen(argv[1], &arg_len);
+    if(rxStringMatch("VERTEX", super_type, 1)){
+        type_prefix = '`';
+        super_type = RedisModule_StringPtrLen(argv[n], &arg_len);
+        ++n;
+    }else if(rxStringMatch("EDGE", super_type, 1)){
+        type_prefix = '~';
+        super_type = RedisModule_StringPtrLen(argv[n], &arg_len);
+        ++n;
+    }
+    rxString typetree = rxStringFormat("%c%s", type_prefix, super_type);
+    while (n < argc)
+    {
+        const char *sub_type = RedisModule_StringPtrLen(argv[n], &arg_len);
+        rxString typetree2 = rxStringFormat("%c%s", type_prefix, sub_type);
+        RedisModuleCallReply *r = RedisModule_Call(ctx,
+                                                   "SADD", "cc",
+                                                   typetree, typetree2);
+
+        rxStringFree((typetree2));
+        if (r)
+            RedisModule_FreeCallReply(r);
+
+        ++n;
+    }
+    RedisModule_ReplyWithSimpleString(ctx, typetree);
+    rxStringFree((typetree));
     return REDISMODULE_OK;
 }
 
@@ -572,6 +614,10 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 
     if (RedisModule_CreateCommand(ctx, "rxDescribe",
                                   passthru, "readonly", 0, 0, 0) == REDISMODULE_ERR)
+        return REDISMODULE_ERR;
+
+    if (RedisModule_CreateCommand(ctx, "rxTypeTree",
+                                  addTypeTree, "readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     redisNodeInfo *index_config = rxIndexNode();
