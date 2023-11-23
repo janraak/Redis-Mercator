@@ -1316,3 +1316,13 @@ rxSetMembers *rxFreeSetmembers(rxSetMembers *mob)
         rxMemFree(mob);
     return NULL;
 }
+
+#if REDIS_VERSION_NUM < 0x00050000
+int raxTryInsert(rax *rax, unsigned char *s, size_t len, void *data, void **old){
+
+    void *e = raxFind(rax, s, len);
+    if(e != raxNotFound)
+        return raxInsert(rax, s, len, data, old);
+    return 0;
+}
+#endif

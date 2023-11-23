@@ -1,6 +1,7 @@
 
 #ifndef __RXSUITE_H__
 #define __RXSUITE_H__
+#include "../../src/version.h"
 
 #ifndef C_OK
 #define C_OK 0
@@ -87,6 +88,9 @@ typedef struct
     char *rxGetExecutable();
     void finalizeRxSuite();
     // #endif
+#if REDIS_VERSION_NUM < 0x00050000
+int raxTryInsert(rax *rax, unsigned char *s, size_t len, void *data, void **old);
+#endif
 
 #ifdef __cplusplus
 }
