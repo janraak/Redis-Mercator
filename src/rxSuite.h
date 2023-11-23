@@ -2,6 +2,7 @@
 #ifndef __RXSUITE_H__
 #define __RXSUITE_H__
 #include "../../src/version.h"
+#include "../../src/rax.h"
 
 #ifndef C_OK
 #define C_OK 0
