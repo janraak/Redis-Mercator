@@ -308,7 +308,7 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     rxString cmd = (char *)rxGetContainedObject(argv[0]);
     const char *target_setname = NULL;
     rxStringToUpper(cmd);
-    int fetch_rows = strcmp(RX_GET, cmd) == 0 ? 1 : 0;
+    int fetch_rows = strcmp(RX_GET, cmd) == 0 ? 1 : strcmp("Q", cmd) == 0 ? 1 : 0;
     rxString query = rxStringEmpty();
     rxString sv_query;
     bool ranked = false;
@@ -590,6 +590,9 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         return REDISMODULE_ERR;
 
     if (RedisModule_CreateCommand(ctx, RX_GET,
+                                  executeQueryCommand, "readonly write", 0, 0, 0) == REDISMODULE_ERR)
+        return REDISMODULE_ERR;
+    if (RedisModule_CreateCommand(ctx, "Q",
                                   executeQueryCommand, "readonly write", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 

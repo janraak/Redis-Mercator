@@ -61,4 +61,6 @@ size_t rxMemAllocSize(void *ptr);
 
 const char *rxStringBuildRedisCommand(int argc, rxRedisModuleString **argv);
 
+char **breakupPointer(char *pointer, char sep, char **colons, int max);
+int  toInt(char **dots, int start, int end);
 #endif

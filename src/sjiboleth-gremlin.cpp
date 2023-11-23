@@ -3628,22 +3628,6 @@ int breadthFirstSearch(FaBlok *leaders, FaBlok *kd, rax *terminators, MatchParam
     return numkeys;
 }
 
-char **breakupPointer(char *pointer, char sep, char **colons, int max)
-{
-    for (int n = 0; n < max; ++n)
-        *colons = NULL;
-    char **cT = colons;
-
-    cT[0] = pointer;
-    for (int n = 0; n < max; ++n)
-    {
-        colons[n + 1] = strchr(colons[n] + 1, sep);
-        if (colons[n + 1] == NULL)
-            break;
-    }
-    return colons;
-}
-
 /*
     For each input vertex:
         Fetch the edge members matching the type

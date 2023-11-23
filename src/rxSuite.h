@@ -3,8 +3,11 @@
 #define __RXSUITE_H__
 #include <stddef.h>
 
+#ifdef __cplusplus
+extern "C"
+{
+
 #include "../../src/version.h"
-#include "../../src/rax.h"
 
 #ifndef C_OK
 #define C_OK 0
@@ -12,14 +15,11 @@
 #endif
 
 #include "rxliterals.h"
-
-#ifdef __cplusplus
-extern "C"
-{
 #endif
 #include <ctype.h>
 #include <sched.h>
 #include <signal.h>
+#include "../../src/rax.h"
 
 // #define REDISMODULE_EXPERIMENTAL_API
 // #include "../../src/redismodule.h"

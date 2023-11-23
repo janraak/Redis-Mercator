@@ -55,7 +55,6 @@ extern "C"
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
-#include <version.h>
 
     /* Utils */
     long long ustime(void);
@@ -67,6 +66,7 @@ extern "C"
 #undef RXSUITE_SIMPLE
 #include "rxSuite.h"
 #include "rxSuiteHelpers.h"
+#include "sdsWrapper.h"
 
 #include "sha1.h"
 
@@ -628,7 +628,6 @@ public:
                 }
             }
         }
-        raxShow(items);
         rxStringFreeSplitRes(lines, tally);
     }
 
@@ -706,11 +705,118 @@ public:
     }
 };
 
-int start_cluster(RedisModuleCtx *ctx, char *sha1);
-
 redisReply *FindInstanceGroup(const char *sha1, const char *fields = NULL);
 void LoanInstancesToController(redisContext *sub_controller, int no_of_instances);
 void *PropagateCommandToAllSubordinateControllers(CreateClusterAsync *multiplexer, bool async = false);
+
+class UpgradeClusterAync : public CreateClusterAsync
+{
+public:
+    rxString clusterId = NULL;
+    rxString redisVersion = NULL;
+
+    UpgradeClusterAync(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
+        : CreateClusterAsync(ctx, argv, argc)
+    {
+                size_t arg_len;
+        clusterId = rxStringNewLen ((char *)RedisModule_StringPtrLen(argv[1], &arg_len), arg_len);
+        redisVersion = rxStringNewLen ((char *)RedisModule_StringPtrLen(argv[2], &arg_len), arg_len);
+    }
+
+
+    ~UpgradeClusterAync()
+    {
+        rxStringFree(this->clusterId);
+        rxStringFree(this->redisVersion);
+    }
+
+    int Done()
+    {
+        return -1;
+    }
+
+    int Execute()
+    {
+        return -1;
+    };
+
+    void *StopThread()
+    {
+        this->state = Multiplexer::done;
+        return NULL;
+    }
+
+
+    /*
+        1) Find controller for clusterid
+        2) If served else where:
+           a) Pass command on to the correct controller.
+           b) Forward upgrade response and exit
+        3) If served here:
+           a) Create shadow cluster
+           b) Start shadow cluster
+           c) Attach all shadow cluster nodes as replicas to the original cluster
+           d) Wait until full sync completed
+           e) Block all update on the original cluster
+           e) Swap shadow cluster and original registry entries
+           f) fail over to the shadow cluster which by now is the upgraded cluster
+    */
+    void *Upgrade()
+    {
+        rxString cmd = rxStringFormat("mercator.create.cluster %s%s REDIS %s", this->clusterId, this->redisVersion, this->redisVersion);
+        redisReply *nodes = ExecuteLocal(cmd, LOCAL_FREE_CMD);
+        if (nodes->type == REDIS_REPLY_STRING)
+        {
+            rxString shadow = rxStringNewLen(nodes->str, nodes->len);
+            cmd = rxStringFormat("mercator.start.cluster %s", shadow);
+            ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
+            redisReply *origin = FindInstanceGroup(this->clusterId, "address,port,role,shard,order");
+            if (origin->type == REDIS_REPLY_ARRAY)
+            {
+                // Attach shadow as replica to the origin
+                for (size_t rowNo = 0; rowNo < origin->elements; ++rowNo)
+                {
+                    redisReply *row = origin->element[rowNo];
+                    redisReply *rowFields = row->element[5];
+                    char *address = rowFields->element[1]->str;
+                    int port = atoi(rowFields->element[3]->str);
+                    char *role = rowFields->element[5]->str;
+                    char *shard = rowFields->element[7]->str;
+                    char *order = rowFields->element[9]->str;
+
+                    cmd = rxStringFormat("rxget \"g:v(instance).has(owner, '%s').has(role,%s).has(shard,%s).has(order,%s).select(address,port)\"",
+                                         shadow, role, shard, order);
+                    redisReply *replica = ExecuteLocal(cmd, LOCAL_FREE_CMD);
+                    if (replica->type == REDIS_REPLY_ARRAY)
+                    {
+                        // Attach shadow as replica to the origin
+                            redisReply *row = replica->element[0];
+                            redisReply *rowFields = row->element[5];
+                            char *r_address = rowFields->element[1]->str;
+                            int r_port = atoi(rowFields->element[3]->str);
+
+                            char node[24];
+                            snprintf(node, sizeof(node), "%s:%d", r_address, r_port);
+                            char attach[128];
+                            snprintf(attach, sizeof(attach), "REPLICAOF %s %d", address, port);
+                            auto *redis_node = RedisClientPool<redisContext>::Acquire(node, "_CONTROLLER", "EXEC_REMOTE");
+                            if (redis_node != NULL)
+                            {
+                                redisReply *rcc = (redisReply *)redisCommand(redis_node, attach);
+                                freeReplyObject(rcc);
+                                RedisClientPool<redisContext>::Release(redis_node, "EXEC_REMOTE");
+                            }
+                    }
+                }
+            }
+        }
+        freeReplyObject(nodes);
+
+        return NULL;
+    }
+};
+
+int start_cluster(RedisModuleCtx *ctx, char *sha1);
 
 #define LOCAL_STANDARD 0
 #define LOCAL_FREE_CMD 1
@@ -1811,6 +1917,16 @@ void *InstallRedisAsync_Go(void *privData)
         return multiplexer->StopThread();
     }
 
+    int rv_v = 0;
+    int rv_sv = 0;
+    int rv_r = 0;
+
+    char *dots[4];
+    breakupPointer((char*)redis_version, '.', dots, 4);
+    rv_v = toInt(dots, 0, 1);
+    rv_sv = toInt(dots, 1, 2);
+    rv_r = toInt(dots, 2, 3);
+
     PropagateCommandToAllSubordinateControllers(multiplexer);
 
     redisReply *nodes = ExecuteLocal("rxget g:v(server).select(address)", LOCAL_STANDARD);
@@ -1841,7 +1957,7 @@ void *InstallRedisAsync_Go(void *privData)
                                       "wget  --timestamping  %s/%s %s;"
                                       "dos2unix %s %s;"
                                       "chmod +x %s %s;"
-                                      "bash __install_rxmercator.sh %s  %s  2%s &",
+                                      "bash __install_rxmercator.sh %s 0x00%02hhx%02hhx%02hhx %s  2%s &",
                                       redis_version,
                                       install_log,
                                       install_log,
@@ -1854,6 +1970,7 @@ void *InstallRedisAsync_Go(void *privData)
                                       config->installScript,
                                       install_log,
                                       redis_version,
+                                      rv_v, rv_sv, rv_r,
                                       install_log,
                                       install_log);
         execWithPipe(cmd, address);
@@ -1907,6 +2024,50 @@ int rx_status_redis(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 
     auto *multiplexer = new GetSoftwareStatusAync(ctx, argv, argc);
     multiplexer->Async(ctx, GetRedisAndMercatorStatusAsync_Go);
+
+    return C_OK;
+}
+
+// mercator.install.redis [%tree%/...] | [server]
+//
+// Install a redis version on all cluster nodes from the cluster id or controller tree
+//
+void *UpgradeClusterAync_Go(void *privData)
+{
+    auto *multiplexer = (UpgradeClusterAync *)privData;
+    multiplexer->state = Multiplexer::running;
+
+
+    rxString cmd = rxStringFormat("rxget \"g:v('%s').select('redis')\"", multiplexer->clusterId);
+    redisReply *nodes = ExecuteLocal(cmd, LOCAL_FREE_CMD);
+    if (nodes->type != REDIS_REPLY_ARRAY || nodes->elements != 1)
+    {
+        PropagateCommandToAllSubordinateControllers(multiplexer);
+        freeReplyObject(nodes);
+        return multiplexer->StopThread();
+    }
+    redisReply *row0 = nodes->element[0];
+    redisReply *vertex0 = row0->element[5];
+    if (rxStringMatch(multiplexer->redisVersion, vertex0->element[1]->str, 1))
+    {
+        multiplexer->result_text = rxStringFormat("cluster %s is already at Redis %s", multiplexer->clusterId, multiplexer->redisVersion);
+        freeReplyObject(nodes);
+        return multiplexer->StopThread();
+    }
+    freeReplyObject(nodes);
+
+    multiplexer->Upgrade();
+
+    return multiplexer->StopThread();
+}
+
+int rx_upgrade_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
+{
+
+    auto *multiplexer = new UpgradeClusterAync(ctx, argv, argc);
+    multiplexer->Async(ctx, UpgradeClusterAync_Go);
+
+
 
     return C_OK;
 }
@@ -2104,6 +2265,12 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
             return REDISMODULE_ERR;
 
         if (RedisModule_CreateCommand(ctx, "mercator.cluster.info", rx_info_cluster, "admin write", 0, 0, 0) == REDISMODULE_ERR)
+            return REDISMODULE_ERR;
+
+        if (RedisModule_CreateCommand(ctx, "mercator.cluster.upgrade", rx_upgrade_cluster, "admin write", 0, 0, 0) == REDISMODULE_ERR)
+            return REDISMODULE_ERR;
+
+        if (RedisModule_CreateCommand(ctx, "mercator.upgrade.cluster", rx_upgrade_cluster, "admin write", 0, 0, 0) == REDISMODULE_ERR)
             return REDISMODULE_ERR;
 
         if (RedisModule_CreateCommand(ctx, "mercator.flush.cluster", rx_flush_cluster, "admin write", 0, 0, 0) == REDISMODULE_ERR)

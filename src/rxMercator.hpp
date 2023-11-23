@@ -8,6 +8,8 @@
 extern "C"
 {
 #endif
+#include "../../src/version.h"
+
 #include "../../src/redismodule.h"
 #include <string.h>
 #include <stdlib.h>

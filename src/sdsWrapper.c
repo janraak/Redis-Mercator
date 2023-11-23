@@ -1,6 +1,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 #include "../../src/sds.h"
 #include "ctype.h"
 #include "stddef.h"
@@ -15,6 +20,10 @@
 #include "../../src/rax.h"
 #define REDISMODULE_EXPERIMENTAL_API
 #include "../../src/redismodule.h"
+
+#ifdef __cplusplus
+}
+#endif
 
 extern void serverLogHexDump(int level, char *descr, void *value, size_t len);
 
@@ -311,4 +320,34 @@ const char *rxStringBuildRedisCommand(int argc, rxRedisModuleString **argv){
         }
     }
     return (const char *)cmd;
+}
+
+char **breakupPointer(char *pointer, char sep, char **colons, int max)
+{
+    for (int n = 0; n < max; ++n)
+        *colons = NULL;
+    char **cT = colons;
+
+    cT[0] = pointer;
+    for (int n = 0; n < max; ++n)
+    {
+        colons[n + 1] = strchr(colons[n] + 1, sep);
+        if (colons[n + 1] == NULL)
+            break;
+    }
+    return colons;
+}
+
+int  toInt(char **dots, int start, int end){
+    char buffer[32];
+    char *s = dots[start];
+    char *e = dots[end];
+    if(*s == '.')
+        ++s;
+    if (!e)
+        e = strchr(s, 0x00);
+    int l = e - s;
+    memcpy(buffer, s, l);
+    buffer[l] = 0x00;
+    return atoi(buffer);
 }
