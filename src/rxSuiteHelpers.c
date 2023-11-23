@@ -735,7 +735,14 @@ void *rxRestoreKeyRetainValue(int dbNo, const char *key, void *obj)
 }
 
 extern int zsetDel(robj *zobj, sds ele);
+#if REDIS_VERSION_NUM >= 0x00050000
 unsigned long zsetLength(const robj *zobj);
+#else
+unsigned long zsetLength(const robj *zobj)
+{
+    return 0;
+}
+#endif
 
 void *rxCommitKeyRetainValue(int dbNo, const char *key, void *old_state)
 {
@@ -1190,7 +1197,11 @@ rxClientInfo rxGetClientInfoForHealthCheck()
 
     info.connected_clients = listLength(server.clients) - listLength(server.slaves);
     info.cluster_connections = getClusterConnectionsCount();
-    info.blocked_clients = server.blocked_clients;
+    #if REDIS_VERSION_NUM >= 0x00050000
+        info.blocked_clients = server.blocked_clients;
+    #else
+        info.blocked_clients = 0;    
+    #endif
     info.total_keys = mh->total_keys;
     info.bytes_per_key = mh->bytes_per_key;
     #if REDIS_VERSION_NUM > 0x00060000
