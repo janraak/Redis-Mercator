@@ -240,10 +240,14 @@ int queryInstance(RedisModuleCtx *ctx, redisContext *redis_node, char *sha1, con
         // printf("%s\n", cmd);
         // status_update_queue->Enqueue((void *)cmd);
         ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
-        auto timeout_saved = redis_node->command_timeout;
-        redis_node->command_timeout = &oneminute;
+        #if REDIS_VERSION_NUM >= 0x00070000
+            auto timeout_saved = redis_node->command_timeout;
+            redis_node->command_timeout = &oneminute;
+        #endif
         rcc = (redisReply *)redisCommand(redis_node, "mercator.instance.status");
-        redis_node->command_timeout = timeout_saved;
+        #if REDIS_VERSION_NUM >= 0x00070000
+            redis_node->command_timeout = timeout_saved;
+        #endif
     }
     auto probe_stop = ustime();
     auto probe_latency = probe_stop - probe_start;
