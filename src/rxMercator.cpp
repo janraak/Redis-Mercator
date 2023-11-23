@@ -1806,6 +1806,10 @@ void *InstallRedisAsync_Go(void *privData)
     multiplexer->state = Multiplexer::running;
 
     auto redis_version = multiplexer->GetArgument(1);
+    if(rxStringMatch(REDIS_VERSION, redis_version, 1)){
+        multiplexer->result_text = rxStringNew("Can not reinstalling running Redis version!");
+        return multiplexer->StopThread();
+    }
 
     PropagateCommandToAllSubordinateControllers(multiplexer);
 
@@ -1831,12 +1835,15 @@ void *InstallRedisAsync_Go(void *privData)
         char *address = values->element[1]->str;
         rxString install_log = rxStringFormat(">>$HOME/_install_%s.log", redis_version);
         rxString cmd = rxStringFormat("cd $HOME;"
+                                      "rm -rf redis-%s %s;"
                                       "pwd %s;"
                                       "ls -l %s;"
                                       "wget  --timestamping  %s/%s %s;"
                                       "dos2unix %s %s;"
                                       "chmod +x %s %s;"
                                       "bash __install_rxmercator.sh %s  %s  2%s &",
+                                      redis_version,
+                                      install_log,
                                       install_log,
                                       install_log,
                                       config->cdnRootUrl,

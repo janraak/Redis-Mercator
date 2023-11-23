@@ -20,25 +20,28 @@ def SD_900_Mercator_Check_Software(cluster_id, controller, data, index):
     succes_tally += match("mercator.redis.status", controller.execute_command("mercator.redis.status"), 
                           "{}".format([[b'Version', b'6.2.13', b'Scope', b'', b'Address', b'192.168.1.200', b'Redis', b'build', b'rxMercator', b'build'], [b'Version', b'7.0.11', b'Scope', b'', b'Address', b'192.168.1.200', b'Redis', b'build', b'rxMercator', b'build'], [b'Version', b'7.2.0', b'Scope', b'', b'Address', b'192.168.1.200', b'Redis', b'build', b'rxMercator', b'build']]))
   
-    succes_tally += match("mercator.redis.status", controller.execute_command("mercator.redis.install", "5.0.9"), 
+    succes_tally += match("mercator.redis.install", controller.execute_command("mercator.redis.install", "5.0.9"), 
                           "{}".format(b'OK, Software installation started, use the mercator.redis.status command to verify the installation.'))
   
-    succes_tally += match("mercator.redis.status", controller.execute_command("mercator.redis.install", "6.0.1"), 
+    succes_tally += match("mercator.redis.install", controller.execute_command("mercator.redis.install", "6.0.1"), 
                           "{}".format(b'OK, Software installation started, use the mercator.redis.status command to verify the installation.'))
     
-    succes_tally += match("mercator.redis.status", controller.execute_command("mercator.redis.install", "6.2.0"), 
+    succes_tally += match("mercator.redis.install", controller.execute_command("mercator.redis.install", "6.2.0"), 
+                          "{}".format(b'OK, Software installation started, use the mercator.redis.status command to verify the installation.'))
+    
+    succes_tally += match("mercator.redis.install", controller.execute_command("mercator.redis.install", "6.2.1"), 
                           "{}".format(b'OK, Software installation started, use the mercator.redis.status command to verify the installation.'))
   
-    succes_tally += match("mercator.redis.status", controller.execute_command("mercator.redis.install", "7.0.1"), 
+    succes_tally += match("mercator.redis.install", controller.execute_command("mercator.redis.install", "7.0.1"), 
                           "{}".format(b'OK, Software installation started, use the mercator.redis.status command to verify the installation.'))
   
-    succes_tally += match("mercator.redis.status", controller.execute_command("mercator.redis.install", "7.0.14"), 
+    succes_tally += match("mercator.redis.install", controller.execute_command("mercator.redis.install", "7.0.14"), 
                           "{}".format(b'OK, Software installation started, use the mercator.redis.status command to verify the installation.'))
     
-    succes_tally += match("mercator.redis.status", controller.execute_command("mercator.redis.install", "7.2.3"), 
+    succes_tally += match("mercator.redis.install", controller.execute_command("mercator.redis.install", "7.2.3"), 
                           "{}".format(b'OK, Software installation started, use the mercator.redis.status command to verify the installation.'))
     
-    succes_tally += match("mercator.redis.status", controller.execute_command("mercator.redis.install", "beta-9"), 
+    succes_tally += match("mercator.redis.install", controller.execute_command("mercator.redis.install", "beta-9"), 
                           "{}".format(b'OK, Software installation started, use the mercator.redis.status command to verify the installation.'))
     
     succes_tally += match("mercator.redis.status", controller.execute_command("mercator.redis.status"), 

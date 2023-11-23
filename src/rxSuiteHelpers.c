@@ -627,7 +627,11 @@ static void HarvestMember(rax *bucket, unsigned char *key, int k_len, double sco
     raxInsert(bucket, key, k_len, member, &old);
 }
 
+#if REDIS_VERSION_NUM < 0x00070200
 extern int dbGenericDelete(redisDb *db, robj *key, int async);
+#else
+extern int dbGenericDelete(redisDb *db, robj *key, int async, int flags);
+#endif
 extern int dbSyncDelete(redisDb *db, robj *key);
 int rxDbDelete(int dbNo, const char *key)
 {

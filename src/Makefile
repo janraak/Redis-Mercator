@@ -4,7 +4,7 @@ uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
 DEPENDENCY_TARGETS=hiredis linenoise lua
 CPPSOURCES := $(wildcard*.cpp)
 
-INCLUDE_PATHS = -isystem  -DUSE_JEMALLOC -I.. -I../../src -I../deps -I../deps/hiredis  -I../../deps/hdr_histogram -I../deps/linenoise -I../../deps/lua/src -I/usr/include 
+INCLUDE_PATHS = -isystem -I.. -I../../src -I../deps -I../deps/hiredis  -I../../deps/hdr_histogram -I../deps/linenoise -I../../deps/lua/src -I/usr/include 
 
 
 # Compile flags for linux / osxext
