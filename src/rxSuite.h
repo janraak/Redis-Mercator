@@ -1,6 +1,8 @@
 
 #ifndef __RXSUITE_H__
 #define __RXSUITE_H__
+#include <stddef.h>
+
 #include "../../src/version.h"
 #include "../../src/rax.h"
 
