@@ -17,8 +17,6 @@ extern "C"
 #endif
 #include "tls.hpp"
 
-void *rxMemAllocSession(size_t size, const char *tag);
-
 ParserToken::ParserToken()
 {
     this->Init(eTokenType::_immediate_operator, NULL, 0, 0);

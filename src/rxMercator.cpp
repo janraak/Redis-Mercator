@@ -67,7 +67,6 @@ extern "C"
 #undef RXSUITE_SIMPLE
 #include "rxSuite.h"
 #include "rxSuiteHelpers.h"
-#include "sdsWrapper.h"
 
 #include "sha1.h"
 
@@ -450,7 +449,7 @@ public:
         int vl = strlen(version);
         int zl = strlen(scope);
         int al = strlen(address);
-        void *sis = rxMemAllocSession(sizeof(ServerInstallationStatus) + vl + zl + al + 3, "ServerInstallationStatus");
+        void *sis = rxMemAlloc(sizeof(ServerInstallationStatus) + vl + zl + al + 3);
 
         char *v = (char *)sis + sizeof(ServerInstallationStatus);
         strncpy(v, version, vl);
@@ -466,7 +465,7 @@ public:
     }
     static ServerInstallationStatus *Delete(ServerInstallationStatus *sis)
     {
-        rxMemFreeSession(sis);
+        rxMemFree(sis);
         return NULL;
     }
 

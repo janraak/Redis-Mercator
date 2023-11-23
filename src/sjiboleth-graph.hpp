@@ -70,7 +70,7 @@ public:
 
     static Graph_Leg *New(rxString key, double weight)
     {
-        auto *here = (Graph_Leg *)rxMemAllocSession(sizeof(Graph_Leg) + strlen(key) + 1,"Graph_Leg");
+        auto *here = (Graph_Leg *)rxMemAlloc(sizeof(Graph_Leg) + strlen(key) + 1);
         here->Init(key, weight);
         here->increment = weight;
         //printf(" + %p %s %d\n", here, key, here->refCnt);
@@ -79,7 +79,7 @@ public:
 
     static Graph_Leg *New(rxString key, double weight, Graph_Leg *origin)
     {
-        auto *here = (Graph_Leg *)rxMemAllocSession(sizeof(Graph_Leg) + strlen(key) + 1,"Graph_Leg");
+        auto *here = (Graph_Leg *)rxMemAlloc(sizeof(Graph_Leg) + strlen(key) + 1);
         here->Init(key, origin ? weight / 2 + origin-> length : 0.0);
         here->increment = weight / 2;
         here->origin = origin;
@@ -165,7 +165,7 @@ public:
     {
         if (strlen(object_key) == 0)
             rxServerLog(rxLL_NOTICE, "Suspicious call");
-        auto *edge = (Graph_Triplet_Edge *)rxMemAllocSession(sizeof(Graph_Triplet_Edge) + strlen(object_key) + 1, "Graph_Triplet_Edge");
+        auto *edge = (Graph_Triplet_Edge *)rxMemAlloc(sizeof(Graph_Triplet_Edge) + strlen(object_key) + 1);
         auto *ok = (char *)((void *)edge) + sizeof(Graph_Triplet_Edge);
         strcpy(ok, object_key);
         edge->object = object;
@@ -180,7 +180,7 @@ public:
     {
         if (strlen(object_key) == 0)
             rxServerLog(rxLL_NOTICE, "Suspicious call");
-        auto *edge = (Graph_Triplet_Edge *)rxMemAllocSession(sizeof(Graph_Triplet_Edge) + strlen(object_key) + 1 + strlen(step) + 1, "Graph_Triplet_Edge");
+        auto *edge = (Graph_Triplet_Edge *)rxMemAlloc(sizeof(Graph_Triplet_Edge) + strlen(object_key) + 1 + strlen(step) + 1);
         auto *ok = (char *)((void *)edge) + sizeof(Graph_Triplet_Edge);
         auto *section = ok + 1 + strlen(object_key);
         strcpy(ok, object_key);
@@ -389,7 +389,7 @@ public:
 
     static Graph_Triplet *New(rxString subject_key, void *subject, double length)
     {
-        auto *t = (Graph_Triplet *)rxMemAllocSession(sizeof(Graph_Triplet) + strlen(subject_key) + 1, "Graph_Triplet");
+        auto *t = (Graph_Triplet *)rxMemAlloc(sizeof(Graph_Triplet) + strlen(subject_key) + 1);
         auto *sk = (char *)((void *)t) + sizeof(Graph_Triplet);
         strcpy(sk, subject_key);
 

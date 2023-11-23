@@ -8,7 +8,7 @@ extern "C"
 
 #include "rax.h"
 #include "util.h"
-#include "sdsWrapper.h
+#include "sdsWrapper.h"
 #include "rxSuiteHelpers.h"
 
 #ifdef __cplusplus

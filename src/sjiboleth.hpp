@@ -9,7 +9,7 @@
 #include "sjiboleth.h"
 
 #include "graphstack.hpp"
-#include "rxSessionMemory.hpp"
+// #include "rxSessionMemory.hpp"
 
 #include <cstring>
 
@@ -315,7 +315,7 @@ public:
     static void *NewAsRobj(const char *entry, double key_score)
     {
         int entry_len = strlen(entry);
-        void *o = rxMemAllocSession(sizeof(rxIndexEntry) + entry_len + 2 + rxSizeofRobj(), "rxIndexEntry");
+        void *o = rxMemAlloc(sizeof(rxIndexEntry) + entry_len + 2 + rxSizeofRobj());
 
         void *ie = o + rxSizeofRobj();
 
@@ -329,7 +329,7 @@ public:
 
     static rxIndexEntry *New(const char *entry, double key_score)
     {
-        void *ie = rxMemAllocSession(sizeof(rxIndexEntry) + strlen(entry) + 1, "rxIndexEntry");
+        void *ie = rxMemAlloc(sizeof(rxIndexEntry) + strlen(entry) + 1);
         char *key = (char *)(ie + sizeof(rxIndexEntry));
         strcpy(key, entry);
         char *tab = strchr((char *)key, '\t');
@@ -339,7 +339,7 @@ public:
 
     static rxIndexEntry *New(const char *entry, size_t len, double key_score, void *obj)
     {
-        void *ie = rxMemAllocSession(sizeof(rxIndexEntry) + strlen(entry) + 1, "rxIndexEntry");
+        void *ie = rxMemAlloc(sizeof(rxIndexEntry) + strlen(entry) + 1);
         char *key = (char *)(ie + sizeof(rxIndexEntry));
         strncpy(key, entry, len);
         char *tab = strchr((char *)key, '\t');

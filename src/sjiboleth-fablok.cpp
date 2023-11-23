@@ -37,8 +37,6 @@ extern "C"
 static char RUMBLE_STRIP1[] = "AUTHOR:JAN RAAK.";
 static char RUMBLE_STRIP2[] = "2022SHORELINE,WA";
 
-extern void *rxMemAllocSession(size_t size, const char *tag);
-
 #include "tls.hpp"
 extern void *_allocateRax(void *parm);
 
@@ -298,7 +296,7 @@ FaBlok::FaBlok(rxString sn, UCHAR value_type)
 FaBlok *FaBlok::New(const char *sn, UCHAR value_type)
 {
     int l = strlen(sn);
-    void *fabSpace = rxMemAllocSession(sizeof(rax) + sizeof(FaBlok) + l + 1, "FaBlok");
+    void *fabSpace = rxMemAlloc(sizeof(rax) + sizeof(FaBlok) + l + 1);
 
     char *s = (char *)fabSpace + sizeof(rax) + sizeof(FaBlok);
     strncpy(s, sn, l);

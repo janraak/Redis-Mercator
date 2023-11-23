@@ -2944,7 +2944,7 @@ SJIBOLETH_HANDLER(executeWhereExpression)
     FaBlok *output_set = input_set->Copy(
                                             input_set->AsSds(), 
                                             KeysetDescriptor_TYPE_GREMLINSET, 
-                                            (RaxCopyCallProc*)ExecuteObjectExpression, 
+                                            ExecuteObjectExpression, 
                                             params
                                         );
 

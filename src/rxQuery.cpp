@@ -15,7 +15,7 @@ using std::string;
 extern "C"
 {
 #endif
-#include "rxSessionMemory.hpp"
+// #include "rxSessionMemory.hpp"
 #include "sdsWrapper.h"
 #include <string.h>
 #include <sys/stat.h>
@@ -534,7 +534,7 @@ int executeLoadScriptCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int 
     }
 
     stat(path, &sb);
-    script_text = (char *)rxMemAllocSession(sb.st_size, "LoadScriptCommand");
+    script_text = (char *)rxMemAlloc(sb.st_size);
     fread(script_text, sb.st_size, 1, input_file);
     fclose(input_file);
 

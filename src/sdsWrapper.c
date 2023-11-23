@@ -231,12 +231,8 @@ void *rxMemAlloc(size_t size)
     return ptr;
 }
 
-extern void rxMemFreeSession(void *ptr);
+// extern void rxMemFreeSession(void *ptr);
 
-void rxMemFree(void *ptr)
-{
-    rxMemFreeSession(ptr);
-}
 
 
 void rxMemFreeX(void *ptr)
@@ -262,6 +258,11 @@ void rxMemFreeX(void *ptr)
     }
 #endif
     zfree(ptr);
+}
+
+void rxMemFree(void *ptr)
+{
+    rxMemFreeX(ptr);
 }
 
 size_t rxMemAllocSize(void *ptr)

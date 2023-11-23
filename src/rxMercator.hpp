@@ -20,7 +20,7 @@ extern "C"
 #ifdef __cplusplus
 }
 #endif
-#include "rxSessionMemory.hpp"
+// #include "rxSessionMemory.hpp"
 extern rxString getSha1(const char *codes, ...);
 
 typedef int clusterOperationProc(RedisModuleCtx *ctx, redisContext *redis_node, const char *sha1, const char *address, const char *instance_key, void *data);

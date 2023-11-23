@@ -46,6 +46,7 @@ zskiplistNode *zslGetElementByRank(zskiplist *zsl, unsigned long rank);
 
 void installInterceptors(interceptRule *commandTable, int no_of_commands, timeProc *cron_proc)
 {
+    rxUNUSED(cron_proc);
     for (int j = 0; j < no_of_commands; ++j)
     {
         struct redisCommand *cmd = lookupCommandByCString(commandTable[j].name);
@@ -268,15 +269,12 @@ rxString rxRandomSetMember(void *set)
 rax *rxSetToRax(void *obj)
 {
     rax *r = raxNew();
-    rxString member;
-    int64_t member_len;
-
     rxSetMembers *mob = rxHarvestSetmembers(obj);
     char **p = (char **)&mob->members;
     for (size_t n = 0; n < mob->member_count; ++n)
     {
         char *member = *p;
-        raxInsert(r, (unsigned char *)member, strlen(member_len), NULL, NULL);
+        raxInsert(r, (unsigned char *)member, strlen(member), NULL, NULL);
         ++p;
     }
     rxFreeSetmembers(mob);
@@ -391,7 +389,7 @@ rxString rxGetHashField(void *oO, const char *f)
         rxServerLog(rxLL_WARNING, "%s is not a hash key", f);
         return NULL;
     }
-    if (!hashTypeExists(o, field))
+    if (!hashTypeExists(o, (sds)field))
         return NULL;
 
     if (o->encoding == HASHTYPE_PACKED)
@@ -610,7 +608,7 @@ void rxDeleteTimeEvent(long long id)
 
 void rxModulePanic(char *msg)
 {
-    serverPanic(msg);
+    serverPanic("%s", msg);
 }
 
 static void HarvestMember(rax *bucket, unsigned char *key, int k_len, double score)
@@ -666,6 +664,7 @@ int rxDeleteSetMember(const char *key, int dbNo, rxString member)
 
 int rxDeleteSetMember2(void *sobj, int dbNo, rxString member)
 {
+    rxUNUSED(dbNo);
     // if (setTypeIsMember(sobj, (sds)member))
     return setTypeRemove((robj *)sobj, (sds)member);
     return 0;
@@ -746,9 +745,6 @@ void *rxCommitKeyRetainValue(int dbNo, const char *key, void *old_state)
     rax *new_members = (new_state != NULL)
                            ? rxSetToRax(new_state)
                            : NULL;
-
-    void *si = NULL;
-    int64_t l;
 
     rxSetMembers *mob = rxHarvestSetmembers(old_state);
     char **p = (char **)&mob->members;
@@ -1140,7 +1136,7 @@ rxComputeProc rxFindComputationProc(const char *op)
 {
     if (rxComparisonsMap == NULL)
         rxInitComparisonsProcs();
-    rxComputeProc computation = (rxComputeProc *)raxFind(rxComparisonsMap, (unsigned char *)op, strlen(op));
+    rxComputeProc computation = (rxComputeProc)raxFind(rxComparisonsMap, (unsigned char *)op, strlen(op));
     if (computation == raxNotFound)
         return NULL;
     return computation;
@@ -1150,7 +1146,7 @@ rxComparisonProc rxFindComparisonProc(const char *op)
 {
     if (rxComparisonsMap == NULL)
         rxInitComparisonsProcs();
-    rxComparisonProc compare = (rxComparisonProc *)raxFind(rxComparisonsMap, (unsigned char *)op, strlen(op));
+    rxComparisonProc compare = (rxComparisonProc)raxFind(rxComparisonsMap, (unsigned char *)op, strlen(op));
     if (compare == raxNotFound)
         return NULL;
     return compare;
@@ -1282,7 +1278,7 @@ rxSetMembers *rxHarvestSetmembers(void *obj)
     mob->member_count = member_count;
     si = setTypeInitIterator(r);
 
-    char **p = &mob->members;
+    char **p = (char **)&mob->members;
     char *m = (char *)((void *)p) + member_count * sizeof(void *);
 #if REDIS_VERSION_NUM < 0x00070200
     while (setTypeNext(si, &member, &member_len) != -1)
