@@ -37,6 +37,8 @@ indexerCallBack *pre_op_indexer_callback = NULL;
 indexerCallBack *post_op_indexer_callback = NULL;
 
 static int __interceptors_installed = 0;
+rax *InterceptedRedisCommandProc = NULL;
+
 redisCommandProc **standard_command_procs = NULL;
 
 void setCommandIntercept(client *c);
@@ -70,13 +72,13 @@ void flushallCommandIntercept(client *c);
 #define INIT_CMD_STATS 0, 0, 0, 0
 #endif
 
-
-typedef struct interceptions{
+typedef struct interceptions
+{
     struct __interceptions *next;
     struct redisCommandInterceptRule *rules;
     redisCommandProc *standard_command_procs;
     rax *index;
-}interceptions;
+} interceptions;
 
 struct redisCommandInterceptRule interceptorCommandTable[] = {
 /* Note that we can't flag set as fast, since it may perform an
@@ -134,12 +136,13 @@ struct redisCommandInterceptRule interceptorCommandTable[] = {
 #define TOUCH_INTERCEPT 24
     {"NOtouch", touchCommandIntercept, 0}};
 
-
-void *getIndexInterceptRules(){
+void *getIndexInterceptRules()
+{
     return interceptorCommandTable;
 }
 
-void *getTriggerInterceptRules(){
+void *getTriggerInterceptRules()
+{
     return NULL;
 }
 
@@ -178,7 +181,7 @@ void setCommandIntercept(client *c)
 {
     // SET key value
 
-    //rxServerLog(rxLL_NOTICE, "Intercepted %s for %s with %s", (char *)c->argv[0]->ptr, (char *)c->argv[1]->ptr, (char *)c->argv[2]->ptr);
+    // rxServerLog(rxLL_NOTICE, "Intercepted %s for %s with %s", (char *)c->argv[0]->ptr, (char *)c->argv[1]->ptr, (char *)c->argv[2]->ptr);
     index_info.set_tally++;
     redisCommandProc *standard_command_proc = standard_command_procs[SET_INTERCEPT];
     enqueueWriteCommand(c);
@@ -320,7 +323,11 @@ void genericCommandIntercept(client *c)
     rxServerLog(LL_NOTICE, "%s_INTERCEPT", (char *)c->argv[0]->ptr);
 
     struct redisCommand *cmd = lookupCommandByCString((char *)c->argv[0]->ptr);
+                #if REDIS_VERSION_NUM > 0x00060000
     redisCommandProc *standard_command_proc = standard_command_procs[cmd->id];
+    #else
+    redisCommandProc *standard_command_proc = raxFind(InterceptedRedisCommandProc, (UCHAR *)c->argv[0]->ptr, strlen((char *)c->argv[0]->ptr));
+    #endif
     standard_command_proc(c);
 
     sds *redis_request = rxMemAlloc(sizeof(sds) * (c->argc + 1));
@@ -367,6 +374,8 @@ void installIndexerInterceptors(indexerCallBack *pre_op, indexerCallBack *post_o
     __interceptors_installed = 1;
     if (standard_command_procs != NULL)
         return;
+    if (InterceptedRedisCommandProc == NULL)
+        InterceptedRedisCommandProc = raxNew();
     pre_op_indexer_callback = pre_op;
     post_op_indexer_callback = post_op;
 
@@ -379,7 +388,10 @@ void installIndexerInterceptors(indexerCallBack *pre_op, indexerCallBack *post_o
         {
             if (cmd->proc != (void (*)(client *))interceptorCommandTable[j].proc)
             {
+#if REDIS_VERSION_NUM > 0x00060000
                 interceptorCommandTable[j].id = cmd->id;
+#endif
+                raxInsert(InterceptedRedisCommandProc, (UCHAR *)interceptorCommandTable[j].name, strlen(interceptorCommandTable[j].name), cmd->proc, NULL);
                 standard_command_procs[j] = cmd->proc;
                 cmd->proc = (void (*)(client *))interceptorCommandTable[j].proc;
             }
@@ -399,8 +411,11 @@ void uninstallIndexerInterceptors()
         struct redisCommand *cmd = lookupCommandByCString(interceptorCommandTable[j].name);
         if (cmd)
         {
+            raxRemove(InterceptedRedisCommandProc, (UCHAR *)interceptorCommandTable[j].name, strlen(interceptorCommandTable[j].name), NULL);
             cmd->proc = standard_command_procs[j];
+#if REDIS_VERSION_NUM > 0x00060000
             standard_command_procs[cmd->id] = NULL;
+#endif
         }
     }
     rxMemFree(standard_command_procs);
