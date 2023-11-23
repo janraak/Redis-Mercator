@@ -23,6 +23,7 @@ extern "C"
 #include <iostream>
 #include <sys/stat.h>
 
+
 #ifdef __cplusplus
 }
 #endif
@@ -61,6 +62,22 @@ long long execute_textload_command_cron_id = -1;
 #define USE_BAR "BAR"
 #define KEY_COLUMN "KEY"
 #define TYPE_COLUMN "TYPE"
+
+/* Backport from Redis 7*/
+/* Modify the buffer replacing all occurrences of chars from the 'from'
+ * set with the corresponding char in the 'to' set. Always returns s.
+ */
+static char *rxStringLenMapCharsCopy(char *s, size_t len, const char *from, const char *to, size_t setlen) {
+    for (size_t j = 0; j < len; j++) {
+        for (size_t i = 0; i < setlen; i++) {
+            if (s[j] == from[i]) {
+                s[j] = to[i];
+                break;
+            }
+        }
+    }
+    return s;
+}
 
 // TODO Assemble hdr array!
 static int getColumnCount(char *start, char *end, char *column_separator, char *key_column, int *key_column_no, char *type_column, int *type_column_no)
@@ -418,7 +435,7 @@ static void *execTextLoadThread(void *ptr)
         {
             return NULL;
         }
-        rxStringLenMapChars(hdr_start, hdr_end - hdr_start, " ()./+-*%", "_________", 9);
+        rxStringLenMapCharsCopy(hdr_start, hdr_end - hdr_start, " ()./+-*%", "_________", 9);
         int column_count = getColumnCount(hdr_start, hdr_end, column_separator, key_column, &key_column_no, type_column, &type_column_no);
 
         rxUNUSED(column_count);

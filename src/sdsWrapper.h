@@ -33,8 +33,8 @@ rxString rxStringAppend(const char *current, const char *extra, char sep);
 
 rxString *rxStringSplitLen(const char *s, ssize_t len, const char *sep, int seplen, int *count);
 rxString *rxStringFreeSplitRes(rxString *tokens, int count);
-rxString rxStringMapChars(rxString s, const char *from, const char *to, size_t setlen);
-rxString rxStringLenMapChars(rxString s, size_t sl, const char *from, const char *to, size_t setlen);
+// rxString rxStringMapChars(rxString s, const char *from, const char *to, size_t setlen);
+// rxString rxStringLenMapChars(rxString s, size_t sl, const char *from, const char *to, size_t setlen);
 
 int rxStringGetSdsHdrSize();
 void * rxStringGetSdsHdr(void *address, int sz);
@@ -63,4 +63,8 @@ const char *rxStringBuildRedisCommand(int argc, rxRedisModuleString **argv);
 
 char **breakupPointer(char *pointer, char sep, char **colons, int max);
 int  toInt(char **dots, int start, int end);
+
+char **breakupPointer(char *pointer, char sep, char **colons, int max);
+int  toInt(char **dots, int start, int end);
+
 #endif

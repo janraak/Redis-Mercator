@@ -6,6 +6,11 @@ extern "C"
 {
 #endif
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 #include "../../src/sds.h"
 #include "ctype.h"
 #include "stddef.h"
@@ -67,34 +72,14 @@ rxString *rxStringFreeSplitRes(rxString *tokens, int count)
     return NULL;
 }
 
-#ifdef REDIS_VERSION_NUM < 0x00070000
-// Copied as backport!
+// rxString rxStringMapChars(rxString s, const char *from, const char *to, size_t setlen)
+// {
+//     return sdsmapchars((sds)s, from, to, setlen);
+// }
 
-/* Modify the buffer replacing all occurrences of chars from the 'from'
- * set with the corresponding char in the 'to' set. Always returns s.
- */
-char *memmapchars(char *s, size_t len, const char *from, const char *to, size_t setlen) {
-    for (size_t j = 0; j < len; j++) {
-        for (size_t i = 0; i < setlen; i++) {
-            if (s[j] == from[i]) {
-                s[j] = to[i];
-                break;
-            }
-        }
-    }
-    return s;
-}
-
-#endif
-
-rxString rxStringMapChars(rxString s, const char *from, const char *to, size_t setlen)
-{
-    return sdsmapchars((sds)s, from, to, setlen);
-}
-
-rxString rxStringLenMapChars(rxString s, size_t len, const char *from, const char *to, size_t setlen){
-    return (const char*)memmapchars((char *)s, len, from, to, setlen);
-}
+// rxString rxStringLenMapChars(rxString s, size_t len, const char *from, const char *to, size_t setlen){
+//     return (const char*)memmapchars((char *)s, len, from, to, setlen);
+// }
 
 rxString rxStringFormat(const char *fmt, ...)
 {
