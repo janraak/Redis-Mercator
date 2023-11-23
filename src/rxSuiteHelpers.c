@@ -1288,7 +1288,6 @@ rxSetMembers *rxHarvestSetmembers(void *obj)
     while (setTypeNext(si, &member, &member_len) != -1)
     {
 #else
-    int64_t llele;
     while (setTypeNext(si, &member, &member_len, &llele) != -1)
     {
 #endif
