@@ -98,10 +98,10 @@ DEBUG += -g -ggdb -fpermissive
 all: rxSessionMemory.o sdsWrapper.xo indexIntercepts.xo rxSuite.xo  rxSuiteHelpers.xo rxIndexer.so rxQuery.so rxIndexStore.so rxMercator.so rxRule.xo  rxRule.so sjiboleth.so rxGraphdb.so 
 
 .c.xo: 
-	$(CC) -o $@ -I.. -I. $(CFLAGS) $(SHOBJ_CFLAGS) -std=c99  -isystem -DUSE_JEMALLOC -D_POSIX_C_SOURCE=199309L  $(INCLUDE_PATHS) -fPIC -Werror=main -c $<
+	$(CC) -o $@ -I.. -I. $(CFLAGS) $(SHOBJ_CFLAGS)  -shared -std=c99  -isystem -DUSE_JEMALLOC -D_POSIX_C_SOURCE=199309L  $(INCLUDE_PATHS) -fPIC -Werror=main -c $<
 
 .c.o: 
-	$(CC) -o $@ -I.. -I. $(CFLAGS) $(SHOBJ_CFLAGS) -std=c99  -isystem -DUSE_JEMALLOC -D_POSIX_C_SOURCE=199309L  $(INCLUDE_PATHS) -fPIC -Werror=main -c $<
+	$(CC) -o $@ -I.. -I. $(CFLAGS) $(SHOBJ_CFLAGS) -shared  -std=c99  -isystem -DUSE_JEMALLOC -D_POSIX_C_SOURCE=199309L  $(INCLUDE_PATHS) -fPIC -Werror=main -c $<
 
 OBSOLETEFLAGS=-std=c99 
 FILT = $(filter-out $(OBSOLETEFLAGS), $(CFLAGS))
@@ -110,13 +110,13 @@ FILT = $(filter-out $(OBSOLETEFLAGS), $(CFLAGS))
 	c++  -o $@ -I.. -I. $(CXXFLAGS) -shared  $(WARNNING) $(FILT) $(SHOBJ_CFLAGS)  $(INCLUDE_PATHS)  -fpermissive -isystem -DUSE_JEMALLOC  -Werror=main -std=c++20 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -isystem -DUSE_JEMALLOC    -fPIC  $<
 
 .cpp.o:
-	c++  -o $@ -I.. -I. $(CXXFLAGS) $(WARNNING) $(FILT) $(SHOBJ_CFLAGS)  $(INCLUDE_PATHS)  -fpermissive -isystem -DUSE_JEMALLOC  -Werror=main -std=c++20 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -isystem -DUSE_JEMALLOC  -fPIC  $<
+	c++  -o $@ -I.. -I. $(CXXFLAGS)  -shared  $(WARNNING) $(FILT) $(SHOBJ_CFLAGS)  $(INCLUDE_PATHS)  -fpermissive -isystem -DUSE_JEMALLOC  -Werror=main -std=c++20 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -isystem -DUSE_JEMALLOC  -fPIC  $<
 
 %.o: %.cpp $(CPPSOURCES) 
-	$(CXX) -o $@ $(CXXFLAGS)   $(WARNNING) $(CFLAGS) $(SHOBJ_CFLAGS) -std=c++20 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -s  -DUSE_JEMALLOC $(INCLUDE_PATHS) -fPIC  -c $< 
+	$(CXX) -o $@ $(CXXFLAGS)   -shared  $(WARNNING) $(CFLAGS) $(SHOBJ_CFLAGS) -std=c++20 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -s  -DUSE_JEMALLOC $(INCLUDE_PATHS) -fPIC  -c $< 
 
 %.xo: %.cpp $(CPPSOURCES) 
-	$(CXX) -o $@ $(CXXFLAGS)   $(WARNNING) $(CFLAGS) $(SHOBJ_CFLAGS) -std=c++20 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -s  -DUSE_JEMALLOC $(INCLUDE_PATHS) -fPIC  -c $< 
+	$(CXX) -o $@ $(CXXFLAGS)  -shared   $(WARNNING) $(CFLAGS) $(SHOBJ_CFLAGS) -std=c++20 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -s  -DUSE_JEMALLOC $(INCLUDE_PATHS) -fPIC  -c $< 
 
 
 rxSuiteHelpers.xo:       ../../src/server.h rxSuiteHelpers.h rxSuiteHelpers.c sdsWrapper.xo  rxSessionMemory.cpp
