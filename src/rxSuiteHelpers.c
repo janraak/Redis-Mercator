@@ -670,7 +670,7 @@ int rxDeleteSetMember2(void *sobj, int dbNo, rxString member)
     return 0;
 }
 
-#if REDIS_VERSION_NUM < 0x00060200
+#if REDIS_VERSION_NUM < 0x00060201
 extern int zsetAdd(robj *zobj, double score, sds ele, int *flags, double *newscore);
 #else
 extern int zsetAdd(robj *zobj, double score, sds ele, int in_flags, int *out_flags, double *newscore);
@@ -687,7 +687,7 @@ double rxAddSortedSetMember(const char *key, int dbNo, double score, rxString me
         dbAdd((&server.db[dbNo]), k, zobj);
         freeStringObject(k);
     }
-#if REDIS_VERSION_NUM < 0x00060200
+#if REDIS_VERSION_NUM < 0x00060201
     int score_flag = ZADD_INCR;
     zsetAdd(zobj, score, (sds)member, &score_flag, &newScore);
 #else
