@@ -736,12 +736,10 @@ void *rxRestoreKeyRetainValue(int dbNo, const char *key, void *obj)
 
 extern int zsetDel(robj *zobj, sds ele);
 #if REDIS_VERSION_NUM >= 0x00050000
+#if REDIS_VERSION_NUM >= 0x00050000
 unsigned long zsetLength(const robj *zobj);
 #else
-unsigned long zsetLength(const robj *zobj)
-{
-    return 0;
-}
+unsigned int zsetLength(const robj *zobj);
 #endif
 
 void *rxCommitKeyRetainValue(int dbNo, const char *key, void *old_state)
