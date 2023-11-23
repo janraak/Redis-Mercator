@@ -54,13 +54,18 @@ void tls_forget(const char *key){
     raxRemove(TLS_Registry, (UCHAR *)&id, strlen(id), NULL);
 }
 
-template<rax> rax *tls_get(const char *key, allocatorProc *allocator, void *parms);
-template<rax> rax *tls_forget(const char *key);
+template rax *tls_get(const char *key, allocatorProc *allocator, void *parms);
+template rax *tls_forget(const char *key);
 
 class SilNikParowy_Kontekst;
 
-template<class SilNikParowy_Kontekst> SilNikParowy_Kontekst *tls_get(const char *key, allocatorProc *allocator, void *parms);
-template<class SilNikParowy_Kontekst> SilNikParowy_Kontekst *tls_forget(const char *key);
+template SilNikParowy_Kontekst *tls_get(const char *key, allocatorProc *allocator, void *parms);
+template SilNikParowy_Kontekst *tls_forget(const char *key);
+
+struct _SessionMemory_;
+
+template _SessionMemory_ *tls_get(const char *key, allocatorProc *allocator, void *parms);
+template _SessionMemory_ *tls_forget(const char *key);
 
 // struct _SessionMemory_;
 
