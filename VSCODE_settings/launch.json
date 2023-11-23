@@ -6,6 +6,50 @@
     "configurations": [
     
         {
+            "name": "STATS controller",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/redis-server",
+            "args": [
+                "--bind",
+                "0.0.0.0",
+                "--port",
+                "6378",
+                "--dbfilename",
+                "6378.rdb",
+                "--logfile",
+                "data/redis-6378.log",
+                "--maxmemory",
+                "1GB",
+                "--protected-mode",
+                "no",
+                "--enable-module-command",
+                "yes"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "LD_LIBRARY_PATH",
+                    "value": "${workspaceFolder}/extensions/src:${env:LD_LIBRARY_PATH}"
+                }
+            ],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Set Disassembly Flavor to Intel",
+                    "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
             "name": "PROD controller",
             "type": "cppdbg",
             "request": "launch",
@@ -184,8 +228,12 @@
     ],
     "compounds": [
         {
+            "name": "PRODUCTION",
+            "configurations": ["PROD controller", "STATS controller"]
+        },
+               {
             "name": "DEVELOPMENT",
-            "configurations": ["DEV controller", "6381 controller", "6382 controller"]
+            "configurations": ["DEV controller", "STATS controller", "6381 controller", "6382 controller"]
         }
     ]
 }
