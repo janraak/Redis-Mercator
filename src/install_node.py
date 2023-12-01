@@ -51,6 +51,9 @@ while True:
     except:
         pass
 
+print("Current db folder: {}".format(redis_client.execute_command("CONFIG SET DIR {}".format(wd)))
+redis_client.execute_command("CONFIG SET DIR {}".format(wd))
+
 if role == 'data':
     redis_client.execute_command("MODULE LOAD extensions/src/rxIndexer.so {} {} {} {}".format(ihost, iport, host, port))
     redis_client.execute_command("MODULE LOAD extensions/src/rxQuery.so {} {} {} {}  INDEX {} {} 0 DATA {} {} 0 DEFAULT_OPERATOR &".format(ihost, iport, host, port, ihost, iport, host, port))

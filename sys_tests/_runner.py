@@ -162,8 +162,10 @@ def create_cluster(redis_client):
     for node in cluster_info["nodes"]:
         if node["role"] == "data":
             info["data"] = node
+            print((Style.RESET_ALL+Fore.YELLOW + Back.CYAN + "DATA: {}:{}"+Style.RESET_ALL).format(node["ip"], node["port"]))
         elif node["role"] == "index":
             info["index"] = node
+            print((Style.RESET_ALL+Fore.YELLOW + Back.CYAN + "INDEX: {}:{}"+Style.RESET_ALL).format(node["ip"], node["port"]))
     return info
 
 
