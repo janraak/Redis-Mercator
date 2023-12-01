@@ -1164,7 +1164,7 @@ redisReply *ExecuteLocal(const char *cmd, int options)
     return NULL;
 }
 
-rxString CreateClusterNode(rxString cluster_key, rxString sha1, const char *role, const char *order, const char *shard, RedisModuleCtx *)
+rxString TryCreateClusterNode(rxString cluster_key, rxString sha1, const char *role, const char *order, const char *shard, RedisModuleCtx *)
 {
     // TODO: Replace with local lookup
 
@@ -1248,6 +1248,17 @@ rxString CreateClusterNode(rxString cluster_key, rxString sha1, const char *role
     rxStringFree(address);
     rxStringFree(free_ports_key);
     return key;
+}
+
+rxString CreateClusterNode(rxString cluster_key, rxString sha1, const char *role, const char *order, const char *shard, RedisModuleCtx *ctx)
+{
+    int retries_left = 0;
+    rxString node = NULL;
+    do
+    {
+        node = TryCreateClusterNode(cluster_key, sha1, role, order, shard, ctx);
+    } while (!node && --retries_left);
+    return node;
 }
 
 void LoanInstancesToController(redisContext *sub_controller, int no_of_instances)

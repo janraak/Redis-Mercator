@@ -115,8 +115,7 @@ def match_hashed(step, outcome, expected):
         list_to_hash(eHasher,expected)
         if rHasher.digest() == eHasher.digest():
             print(
-                Style.RESET_ALL
-                + "STEP:   {}{}".format(
+                "STEP:   {}{}".format(
                     Fore.GREEN, step
                 )
             )
@@ -125,18 +124,9 @@ def match_hashed(step, outcome, expected):
         fe = flatten_list([],expected)
         if match_sets(step, fo, fe) == 1:
             return 1
-        return 0
-        print(
-            Style.RESET_ALL
-            + "STEP:   {}{}\nFAIL(H):   {}{}\nEXPECT: {}{}\n".format(
-                Fore.BLUE, step, Fore.RED, outcome, Fore.CYAN, expected
-            )
-        )
     except Exception as ex:
-        # traceback.print_exception(ex, Exception, "Match failed")
         print(" failed, error: {}".format(ex))
         traceback.print_exc() 
-        # pdb.set_trace()
     return 0
 
 
@@ -159,82 +149,66 @@ def match_sets(step, outcome, expected):
         diff = rSet.symmetric_difference(eSet)
         if len(diff) == 0:
             print(
-                Style.RESET_ALL
-                + "STEP:   {}{}".format(
+                "STEP:   {}{}".format(
                     Fore.GREEN, step
                 )
             )
             return 1
         return match_strings(step,outcome,expected)
-        print(
-            Style.RESET_ALL
-            + "STEP:   {}{}\nFAIL(S):   {}{}\nEXPECT: {}{}\nDiff: {}{}\n".format(
-                Fore.BLUE, step, Fore.RED, outcome, Fore.CYAN, expected, Fore.YELLOW, diff
-            )
-        )
-        return 0
-    except TypeError as ex:
-        pdb.set_trace()
     except Exception as ex:
-        # traceback.print_exception(ex, Exception, "Match failed")
         print(" failed, error: {}".format(ex))
-        # print("outcome {} {}",type(outcome),outcome)
-        # print("expected {} {}",type(expected),expected)
         traceback.print_exc() 
-        # pdb.set_trace()
-        return 0
+    return 0
 
 
-def match_strings(step, outcome, expected):
-    global match_calls
-    match_calls += 1
-    print(Style.RESET_ALL)
+def match_strings_with_expected(step, outcome, expected):
     if not isinstance(outcome, str):
         outcome = "{}".format(outcome)
     if not isinstance(expected, str):
         expected = "{}".format(expected)
     if expected[0] == "*":
         if (expected[1:]) in outcome:
+            return 1
+    elif (
+        len(expected) > 128
+        and left(outcome, 64) == left(expected, 64)
+        and right(outcome, 64) == right(expected, 64)
+    ):
+        return 1
+    elif "{}".format(outcome) == expected:
+        return 1
+    return 0
+
+def match_strings(step, outcome, expected):
+    if isinstance(expected, list):
+        for e in expected:
+            m = match_strings_with_expected(step, outcome, e)
+            if m == 1:
+                print(
+                    Style.RESET_ALL
+                    + "STEP:   {}{}".format(
+                        Fore.GREEN, step
+                    )
+                )
+                return m
+    else:
+        m = match_strings_with_expected(step, outcome, expected)
+        if m == 1:
             print(
                 Style.RESET_ALL
                 + "STEP:   {}{}".format(
                     Fore.GREEN, step
                 )
             )
-            return 1
-        else:
-            print(
-                Style.RESET_ALL
-                + "STEP:   {}{}\nFAIL(T):   {}{}\nEXPECT: {}{}\n".format(
-                    Fore.BLUE, step, Fore.RED, outcome, Fore.CYAN, expected
-                )
-            )
-            return 0
-    elif (
-        len(expected) > 128
-        and left(outcome, 64) == left(expected, 64)
-        and right(outcome, 64) == right(expected, 64)
-    ):
-        print(
-            Style.RESET_ALL
-            + "STEP:   {}{}".format(Fore.GREEN, step)
-        )
-        return 1
-    elif "{}".format(outcome) == expected:
-        print(
-            Style.RESET_ALL
-            + "STEP:   {}{}".format(Fore.GREEN, step)
-        )
-        return 1
-    else:
-        print(
-            Style.RESET_ALL
-            + "STEP:   {}{}\nFAIL:   {}{}\nEXPECT: {}{}\n".format(
-                Fore.BLUE, step, Fore.RED, outcome, Fore.CYAN, expected
-            )
-        )
-        return 0
+            return m
 
+    print(
+        Style.RESET_ALL
+        + "\nSTEP:   {}{}\nFAIL:   {}{}\nEXPECT: {}{}\n".format(
+            Fore.BLUE, step, Fore.RED, outcome, Fore.CYAN, expected
+        )
+    )
+    return 0
 
 def match(step, outcome, expected):
     return match_hashed(step,outcome,expected)
@@ -244,9 +218,15 @@ def stripField(outcome, field):
         return outcome
     result =[]
     for r in outcome:
-        pi = r.index(field)
-        if not pi is None:
-            r = r[0:pi]+ r[pi+2:]
+        if isinstance(field, list):
+            for f in field:
+                pi = r.index(f)
+                if not pi is None:
+                    r = r[0:pi]+ r[pi+2:]
+        else:
+            pi = r.index(field)
+            if not pi is None:
+                r = r[0:pi]+ r[pi+2:]
         result.append(r)
 
     return result
