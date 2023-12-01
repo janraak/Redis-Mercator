@@ -6,6 +6,7 @@ import time
 from subprocess import Popen
 import redis
 import subprocess
+import os
 
 cid = sys.argv[1]
 host = sys.argv[2]
@@ -16,14 +17,16 @@ iport = sys.argv[6]
 
 node_is_local = str(subprocess.check_output('ifconfig')).find(host)
 
-wd = pathlib.Path(sys.argv[0]).parent.parent.parent
+# pdb.set_trace()
+wd = os.getcwd()  #pathlib.Path(sys.argv[0]).parent.parent.parent.joinpath("")
 base_fn = "{}.{}".format(host, port)
 
 
 redis_server = ["src/redis-server", "--bind", "0.0.0.0", "--port", port, "--maxmemory", "1MB", 
     "--dbfilename", "{}.rdb".format(base_fn), 
+    "--dir", "{}/data".format(wd), 
     "--appendfilename", "{}.aof".format(base_fn), 
-    "--logfile", "data/{}.log".format(base_fn), 
+    "--logfile", "{}/data/{}.log".format(wd, base_fn), 
     "--databases", "4", "--maxclients", "256"]
 
 if node_is_local < 0:

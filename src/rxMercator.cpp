@@ -1434,7 +1434,7 @@ void *CreateClusterAsync_Go(void *privData)
         return multiplexer->StopThread();
     };
 
-    cmd = rxStringFormat("RXQUERY \"g:break.addv('%s','cluster').PROPERTY('redis','%s')\"", sha1, redis_version);
+    cmd = rxStringFormat("RXQUERY \"g:addv('%s','cluster').PROPERTY('redis','%s')\"", sha1, redis_version);
     r = ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
     rxString cluster_key = sha1;
 
@@ -1448,8 +1448,8 @@ void *CreateClusterAsync_Go(void *privData)
         index = CreateClusterNode(cluster_key, sha1, INDEX_FIELD, "1", "1", multiplexer->ctx);
         if (data != NULL && index != NULL)
         {
-            ExecuteLocal(rxStringFormat("RXQUERY \"g:break.addv('%s',instance).property(index,'%s')\"", data, index), LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
-            ExecuteLocal(rxStringFormat("RXQUERY \"g:break.addv('%s',instance).property(data,'%s')\"", index, data), LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
+            ExecuteLocal(rxStringFormat("RXQUERY \"g:addv('%s',instance).property(index,'%s')\"", data, index), LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
+            ExecuteLocal(rxStringFormat("RXQUERY \"g:addv('%s',instance).property(data,'%s')\"", index, data), LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
         }
         else
         {
@@ -1730,7 +1730,7 @@ int start_cluster(RedisModuleCtx *ctx, char *osha1)
         return RedisModule_ReplyWithSimpleString(ctx, "cluster not found");
     }
     rxString cwd = rxStringFormat("$HOME/redis-%s", redis_version);
-    rxString data = rxStringFormat(cwd, "$HOME/redis-%s/data", redis_version);
+    rxString data = rxStringFormat("$HOME/redis-%s/data", redis_version);
 
     size_t n = 0;
     while (n < nodes->elements)
@@ -1765,7 +1765,7 @@ int start_cluster(RedisModuleCtx *ctx, char *osha1)
         {
             char *primary_name = values->element[11]->str;
             rxString startup_command = rxStringFormat(
-                "python3 %s/extensions/src/start_node.py %s %s %s %s %s %s %s %s %s %s >>$HOME/redis-%s/data/startup.log  2>>$HOME/redis-%s/data/startup.log ",
+                "cd %s;python3 extensions/src/start_node.py %s %s %s %s %s %s %s %s %s %s >>%s/startup.log  2>>%s/startup.log ",
                 cwd,
                 sha1,          /*1*/
                 address, port, /*2-3*/
@@ -1776,8 +1776,8 @@ int start_cluster(RedisModuleCtx *ctx, char *osha1)
                 config->cdnRootUrl,
                 config->startScript,
                 config->installScript,
-                redis_version,
-                redis_version,
+                data,
+                data,
                 cwd);
 
             start_redis(startup_command, address);

@@ -153,7 +153,7 @@ def connect_to_redis(node):
 
 
 def create_cluster(redis_client):
-    cluster_id = redis_client.execute_command("mercator.create.cluster", "SYS_TESTS")
+    cluster_id = redis_client.execute_command("mercator.create.cluster", "SYS_TESTS", "REDIS", "6.0.19")
     redis_client.execute_command("mercator.start.cluster", cluster_id)
     cluster_info = json.loads(redis_client.execute_command(
         "mercator.info.cluster", cluster_id).decode('utf-8'))
