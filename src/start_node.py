@@ -54,10 +54,6 @@ wd = "{}/redis-{}".format(home, redis_version)
 base_fn = "{}.{}".format(host, port)
 print("wd: {}".format(wd))
 
-data_dir = "{}/data/{}".format(os.path.expanduser( '~' ),cid)
-if not os.path.exists(data_dir):
-    os.makedirs(data_dir)
-
 start0 = ''
 # if node_is_local < 0:
 #     start0 = "ssh {} ".format(host)
@@ -68,8 +64,7 @@ os.system("{}dos2unix {}/{}".format(start0, home, start_script))
 os.system("{}wget --no-check-certificate  --timestamping  -O {}/{} {}/{}".format(start0, home, install_script, cdn, install_script))
 os.system("{}dos2unix {}/{}".format(start0, home, install_script))
 
-print ("{}bash  --debug --verbose  {}/{} {} {} {} 4 256 1GB {} >>{}/data/startup.log 2>>{}/data/startup.log".format(start0, home, start_script, redis_version, host, port, cid, wd, wd))
-os.system("{}bash  --debug --verbose  {}/{} {} {} {} 4 256 1GB {}>>{}/data/startup.log 2>>{}/data/startup.log".format(start0, home, start_script, redis_version, host, port, cid, wd, wd))
+os.system("{}bash  --debug --verbose  {}/{} {} {} {} 4 256 1GB >>{}/data/startup.log 2>>{}/data/startup.log".format(start0, home, start_script, redis_version, host, port, wd, wd))
 
 # os.system("{}")rm 
 redis_client = None
@@ -91,9 +86,6 @@ while True:
 info = redis_client.info("SERVER");
 segments = info["executable"].split('/')
 path = '/'.join(segments[0:len(segments)-2])
-
-print("Current db folder: {}".format(redis_client.execute_command("CONFIG GET DIR {}".format(wd))))
-redis_client.execute_command("CONFIG SET DIR {}".format(data_dir))
 
 if role == 'data':
     module_config = which_modules_has_been_loaded(redis_client)

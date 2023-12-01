@@ -6,6 +6,7 @@ import time
 from subprocess import Popen
 import redis
 import subprocess
+import os
 
 cid = sys.argv[1]
 host = sys.argv[2]
@@ -16,19 +17,16 @@ iport = sys.argv[6]
 
 node_is_local = str(subprocess.check_output('ifconfig')).find(host)
 
-wd = os.getcwd()  
+# pdb.set_trace()
+wd = os.getcwd()  #pathlib.Path(sys.argv[0]).parent.parent.parent.joinpath("")
 base_fn = "{}.{}".format(host, port)
-
-data_dir = "{}/data/{}".format(os.path.expanduser( '~' ),cid)
-if not os.path.exists(data_dir):
-    os.makedirs(data_dir)
 
 
 redis_server = ["src/redis-server", "--bind", "0.0.0.0", "--port", port, "--maxmemory", "1MB", 
     "--dbfilename", "{}.rdb".format(base_fn), 
-    "--dir", data_dir,
+    "--dir", "{}/data".format(wd), 
     "--appendfilename", "{}.aof".format(base_fn), 
-    "--logfile", "{}/{}.log".format(data_dir, base_fn), 
+    "--logfile", "{}/data/{}.log".format(wd, base_fn), 
     "--databases", "4", "--maxclients", "256"]
 
 if node_is_local < 0:
@@ -54,7 +52,7 @@ while True:
         pass
 
 print("Current db folder: {}".format(redis_client.execute_command("CONFIG GET DIR {}".format(wd))))
-redis_client.execute_command("CONFIG SET DIR {}".format(data_dir))
+redis_client.execute_command("CONFIG SET DIR {}".format(wd))
 
 if role == 'data':
     redis_client.execute_command("MODULE LOAD extensions/src/rxIndexer.so {} {} {} {}".format(ihost, iport, host, port))
