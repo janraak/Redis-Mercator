@@ -128,7 +128,9 @@ def find_local_ip():
                     return xface[c+1].split('/')[0]
     return '127.0.0.1'
 
-def prepare_controller(argv):
+def prepare_controller():
+    global controller_started
+    controller_started = False
     ip = find_local_ip()
     retries_left = 10
     while retries_left > 0:
@@ -149,12 +151,14 @@ def prepare_controller(argv):
                 print("rxMercator server added")
             return redis_client
         except Exception as ex:
+            os.system("~/__reset.sh")
             cwd = os.path.dirname(os.getcwd())
             left = cwd.index('-')
             version = cwd[left+1:] 
             starter = f"~/__start_redis.sh {version} {ip} {6380}"
             os.system(starter)
             retries_left -= 1
+            controller_started = True
     print(f'{Style.RESET_ALL}{Fore.CYAN}{Back.RED}Unable to start Redis Mercator on port 6380!!!{Style.RESET_ALL}')
     os._exit()
             
@@ -268,7 +272,13 @@ def main(argv):
                         print((Style.RESET_ALL+Fore.WHITE + Back.RED + "exception:{}"+Style.RESET_ALL).format(ex))
                         traceback.print_exc() 
                         pass
+                        pass
 
+    global    controller_started
+    if controller_started:
+        index_node.shutdown()
+        data_node.shutdown()
+        controller.shutdown()
 
     index_node.close()
     data_node.close()
