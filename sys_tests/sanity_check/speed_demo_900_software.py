@@ -1,6 +1,5 @@
 from __future__ import print_function
 from colorama import Fore, Back, Style
-from colorama import Fore, Back, Style
 import time
 import redis
 import json
@@ -12,17 +11,14 @@ def column(matrix, i):
     return [row[i] for row in matrix]
 
 def reconnect(connection):
-    cluster_info = json.loads(connection.controller.execute_command(
-        "mercator.info.cluster", connection.cluster_id).decode('utf-8'))
+    cluster_info = json.loads(connection["controller"].execute_command(
+        "mercator.info.cluster", connection["cluster_id"]).decode('utf-8'))
     print((Style.RESET_ALL+Fore.BLUE + Back.CYAN + "{}"+Style.RESET_ALL).format(cluster_info))
-    info = {"cluster_id": connection.cluster_id}
     for node in cluster_info["nodes"]:
         if node["role"] == "data":
-            info["data"] = node
             print((Style.RESET_ALL+Fore.YELLOW + Back.CYAN + "DATA: {}:{}"+Style.RESET_ALL).format(node["ip"], node["port"]))
             connection["data"] = redis.StrictRedis(node["ip"], node["port"], 0)
         elif node["role"] == "index":
-            info["index"] = node
             print((Style.RESET_ALL+Fore.YELLOW + Back.CYAN + "INDEX: {}:{}"+Style.RESET_ALL).format(node["ip"], node["port"]))
             connection["index"] = redis.StrictRedis(node["ip"], node["port"], 0)
     return connection
@@ -46,38 +42,39 @@ def SD_910_Upgrade_Degrade_setup(cluster_id, controller, data, index):
         
 #
 # This test verifies the VERTEX and EDGE type tree features#
-def Regrade_And_Check_Sanity(version, connection, sanity):
-    connection.succes_tally += match("mercator.upgrade.cluster", connection.controller.execute_command("mercator.upgrade.cluster", connection.cluster_id, version), 
+def Regrade_And_Check_Sanity(version, connection):
+    succes_tally = connection["succes_tally"]
+    succes_tally += match("mercator.upgrade.cluster", connection["controller"].execute_command("mercator.upgrade.cluster", connection["cluster_id"], version), 
                           "*is now running Redis version {}".format(version))
 
 
     connection = reconnect(connection)
-    connection.succes_tally += match("REDIS " + version, connection.data.execute_command("info", "server")["redis_version"], version)
-    connection.succes_tally += match("REDIS " + version, connection.index.execute_command("info", "server")["redis_version"], version)
+    succes_tally += match("REDIS " + version, connection["data"].execute_command("info", "server")["redis_version"], version)
+    succes_tally += match("REDIS " + version, connection["index"].execute_command("info", "server")["redis_version"], version)
 
-    connection.succes_tally += match("REDIS " + version, connection.data.execute_command("g", "match(fred,barney)"), connection.sanity)
-
+    succes_tally += match("REDIS " + version, connection["data"].execute_command("g", "match(fred,barney)"), connection["sanity"])
+    connection["succes_tally"] = succes_tally
     return connection
 
 
 def SD_910_Upgrade_Degrade(cluster_id, controller, data, index):
     reset_match_calls()
-    succes_tally = 0
 
-    connection = {"data": data, "index": index, "controller": controller, "cluster_id":cluster_id, "tally": succes_tally, "sanity": path_between_fred_and_barney}
+    connection = {"data": data, "index": index, "controller": controller, "cluster_id":cluster_id, "succes_tally": 0, "sanity": path_between_fred_and_barney}
     connection = Regrade_And_Check_Sanity("6.0.20", connection)
     connection = Regrade_And_Check_Sanity("6.2.0", connection)
-    connection = Regrade_And_Check_Sanity("7.0.11", connection)
-    connection = Regrade_And_Check_Sanity("7.0.14", connection)
-    connection = Regrade_And_Check_Sanity("7.2.3", connection)
-    connection = Regrade_And_Check_Sanity("7.0.14", connection)
-    connection = Regrade_And_Check_Sanity("7.0.11", connection)
+    # connection = Regrade_And_Check_Sanity("7.0.11", connection)
+    # connection = Regrade_And_Check_Sanity("7.0.14", connection)
+    # connection = Regrade_And_Check_Sanity("7.2.3", connection)
+    # connection = Regrade_And_Check_Sanity("7.0.14", connection)
+    # connection = Regrade_And_Check_Sanity("7.0.11", connection)
     connection = Regrade_And_Check_Sanity("6.2.0", connection)
-    connection = Regrade_And_Check_Sanity("6.0.20", connection)
+    # connection = Regrade_And_Check_Sanity("6.0.20", connection)
     connection = Regrade_And_Check_Sanity("6.0.19", connection)
+    connection = Regrade_And_Check_Sanity("6.0.9", connection)
 
-    if(connection.succes_tally != get_match_calls()): 
-        AssertionError( "FAILED: SD_900_Mercator_Check_Software, {} of {} steps failed".format(get_match_calls() - connection.succes_tally, get_match_calls()))
+    if(connection["succes_tally"] != get_match_calls()): 
+        AssertionError( "FAILED: SD_900_Mercator_Check_Software, {} of {} steps failed".format(get_match_calls() - connection["succes_tally"], get_match_calls()))
     
     raise  Exception("Reconnect")
 
@@ -94,10 +91,14 @@ def SD_900_Mercator_Check_Software(cluster_id, controller, data, index):
     #                       "{}".format(b'OK, Software installation started, use the mercator.redis.status command to verify the installation.'))
     # succes_tally += match("mercator.redis.install", controller.execute_command("mercator.redis.install", "4.0.14"), 
     #                       "{}".format(b'OK, Software installation started, use the mercator.redis.status command to verify the installation.'))
+    # succes_tally += match("mercator.redis.install", controller.execute_command("mercator.redis.install", "4.0.14"), 
+    #                       "{}".format(b'OK, Software installation started, use the mercator.redis.status command to verify the installation.'))
   
     # succes_tally += match("mercator.redis.install", controller.execute_command("mercator.redis.install", "5.0.9"), 
     #                       "{}".format(b'OK, Software installation started, use the mercator.redis.status command to verify the installation.'))
   
+    # succes_tally += match("mercator.redis.install", controller.execute_command("mercator.redis.install", "6.0.19"), 
+    #                       "{}".format(b'OK, Software installation started, use the mercator.redis.status command to verify the installation.'))
     # succes_tally += match("mercator.redis.install", controller.execute_command("mercator.redis.install", "6.0.19"), 
     #                       "{}".format(b'OK, Software installation started, use the mercator.redis.status command to verify the installation.'))
     
@@ -107,6 +108,8 @@ def SD_900_Mercator_Check_Software(cluster_id, controller, data, index):
     # succes_tally += match("mercator.redis.install", controller.execute_command("mercator.redis.install", "6.2.0"), 
     #                       "{}".format(b'OK, Software installation started, use the mercator.redis.status command to verify the installation.'))
     
+    # succes_tally += match("mercator.redis.install", controller.execute_command("mercator.redis.install", "6.2.1"), 
+    #                       "{}".format(b'OK, Software installation started, use the mercator.redis.status command to verify the installation.'))
     # succes_tally += match("mercator.redis.install", controller.execute_command("mercator.redis.install", "6.2.1"), 
     #                       "{}".format(b'OK, Software installation started, use the mercator.redis.status command to verify the installation.'))
     # succes_tally += match("mercator.redis.install", controller.execute_command("mercator.redis.install", "6.2.1"), 
@@ -137,17 +140,24 @@ def SD_900_Mercator_Check_Software(cluster_id, controller, data, index):
     #                       "Cluster {} upgraded to Redis {}".format(cluster_id, "7.2.3"))
     # succes_tally += match("mercator.upgrade.cluster", controller.execute_command("mercator.upgrade.cluster", cluster_id, "6.0.20"), 
     #                       "Cluster {} upgraded to Redis {}".format(cluster_id, "7.2.3"))
+    # succes_tally += match("mercator.upgrade.cluster", controller.execute_command("mercator.upgrade.cluster", cluster_id, "6.0.20"), 
+    #                       "Cluster {} upgraded to Redis {}".format(cluster_id, "7.2.3"))
 
     # succes_tally += match("mercator.upgrade.cluster", controller.execute_command("mercator.upgrade.cluster", cluster_id, "6.0.20"), 
     #                       "Cluster {} upgraded to Redis {}".format(cluster_id, "7.2.3"))
     # succes_tally += match("mercator.upgrade.cluster", controller.execute_command("mercator.upgrade.cluster", cluster_id, "6.0.20"), 
     #                       "Cluster {} upgraded to Redis {}".format(cluster_id, "7.2.3"))
+    # succes_tally += match("mercator.upgrade.cluster", controller.execute_command("mercator.upgrade.cluster", cluster_id, "6.0.20"), 
+    #                       "Cluster {} upgraded to Redis {}".format(cluster_id, "7.2.3"))
 
+    # if(succes_tally != get_match_calls()): 
+    #     AssertionError( "FAILED: SD_900_Mercator_Check_Software, {} of {} steps failed".format(get_match_calls() - succes_tally, get_match_calls()))
     # if(succes_tally != get_match_calls()): 
     #     AssertionError( "FAILED: SD_900_Mercator_Check_Software, {} of {} steps failed".format(get_match_calls() - succes_tally, get_match_calls()))
     # if(succes_tally != get_match_calls()): 
     #     AssertionError( "FAILED: SD_900_Mercator_Check_Software, {} of {} steps failed".format(get_match_calls() - succes_tally, get_match_calls()))
     
+    # raise  Exception("Reconnect")
     # raise  Exception("Reconnect")
     # raise  Exception("Reconnect")
         
