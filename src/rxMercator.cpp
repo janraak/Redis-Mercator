@@ -2353,7 +2353,7 @@ void *InstallRedisAsync_Go(void *privData)
     {
         redisReply *values = nodes->element[n]->element[5];
         char *address = values->element[1]->str;
-        rxString install_log = rxStringFormat(">>$HOME/_install_%s.log", redis_version);
+        // rxString install_log = "";//rxStringFormat(">>$HOME/_install_%s.log", redis_version);
         rxString cmd = rxStringFormat("cd $HOME;"
                                       "rm -rf redis-%s %s;"
                                       "pwd %s;"

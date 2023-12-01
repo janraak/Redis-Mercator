@@ -1337,14 +1337,14 @@ int raxTryInsert(rax *rax, unsigned char *s, size_t len, void *data, void **old)
 
 void *rxFused(const char *key, const char *fuse_key, const char *barKey, void *fuse_subject, void *fuse_object, void *fuse_predicate)
 {
-    robj *fused = hashTypeDup(fuse_subject);
+    robj *fused = createSetObject(); // hashTypeDup(fuse_subject);
     hashTypeSet(fused, "subject", key, HASH_SET_COPY);
     hashTypeSet(fused, "object", barKey, HASH_SET_COPY);
     hashTypeSet(fused, "predicate", fuse_key + 1, HASH_SET_COPY);
 
-    void **inputs[2] = {fuse_object, fuse_predicate};
+    void **inputs[] = {fused, fuse_object, fuse_predicate};
 
-    for (int n = 0; n < 2; ++n)
+    for (int n = 0; n < 3; ++n)
     {
         hashTypeIterator *hi = hashTypeInitIterator(inputs[n]);
         while (hashTypeNext(hi) != C_ERR)

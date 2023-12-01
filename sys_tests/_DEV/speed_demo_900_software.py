@@ -4,8 +4,8 @@ import time
 import redis
 import json
 import pdb
-from match import match_hashed, match_sets, match_strings, reset_match_calls, get_match_calls, HeaderOnly, stripField, filterRows, find_local_ip
-from match import Matcher
+from match import Matcher, HeaderOnly, find_local_ip
+import pdb
 
 def reconnect(connection):
     cluster_info = json.loads(connection["controller"].execute_command(
@@ -31,7 +31,10 @@ def SD_910_Upgrade_Downgrade_setup(cluster_id, controller, data, index):
     for version in versions:
         # print((Style.RESET_ALL+Fore.WHITE + Back.CYAN + "Redis version  {}"+Style.RESET_ALL).format(version))           
         # if version  [1] == b'6.0.19' or version  [1] == b'6.0.20' or version  [1] == b'6.2.0' or version  [1] == b'7.0.11' or  version  [1] == b'7.0.14' or  version  [1] == b'7.2.3':  
-        if version  [1] == b'6.0.19' or version  [1] == b'6.0.20' or version  [1] == b'6.2.0' or version  [1] == b'7.0.11' :  
+        if version  [1] == b'6.0.19' \
+                or version  [1] == b'6.0.20' \
+                or version  [1] == b'6.2.0' \
+                or version  [1] == b'7.0.11' :  
             if version [7] != b'build' or  version [9] != b'build' :
                 print((Style.RESET_ALL+Fore.WHITE + Back.RED + "Redis version not build {}"+Style.RESET_ALL).format(version))           
                 raise Exception("MissingVersion")
@@ -79,36 +82,35 @@ def SD_910_Upgrade_Downgrade(cluster_id, controller, data, index):
 
     raise  Exception("Reconnect")
 
-def start_install(version, controller):
-    return match_strings("mercator.redis.install", controller.execute_command("mercator.redis.install", version), 
+def start_install(version, controller, matcher):
+    matcher.by_strings("mercator.redis.install", controller.execute_command("mercator.redis.install", version), 
                           "{}".format(b'OK, Software installation started, use the mercator.redis.status command to verify the installation.'))
 
 def SD_900_Mercator_Check_Software(cluster_id, controller, data, index):
     # return
-    # return
     matcher = Matcher("SD_900_Mercator_Check_Software")
 
-    matcher.by_hashed("mercator.redis.status", filterRows(
-                                                                        stripField(
-                                                                            controller.execute_command("mercator.redis.status")
-                                                                            , b'Address'
-                                                                            ), 
-                                                                    b'Version', 
-                                                                    [b'6.0.20', b'7.0.11', b'7.2.3']
-                                                                     ), 
-                          stripField([[b'Version', b'6.0.9', b'Scope', b'', b'Address', b'192.168.1.200', b'Redis', b'build', b'rxMercator', b'build'], [b'Version', b'7.0.11', b'Scope', b'', b'Address', b'192.168.1.200', b'Redis', b'build', b'rxMercator', b'build'], [b'Version', b'7.2.3', b'Scope', b'', b'Address', b'192.168.1.200', b'Redis', b'build', b'rxMercator', b'build']], b'Address'))
+    # matcher.by_hashed("mercator.redis.status", filterRows(
+    #                                                                     stripField(
+    #                                                                         controller.execute_command("mercator.redis.status")
+    #                                                                         , b'Address'
+    #                                                                         ), 
+    #                                                                 b'Version', 
+    #                                                                 [b'6.0.19', b'6.0.20', b'6.2.0', b'7.0.11', b'7.0.14', b'7.2.3']
+    #                                                                  ), 
+    #                       stripField([b'Version', b'7.0.11', b'Scope', b'', b'Redis', b'build', b'rxMercator', b'build', b'Version', b'7.2.3', b'Scope', b'', b'Redis', b'build', b'rxMercator', b'build', b'Version', b'6.2.0', b'Scope', b'', b'Redis', b'build', b'rxMercator', b'build', b'Version', b'6.0.19', b'Scope', b'', b'Redis', b'build', b'rxMercator', b'build', b'Version', b'7.0.14', b'Scope', b'', b'Redis', b'build', b'rxMercator', b'build', b'Version', b'6.0.20', b'Scope', b'', b'Redis', b'build', b'rxMercator', b'build'], b'Address'))
   
-    # succes_tally += start_install("4.0.14", controller)
-    # succes_tally += start_install("5.0.9", controller)
-    # succes_tally += start_install("6.0.9", controller)
-    # succes_tally += start_install("6.0.18", controller)
-    # succes_tally += start_install("6.0.19", controller)
-    # succes_tally += start_install("6.0.20", controller)
-    # succes_tally += start_install("6.2.0", controller)
-    # succes_tally += start_install("6.2.1", controller)
-    # succes_tally += start_install("7.0.1", controller)
-    # succes_tally += start_install("7.0.14", controller)
-    # succes_tally += start_install("7.2.3", controller)
-    # succes_tally += start_install("beta-9", controller)
+    # # start_install("4.0.14", controller, matcher)
+    # # start_install("5.0.9", controller, matcher)
+    # # start_install("6.0.9", controller, matcher)
+    # # start_install("6.0.18", controller, matcher)
+    # start_install("6.0.19", controller, matcher)
+    # start_install("6.0.20", controller, matcher)
+    # start_install("6.2.0", controller, matcher)
+    # # start_install("6.2.1", controller, matcher)
+    # # start_install("7.0.1", controller, matcher)
+    # start_install("7.0.14", controller, matcher)
+    # start_install("7.2.3", controller, matcher)
+    # # start_install("beta-9", controller, matcher)
     
     matcher.finalize()
