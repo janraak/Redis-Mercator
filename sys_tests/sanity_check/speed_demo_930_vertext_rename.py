@@ -10,7 +10,6 @@ import pdb
 
 def SD_930_Vertex_rename(cluster_id, controller, data, index):
     matcher = Matcher("SD_930_Vertex_rename")
-    return
     matcher.by_strings("TURN OFF INDEXING", data.execute_command("RXINDEX", "OFF"), b"OK")
     matcher.by_sets(
         "ADD TEST DATA",
@@ -377,7 +376,6 @@ def SD_930_Vertex_rename(cluster_id, controller, data, index):
 
 def SD_940_Swap_keys(cluster_id, controller, data, index):
     matcher = Matcher("SD_940_Swap_keys[graph]")
-    return
     scenario = [
         {"step": "ADD TEST DATA C1xS1", "node": data, "command": "g addv(C1,cluster).addv(S1,server).reset.predicate(I_FOR,I_OF).subject(C1).object(S1)", "expects": [[b'key', b'I_FOR:C1:S1', b'score', b'1', b'value', [b'type', b'I_FOR', b'half', b'I_OF:S1:C1', b'edge', b'I_FOR:C1:S1']], [b'key', b'I_OF:S1:C1', b'score', b'1', b'value', [b'type', b'I_OF', b'half', b'I_OF:S1:C1', b'edge', b'I_FOR:C1:S1']]]},
         {"step": "ADD TEST DATA C1xS2", "node": data, "command": "g addv(C1,cluster).addv(S2,server).reset.predicate(I_FOR,I_OF).subject(C1).object(S2)", "expects": [[b'key', b'I_FOR:C1:S2', b'score', b'1', b'value', [b'type', b'I_FOR', b'half', b'I_OF:S2:C1', b'edge', b'I_FOR:C1:S2']], [b'key', b'I_OF:S2:C1', b'score', b'1', b'value', [b'type', b'I_OF', b'half', b'I_OF:S2:C1', b'edge', b'I_FOR:C1:S2']]]},
@@ -404,7 +402,7 @@ def SD_940_Swap_keys(cluster_id, controller, data, index):
         {"step": "FUSE C1 after first server  swap", "node":data, "command": "g V(C1).fuseout(I_OF)", "expects": [[b'value', [b'subject', b'C1', b'object', b'C1', b'predicate', b'', b'type', b'I_OF', b'half', b'I_OF:S1:C1', b'edge', b'I_FOR:C1:S1']], [b'value', [b'subject', b'C1', b'object', b'C1', b'predicate', b'', b'type', b'I_OF', b'half', b'I_OF:S2:C1', b'edge', b'I_FOR:C1:S2']]], "strip":[b"key", b"score"]},
         {"step": "FUSE C2 after first server  swap", "node":data, "command": "g V(C2).fuseout(I_OF)", "expects": [[b'value', [b'subject', b'C2', b'object', b'C2', b'predicate', b'', b'type', b'I_OF', b'half', b'I_OF:S4:C2', b'edge', b'I_FOR:C2:S4']], [b'value', [b'subject', b'C2', b'object', b'C2', b'predicate', b'', b'type', b'I_OF', b'half', b'I_OF:S3:C2', b'edge', b'I_FOR:C2:S3']]], "strip":[b"key", b"score"]},
         {"step": "MATCH C1 and C2 after first server  swap", "node":data, "command": "g match(C2,C1)", "expects": []},
-        {"debug": True, "step": "MATCH S1 and S2 after first server swap", "node":data, "command": "g match(S1,S2)", "expects": [[b'subject', b'S1', b'length', b'2', b'object', b'S2', b'path', [[b'S1', b'0'], [b'I_OF:S1:C2', b'0.5'], [b'C2', b'0.5'], [b'I_OF:S2:C2', b'0.5'], [b'S2', b'0.5']]]]},
+        {"step": "MATCH S1 and S2 after first server swap", "node":data, "command": "g match(S1,S2)", "expects": [[b'subject', b'S1', b'length', b'2', b'object', b'S2', b'path', [[b'S1', b'0'], [b'I_OF:S1:C2', b'0.5'], [b'C2', b'0.5'], [b'I_OF:S2:C2', b'0.5'], [b'S2', b'0.5']]]]},
         {"step": "MATCH S1 and S3 after first server swap", "node":data, "command": "g match(S1,S3)", "expects": []},
         {"step": "MATCH S3 and S4 after first server swap", "node":data, "command": "g match(S3,S4)", "expects": [[b'subject', b'S3', b'length', b'2', b'object', b'S4', b'path', [[b'S3', b'0'], [b'I_OF:S3:C1', b'0.5'], [b'C1', b'0.5'], [b'I_FOR:C1:S4', b'0.5'], [b'S4', b'0.5']]]]},
         {"step": "SWAP servers S2 and S4", "node":data, "command": "g swapkeys(S2,S4)", "expects": [b'No results!']},
