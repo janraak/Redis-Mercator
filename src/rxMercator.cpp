@@ -205,47 +205,56 @@ void freeSha1(rxString sha1)
 {
     rxStringFree(sha1);
 }
-#include <stdio.h>      
-#include <sys/types.h>
-#include <ifaddrs.h>
-#include <netinet/in.h> 
-#include <string.h> 
 #include <arpa/inet.h>
+#include <ifaddrs.h>
+#include <netinet/in.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/types.h>
 
-bool address_is_local(const char *address){
-    if(address == NULL)
+bool address_is_local(const char *address)
+{
+    if (address == NULL)
         return true;
     struct ifaddrs *ifAddrStruct = NULL;
-    struct ifaddrs * ifa=NULL;
-    void * tmpAddrPtr=NULL;
+    struct ifaddrs *ifa = NULL;
+    void *tmpAddrPtr = NULL;
     bool is_local = false;
     getifaddrs(&ifAddrStruct);
 
-    for (ifa = ifAddrStruct; ifa != NULL; ifa = ifa->ifa_next) {
-        if (!ifa->ifa_addr) {
+    for (ifa = ifAddrStruct; ifa != NULL; ifa = ifa->ifa_next)
+    {
+        if (!ifa->ifa_addr)
+        {
             continue;
         }
-        if (ifa->ifa_addr->sa_family == AF_INET) { // check it is IP4
+        if (ifa->ifa_addr->sa_family == AF_INET)
+        { // check it is IP4
             // is a valid IP4 Address
-            tmpAddrPtr=&((struct sockaddr_in *)ifa->ifa_addr)->sin_addr;
+            tmpAddrPtr = &((struct sockaddr_in *)ifa->ifa_addr)->sin_addr;
             char addressBuffer[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
-            if(strcmp(address, addressBuffer)){
+            if (strcmp(address, addressBuffer))
+            {
                 is_local = true;
                 break;
             }
-        } else if (ifa->ifa_addr->sa_family == AF_INET6) { // check it is IP6
+        }
+        else if (ifa->ifa_addr->sa_family == AF_INET6)
+        { // check it is IP6
             // is a valid IP6 Address
-            tmpAddrPtr=&((struct sockaddr_in6 *)ifa->ifa_addr)->sin6_addr;
+            tmpAddrPtr = &((struct sockaddr_in6 *)ifa->ifa_addr)->sin6_addr;
             char addressBuffer[INET6_ADDRSTRLEN];
             inet_ntop(AF_INET6, tmpAddrPtr, addressBuffer, INET6_ADDRSTRLEN);
-            if(strcmp(address, addressBuffer)){
+            if (strcmp(address, addressBuffer))
+            {
                 is_local = true;
                 break;
             }
-        } 
+        }
     }
-    if (ifAddrStruct!=NULL) freeifaddrs(ifAddrStruct);
+    if (ifAddrStruct != NULL)
+        freeifaddrs(ifAddrStruct);
     return is_local;
 }
 
@@ -289,8 +298,7 @@ std::string execWithPipe(const char *cmd, char *address)
                 if (b == NULL)
                     break;
                 result += b;
-            }
-            while(b != NULL);
+            } while (b != NULL);
         }
         pclose(pipe);
         if (result.length() > 0)
@@ -709,20 +717,67 @@ redisReply *FindInstanceGroup(const char *sha1, const char *fields = NULL);
 void LoanInstancesToController(redisContext *sub_controller, int no_of_instances);
 void *PropagateCommandToAllSubordinateControllers(CreateClusterAsync *multiplexer, bool async = false);
 
+typedef enum
+{
+    not_started,
+    attach_shadow,
+    wait_sync_complete,
+    clusters_swapped
+} tUpgradeStatus;
+
+class ReplicationGuard
+{
+public:
+    int no_of_replicas;
+    int retries;
+    size_t no_of_keys;
+    char *origin;
+    char *shadow;
+
+    void Init()
+    {
+        this->no_of_keys = 0;
+        this->no_of_replicas = 0;
+        this->retries = 0;
+    }
+
+    static ReplicationGuard *New(char *origin, char *shadow)
+    {
+        int l_origin = strlen(origin);
+        int l_shadow = strlen(shadow);
+        void *v = (ReplicationGuard *)rxMemAlloc(sizeof(ReplicationGuard) + l_origin + l_shadow + 2);
+        ReplicationGuard *g = (ReplicationGuard *)v;
+        g->Init();
+        g->origin = (char *)v + sizeof(ReplicationGuard);
+        strcpy(g->origin, origin);
+        g->shadow = g->origin + l_origin + 1;
+        strcpy(g->shadow, shadow);
+        return g;
+    }
+
+    static ReplicationGuard *Discard(ReplicationGuard *g){
+        rxMemFree(g);
+        return NULL;
+    }
+};
 class UpgradeClusterAync : public CreateClusterAsync
 {
 public:
     rxString clusterId = NULL;
+    rxString shadow = NULL;
     rxString redisVersion = NULL;
+    rxString org_redisVersion = NULL;
+    GraphStack<ReplicationGuard> guards;
+    tUpgradeStatus upgrade_status;
 
     UpgradeClusterAync(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         : CreateClusterAsync(ctx, argv, argc)
     {
-                size_t arg_len;
-        clusterId = rxStringNewLen ((char *)RedisModule_StringPtrLen(argv[1], &arg_len), arg_len);
-        redisVersion = rxStringNewLen ((char *)RedisModule_StringPtrLen(argv[2], &arg_len), arg_len);
+        size_t arg_len;
+        clusterId = rxStringNewLen((char *)RedisModule_StringPtrLen(argv[1], &arg_len), arg_len);
+        redisVersion = rxStringNewLen((char *)RedisModule_StringPtrLen(argv[2], &arg_len), arg_len);
+        this->upgrade_status = tUpgradeStatus::not_started;
     }
-
 
     ~UpgradeClusterAync()
     {
@@ -737,6 +792,24 @@ public:
 
     int Execute()
     {
+        switch (this->upgrade_status)
+        {
+        case tUpgradeStatus::not_started:
+        case attach_shadow:
+        case clusters_swapped:{
+            return -1;
+        }
+        case wait_sync_complete:
+        {
+            ReplicationGuard *guard = this->guards.Dequeue();
+            if (!guard)
+            {
+                return this->SwapClusters();
+            }
+            WaitForSync(guard);
+            return -1;
+        }
+        }
         return -1;
     };
 
@@ -745,7 +818,6 @@ public:
         this->state = Multiplexer::done;
         return NULL;
     }
-
 
     /*
         1) Find controller for clusterid
@@ -761,14 +833,87 @@ public:
            e) Swap shadow cluster and original registry entries
            f) fail over to the shadow cluster which by now is the upgraded cluster
     */
+    const char *connected_slaves = "connected_slaves:*";
+    const char *keys = "keys=";
+
+    size_t Parse_KeySpace(redisReply *rcc){
+            char *lines[20];
+            int max_lines = sizeof(lines) / sizeof(char *);
+                breakupPointer(rcc->str, '\r', lines, max_lines);
+                for (int n = 0; n < max_lines; ++n)
+                {
+                    int adjustment = 1;
+                    if (lines[n] == NULL)
+                        break;
+                    if (*lines[n] == '\r')
+                        ++adjustment;
+                    char *k = strstr(lines[n] + adjustment, keys);
+                    if (k)
+                    {
+                        return atol(k + strlen(keys));
+                    }
+                }
+                return 0;
+    }
+    
+    void GetNumberOfReplicasAndKeysFromOrigin(char *origin_node, char *shadow_node)
+    {
+        auto *redis_node = RedisClientPool<redisContext>::Acquire(origin_node, "_CONTROLLER", "EXEC_ORIGIN");
+        if (redis_node != NULL)
+        {
+            redisReply *rcc = (redisReply *)redisCommand(redis_node, "INFO REPLICATION");
+            char *lines[20];
+            int max_lines = sizeof(lines) / sizeof(char *);
+            ReplicationGuard *guard = ReplicationGuard::New(origin_node, shadow_node);
+            if (rcc && rcc->type == REDIS_REPLY_STRING)
+            {
+                breakupPointer(rcc->str, '\r', lines, max_lines);
+                for (int n = 0; n < max_lines; ++n)
+                {
+                    int adjustment = 1;
+                    if (lines[n] == NULL)
+                        break;
+                    if (*lines[n] == '\r')
+                        ++adjustment;
+                    if (rxStringMatch(connected_slaves, lines[n] + adjustment, MATCH_IGNORE_CASE))
+                    {
+                        guard->no_of_replicas = atoi(lines[n] + strlen(connected_slaves) - 1);
+                    }
+                }
+
+                freeReplyObject(rcc);
+            }
+            rcc = (redisReply *)redisCommand(redis_node, "INFO KEYSPACE");
+            if (rcc && rcc->type == REDIS_REPLY_STRING)
+            {
+                guard->no_of_keys += Parse_KeySpace(rcc);
+                freeReplyObject(rcc);
+            }
+            RedisClientPool<redisContext>::Release(redis_node, "EXEC_ORIGIN");
+            ReplicationGuard *peek = this->guards.Peek();
+            if (peek == NULL || peek->no_of_keys < guard->no_of_keys)
+                this->guards.Add(guard);
+            else
+                this->guards.Push(guard);
+        }
+    }
+
     void *Upgrade()
     {
+        this->upgrade_status = attach_shadow;        
         rxString cmd = rxStringFormat("mercator.create.cluster %s%s REDIS %s", this->clusterId, this->redisVersion, this->redisVersion);
         redisReply *nodes = ExecuteLocal(cmd, LOCAL_FREE_CMD);
         if (nodes->type == REDIS_REPLY_STRING)
         {
-            rxString shadow = rxStringNewLen(nodes->str, nodes->len);
-            cmd = rxStringFormat("mercator.start.cluster %s", shadow);
+            this->shadow = rxStringNewLen(nodes->str, nodes->len);
+            cmd = rxStringFormat("RXGET \"G:V('%s')\".select('redis')");
+            auto org_redisVersion = ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
+            if(org_redisVersion){
+                this->org_redisVersion = rxString(org_redisVersion->element[0]->element[5]->element[0]->str);
+                freeReplyObject(org_redisVersion);
+            }
+
+            cmd = rxStringFormat("mercator.start.cluster %s", this->shadow);
             ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
             redisReply *origin = FindInstanceGroup(this->clusterId, "address,port,role,shard,order");
             if (origin->type == REDIS_REPLY_ARRAY)
@@ -783,36 +928,111 @@ public:
                     char *role = rowFields->element[5]->str;
                     char *shard = rowFields->element[7]->str;
                     char *order = rowFields->element[9]->str;
+                    char origin_node[24];
+                    snprintf(origin_node, sizeof(origin_node), "%s:%d", address, port);
 
                     cmd = rxStringFormat("rxget \"g:v(instance).has(owner, '%s').has(role,%s).has(shard,%s).has(order,%s).select(address,port)\"",
-                                         shadow, role, shard, order);
+                                         this->shadow, role, shard, order);
                     redisReply *replica = ExecuteLocal(cmd, LOCAL_FREE_CMD);
                     if (replica->type == REDIS_REPLY_ARRAY)
                     {
                         // Attach shadow as replica to the origin
-                            redisReply *row = replica->element[0];
-                            redisReply *rowFields = row->element[5];
-                            char *r_address = rowFields->element[1]->str;
-                            int r_port = atoi(rowFields->element[3]->str);
+                        redisReply *row = replica->element[0];
+                        redisReply *rowFields = row->element[5];
+                        char *r_address = rowFields->element[1]->str;
+                        int r_port = atoi(rowFields->element[3]->str);
 
-                            char node[24];
-                            snprintf(node, sizeof(node), "%s:%d", r_address, r_port);
-                            char attach[128];
-                            snprintf(attach, sizeof(attach), "REPLICAOF %s %d", address, port);
-                            auto *redis_node = RedisClientPool<redisContext>::Acquire(node, "_CONTROLLER", "EXEC_REMOTE");
-                            if (redis_node != NULL)
-                            {
-                                redisReply *rcc = (redisReply *)redisCommand(redis_node, attach);
-                                freeReplyObject(rcc);
-                                RedisClientPool<redisContext>::Release(redis_node, "EXEC_REMOTE");
-                            }
+                        char node[24];
+                        snprintf(node, sizeof(node), "%s:%d", r_address, r_port);
+                        char attach[128];
+                        snprintf(attach, sizeof(attach), "REPLICAOF %s %d", address, port);
+                        auto *redis_node = RedisClientPool<redisContext>::Acquire(node, "_CONTROLLER", "EXEC_REMOTE");
+                        if (redis_node != NULL)
+                        {
+                            redisReply *rcc = (redisReply *)redisCommand(redis_node, attach);
+                            freeReplyObject(rcc);
+                            RedisClientPool<redisContext>::Release(redis_node, "EXEC_REMOTE");
+                        }
+                        GetNumberOfReplicasAndKeysFromOrigin(origin_node, node);
+                        
                     }
                 }
             }
         }
         freeReplyObject(nodes);
 
+        this->upgrade_status = wait_sync_complete;
+
+        while (guards.HasEntries())
+        {
+            ReplicationGuard *guard = this->guards.Dequeue();
+            WaitForSync(guard);
+        }
+        this->SwapClusters();
+
         return NULL;
+    }
+
+    int WaitForSync(ReplicationGuard *guard)
+    {
+        auto *redis_node = RedisClientPool<redisContext>::Acquire(guard->origin, "_CONTROLLER", "EXEC_ORIGIN");
+        if (redis_node != NULL)
+        {
+            char cmd[256];
+            snprintf(cmd, sizeof(cmd), "WAIT %d %ld", guard->no_of_replicas, guard->no_of_keys / 1000);
+            redisReply *rcc = (redisReply *)redisCommand(redis_node, cmd);
+            if (rcc)
+            {
+                auto *shadow_node = RedisClientPool<redisContext>::Acquire(guard->shadow, "_CONTROLLER", "EXEC_SHADOW");
+                if (shadow_node != NULL)
+                {
+                    redisReply *srcc = (redisReply *)redisCommand(shadow_node, "INFO KEYSPACE");
+                    if (guard->no_of_keys == Parse_KeySpace(srcc))
+                    {
+                        ReplicationGuard::Discard(guard);
+                        rxString cmd = rxStringFormat("FAILOVER TO %s", guard->shadow);
+                        char *colon = strchr((char*)cmd, ':');
+                        if(colon)
+                            *colon = ' ';
+                        redisReply *frcc = (redisReply *)redisCommand(redis_node, cmd);
+                        freeReplyObject(frcc);
+                        frcc = (redisReply *)redisCommand(redis_node, "SHUTDOWN NOW");
+                        freeReplyObject(frcc);
+                        rxStringFree(cmd);
+                    }
+                    else
+                    {
+                        guard->retries++;
+                        this->guards.Push(guard);
+                    }
+                    freeReplyObject(srcc);
+                    RedisClientPool<redisContext>::Release(shadow_node, "EXEC_SHADOW");
+                }
+
+                freeReplyObject(rcc);
+            }
+            RedisClientPool<redisContext>::Release(redis_node, "EXEC_ORIGIN");
+        }
+
+        return -1;
+    }
+
+    int SwapClusters()
+    {
+         rxString temp_sha1 = getSha1("ss", this->clusterId, this->shadow);
+         rxString cmd = rxStringFormat("RXQUERY \"G:V(instance).has(owner,'%s').property(owner,'%s').V(instance).has(owner,'%s').property(owner,'%s').V(instance).has(owner,'%s').property(owner,'%s')\"", 
+            this->clusterId, temp_sha1,
+            this->shadow, this->clusterId, 
+            temp_sha1, this->shadow
+         );
+         ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
+         cmd = rxStringFormat("RXQUERY \"G:V('%s').property('redis','%s').V('%s').property('redis','%s')\"", this->clusterId, this->redisVersion, this->shadow, this->org_redisVersion);
+         ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
+         cmd = rxStringFormat("MERCATOR.INFO.CLUSTER %s", this->clusterId);
+         redisReply *rcc = ExecuteLocal(cmd, LOCAL_FREE_CMD);
+         this->result_text = rcc->str;
+         freeReplyObject(rcc);
+         return -1;
     }
 };
 
@@ -1521,7 +1741,7 @@ void *ClusterStartAsync_Go(void *privData)
         return multiplexer->StopThread();
     }
 
-    start_cluster(multiplexer->ctx, (char*)sha1);
+    start_cluster(multiplexer->ctx, (char *)sha1);
     multiplexer->result_text = sha1;
     return multiplexer->StopThread();
 }
@@ -1749,7 +1969,7 @@ void propagateCommandAsyncCompletion(redisAsyncContext *, void *r, void *)
 void *PropagateCommandToAllSubordinateControllers(CreateClusterAsync *multiplexer, bool async)
 {
     auto *rcc = ExecuteLocal(FIND_SUBCONTROLLERS, LOCAL_STANDARD);
-    if(rcc->elements == 0)
+    if (rcc->elements == 0)
     {
         freeReplyObject(rcc);
         return NULL;
@@ -1912,7 +2132,8 @@ void *InstallRedisAsync_Go(void *privData)
     multiplexer->state = Multiplexer::running;
 
     auto redis_version = multiplexer->GetArgument(1);
-    if(rxStringMatch(REDIS_VERSION, redis_version, 1)){
+    if (rxStringMatch(REDIS_VERSION, redis_version, 1))
+    {
         multiplexer->result_text = rxStringNew("Can not reinstalling running Redis version!");
         return multiplexer->StopThread();
     }
@@ -1922,7 +2143,7 @@ void *InstallRedisAsync_Go(void *privData)
     int rv_r = 0;
 
     char *dots[4];
-    breakupPointer((char*)redis_version, '.', dots, 4);
+    breakupPointer((char *)redis_version, '.', dots, 4);
     rv_v = toInt(dots, 0, 1);
     rv_sv = toInt(dots, 1, 2);
     rv_r = toInt(dots, 2, 3);
@@ -2014,7 +2235,7 @@ void *GetRedisAndMercatorStatusAsync_Go(void *privData)
             n++;
         }
     }
-    //TODO: multiplexer->InterrogateServerStatus(NULL);
+    // TODO: multiplexer->InterrogateServerStatus(NULL);
 
     return multiplexer->StopThread();
 }
@@ -2036,7 +2257,6 @@ void *UpgradeClusterAync_Go(void *privData)
 {
     auto *multiplexer = (UpgradeClusterAync *)privData;
     multiplexer->state = Multiplexer::running;
-
 
     rxString cmd = rxStringFormat("rxget \"g:v('%s').select('redis')\"", multiplexer->clusterId);
     redisReply *nodes = ExecuteLocal(cmd, LOCAL_FREE_CMD);
@@ -2066,8 +2286,6 @@ int rx_upgrade_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 
     auto *multiplexer = new UpgradeClusterAync(ctx, argv, argc);
     multiplexer->Async(ctx, UpgradeClusterAync_Go);
-
-
 
     return C_OK;
 }
@@ -2239,7 +2457,7 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         RedisModule_CreateCommand(ctx, "mercator.instance.status", rx_healthcheck, "admin write", 0, 0, 0);
         libpath = getenv("LD_LIBRARY_PATH");
         if (libpath)
-        startClientMonitor();
+            startClientMonitor();
     }
     else
     {
@@ -2300,7 +2518,6 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         libpath = getenv("LD_LIBRARY_PATH");
         startInstanceMonitor();
     }
-
 
     return REDISMODULE_OK;
 }

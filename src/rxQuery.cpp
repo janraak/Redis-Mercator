@@ -308,7 +308,7 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     rxString cmd = (char *)rxGetContainedObject(argv[0]);
     const char *target_setname = NULL;
     rxStringToUpper(cmd);
-    int fetch_rows = strcmp(RX_GET, cmd) == 0 ? 1 : strcmp("Q", cmd) == 0 ? 1 : 0;
+    int fetch_rows = strcmp(RX_GET, cmd) == 0 ? 1 : strcmp("Q", cmd) == 0 ? 1 : strcmp("G", cmd) == 0 ? 1 : 0;
     rxString query = rxStringEmpty();
     rxString sv_query;
     bool ranked = false;
@@ -383,7 +383,11 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         const char *g = strstr(query, "g:");
         if (g == NULL)
             g = strstr(query, "G:");
-        if (g != NULL)
+        if (strcmp("G", cmd) == 0)
+        {
+            parser = GremlinDialect::Get("GremlinDialect");
+        }
+        else if (g != NULL || strcmp("G", cmd) == 0)
         {
             parser = GremlinDialect::Get("GremlinDialect");
             query = g + strlen(GREMLIN_PREFX);
@@ -593,6 +597,9 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
                                   executeQueryCommand, "readonly write", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "Q",
+                                  executeQueryCommand, "readonly write", 0, 0, 0) == REDISMODULE_ERR)
+        return REDISMODULE_ERR;
+    if (RedisModule_CreateCommand(ctx, "G",
                                   executeQueryCommand, "readonly write", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
