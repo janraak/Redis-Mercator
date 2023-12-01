@@ -1074,7 +1074,7 @@ public:
                             if (colon)
                                 *colon = ' ';
                             redisReply *forcc = (redisReply *)redisCommand(redis_node, cmd);
-                            redisReply *srcc = (redisReply *)redisCommand(redis_node, "SHUTDOWN NOW");
+                            redisReply *srcc = (redisReply *)redisCommand(redis_node, "SHUTDOWN ");
                             rxStringFree(cmd);
                             rxServerLog(rxLL_NOTICE, "Synced for Shadow instance %s to be fully synced with %s (%d replicas, %ld keys, %d retries), FAILOVER=%s, SHUTDOWN=%s",
                                         guard->shadow, guard->origin,

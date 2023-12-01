@@ -13,8 +13,6 @@ def column(matrix, i):
 def reconnect(connection):
     cluster_info = json.loads(connection["controller"].execute_command(
         "mercator.info.cluster", connection["cluster_id"]).decode('utf-8'))
-    cluster_info = json.loads(connection["controller"].execute_command(
-        "mercator.info.cluster", connection["cluster_id"]).decode('utf-8'))
     print((Style.RESET_ALL+Fore.BLUE + Back.CYAN + "{}"+Style.RESET_ALL).format(cluster_info))
     for node in cluster_info["nodes"]:
         if node["role"] == "data":

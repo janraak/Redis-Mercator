@@ -51,7 +51,7 @@ while True:
     except:
         pass
 
-print("Current db folder: {}".format(redis_client.execute_command("CONFIG SET DIR {}".format(wd)))
+print("Current db folder: {}".format(redis_client.execute_command("CONFIG GET DIR {}".format(wd))))
 redis_client.execute_command("CONFIG SET DIR {}".format(wd))
 
 if role == 'data':
