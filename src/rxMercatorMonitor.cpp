@@ -129,10 +129,7 @@ void *RXQUERY = rxCreateStringObject(RXQUERY_cmd, strlen(RXQUERY_cmd));
                              ".property(HEALTH_AVG_bytes_per_key_0,'%lld')"            \
                              "\""
 
-#define UPDATE_SHIFT_STATS "RXQUERY \""                                                                           \
-                           "g:"                                                                                   \
-#define UPDATE_SHIFT_STATS "RXQUERY \""                                                                           \
-                           "g:"                                                                                   \
+#define UPDATE_SHIFT_STATS "G "                                                                                   \
                            "v('%s'}"                                                                              \
                            ".HASNOT(STATUS,DESTROYED)"                                                            \
                            ".HASNOT(STATUS,KILLED)"                                                            \
