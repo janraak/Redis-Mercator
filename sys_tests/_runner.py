@@ -14,6 +14,7 @@ import sys
 import os
 import inspect
 from inspect import getmembers, isfunction
+from colorama import Fore, Back, Style
 
 global redis_path
 global dataset1
@@ -156,6 +157,7 @@ def create_cluster(redis_client):
     redis_client.execute_command("mercator.start.cluster", cluster_id)
     cluster_info = json.loads(redis_client.execute_command(
         "mercator.info.cluster", cluster_id).decode('utf-8'))
+    print((Style.RESET_ALL+Fore.YELLOW + Back.CYAN + "{}"+Style.RESET_ALL).format(cluster_info))
     info = {"cluster_id": cluster_id}
     for node in cluster_info["nodes"]:
         if node["role"] == "data":
@@ -190,6 +192,8 @@ def run_test(scenario, cluster_id, controller, data_node, index_node, flushall =
         fnc(cluster_id, controller, data_node, index_node)   
         print("succeded")    
     except Exception as ex:
+        if("{}".format(ex) == 'Reconnect'):
+            raise
         print(" failed, error: {}".format(ex))
 
 def my_import(name):    
@@ -224,11 +228,25 @@ def main(argv):
                                         data_node, index_node, False)
                     flushall = False
             for scenario in file:
-                print("test: {}", scenario[0])
                 if not ("setup" in scenario[0]):
-                    print("execute test: {}", scenario[0])
-                    run_test(scenario, cluster_id, controller,
-                                        data_node, index_node, flushall)
+                    print((Style.RESET_ALL+Fore.WHITE + Back.BLUE + "test: {} data:{} index:{}"+Style.RESET_ALL).format(scenario[0],data_node,index_node))
+                    print("execute test: {}", format( scenario[0]))
+                    try:
+                        run_test(scenario, cluster_id, controller,
+                                            data_node, index_node, flushall)
+                    except Exception as ex:
+                        print((Style.RESET_ALL+Fore.WHITE + Back.RED + "exception:{}"+Style.RESET_ALL).format(ex))
+                        if str(ex) == "Reconnect":
+                            print((Style.RESET_ALL+Fore.WHITE + Back.RED + "before reconnect data:{} index:{}"+Style.RESET_ALL).format(scenario[0],data_node,index_node))
+                            index_node.close()
+                            data_node.close()
+                            cluster_info = None
+                            cluster_info = create_cluster(controller)
+                            #pdb.set_trace()
+                            data_node = connect_to_redis(cluster_info["data"])
+                            index_node = connect_to_redis(cluster_info["index"])
+                            print((Style.RESET_ALL+Fore.WHITE + Back.RED + "AFTER reconnect data:{} index:{}"+Style.RESET_ALL).format(scenario[0],data_node,index_node))
+                            pass
 
     index_node.close()
     data_node.close()

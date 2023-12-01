@@ -206,7 +206,12 @@ void freeSha1(rxString sha1)
     rxStringFree(sha1);
 }
 #include <arpa/inet.h>
+#include <arpa/inet.h>
 #include <ifaddrs.h>
+#include <netinet/in.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/types.h>
 #include <netinet/in.h>
 #include <stdio.h>
 #include <string.h>
@@ -755,7 +760,8 @@ public:
         return g;
     }
 
-    static ReplicationGuard *Discard(ReplicationGuard *g){
+    static ReplicationGuard *Discard(ReplicationGuard *g)
+    {
         rxMemFree(g);
         return NULL;
     }
@@ -766,16 +772,37 @@ public:
     rxString clusterId = NULL;
     rxString shadow = NULL;
     rxString redisVersion = NULL;
+    int redisVersion_num = 0;
     rxString org_redisVersion = NULL;
+    int org_redisVersion_num = 0;
     GraphStack<ReplicationGuard> guards;
     tUpgradeStatus upgrade_status;
+
+    int AsNumber(const char *version){
+        char *dots[4];
+        breakupPointer((char *)version, '.', dots, sizeof(dots) / sizeof(char *));
+        char n[16];
+        strncpy(n, dots[0], dots[1] - dots[0]);
+        n[dots[1] - dots[0]] = 0x00;
+        int number = atoi(n);
+        strncpy(n, dots[1] + 1, dots[2] - dots[1] - 1);
+        n[dots[2] - dots[1] - 1] = 0x00;
+        number = (number << 8) +atoi(n);
+        return number;
+    }
 
     UpgradeClusterAync(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         : CreateClusterAsync(ctx, argv, argc)
     {
         size_t arg_len;
-        clusterId = rxStringNewLen((char *)RedisModule_StringPtrLen(argv[1], &arg_len), arg_len);
-        redisVersion = rxStringNewLen((char *)RedisModule_StringPtrLen(argv[2], &arg_len), arg_len);
+        if(argc != 3){
+            this->result_text = "Invalid command, syntax: mercator.upgrade.cluster %CLUSTERID% %REDISVERSION%";
+            this->StopThread();
+            return;
+        }
+        this->clusterId = rxStringDup((char *)RedisModule_StringPtrLen(argv[1], &arg_len));
+        this->redisVersion = rxStringDup((char *)RedisModule_StringPtrLen(argv[2], &arg_len));
+        this->redisVersion_num = this->AsNumber(this->redisVersion);
         this->upgrade_status = tUpgradeStatus::not_started;
     }
 
@@ -783,6 +810,8 @@ public:
     {
         rxStringFree(this->clusterId);
         rxStringFree(this->redisVersion);
+        rxStringFree(this->org_redisVersion);
+        rxStringFree(this->shadow);
     }
 
     int Done()
@@ -796,7 +825,8 @@ public:
         {
         case tUpgradeStatus::not_started:
         case attach_shadow:
-        case clusters_swapped:{
+        case clusters_swapped:
+        {
             return -1;
         }
         case wait_sync_complete:
@@ -833,29 +863,43 @@ public:
            e) Swap shadow cluster and original registry entries
            f) fail over to the shadow cluster which by now is the upgraded cluster
     */
+    const char *node_role = "role:*";
     const char *connected_slaves = "connected_slaves:*";
     const char *keys = "keys=";
 
-    size_t Parse_KeySpace(redisReply *rcc){
-            char *lines[20];
-            int max_lines = sizeof(lines) / sizeof(char *);
-                breakupPointer(rcc->str, '\r', lines, max_lines);
-                for (int n = 0; n < max_lines; ++n)
-                {
-                    int adjustment = 1;
-                    if (lines[n] == NULL)
-                        break;
-                    if (*lines[n] == '\r')
-                        ++adjustment;
-                    char *k = strstr(lines[n] + adjustment, keys);
-                    if (k)
-                    {
-                        return atol(k + strlen(keys));
-                    }
-                }
-                return 0;
+    size_t Parse_KeySpace(redisReply *rcc)
+    {
+        char *lines[20];
+        int max_lines = sizeof(lines) / sizeof(char *);
+        breakupPointer(rcc->str, '\r', lines, max_lines);
+        for (int n = 0; n < max_lines; ++n)
+        {
+            int adjustment = 1;
+            if (lines[n] == NULL)
+                break;
+            if (*lines[n] == '\r')
+                ++adjustment;
+            char *k = strstr(lines[n] + adjustment, keys);
+            if (k)
+            {
+                return atol(k + strlen(keys));
+            }
+        }
+        return 0;
     }
-    
+
+    bool isNodeInRole(redisContext *redis_node, const char *role)
+    {
+        redisReply *rcc = (redisReply *)redisCommand(redis_node, "INFO REPLICATION");
+        if (rcc && rcc->type == REDIS_REPLY_STRING)
+        {
+            bool inRole = (rxStringMatch(role, rcc->str, MATCH_IGNORE_CASE));
+            freeReplyObject(rcc);
+            return inRole;
+        }
+        return false;
+    }
+
     void GetNumberOfReplicasAndKeysFromOrigin(char *origin_node, char *shadow_node)
     {
         auto *redis_node = RedisClientPool<redisContext>::Acquire(origin_node, "_CONTROLLER", "EXEC_ORIGIN");
@@ -878,6 +922,8 @@ public:
                     if (rxStringMatch(connected_slaves, lines[n] + adjustment, MATCH_IGNORE_CASE))
                     {
                         guard->no_of_replicas = atoi(lines[n] + strlen(connected_slaves) - 1);
+                        if(guard->no_of_replicas == 0)
+                            guard->no_of_replicas = 1;
                     }
                 }
 
@@ -900,18 +946,24 @@ public:
 
     void *Upgrade()
     {
-        this->upgrade_status = attach_shadow;        
-        rxString cmd = rxStringFormat("mercator.create.cluster %s%s REDIS %s", this->clusterId, this->redisVersion, this->redisVersion);
+        rxString cmd = rxStringFormat("RXGET \"G:V('%s').select('redis')\"", this->clusterId);
+        redisReply *org_redisVersion = ExecuteLocal(cmd, LOCAL_FREE_CMD);
+        if (org_redisVersion)
+        {
+            this->org_redisVersion = rxStringDup(org_redisVersion->element[0]->element[5]->element[1]->str);
+            this->org_redisVersion_num = this->AsNumber(this->org_redisVersion);
+
+            freeReplyObject(org_redisVersion);
+        }
+        rxServerLog(rxLL_NOTICE, "Upgrading cluster %s from Redis %s to %s", this->clusterId, this->org_redisVersion, this->redisVersion);
+
+        this->upgrade_status = attach_shadow;
+        cmd = rxStringFormat("mercator.create.cluster %s%s REDIS %s", this->clusterId, this->redisVersion, this->redisVersion);
         redisReply *nodes = ExecuteLocal(cmd, LOCAL_FREE_CMD);
         if (nodes->type == REDIS_REPLY_STRING)
         {
             this->shadow = rxStringNewLen(nodes->str, nodes->len);
-            cmd = rxStringFormat("RXGET \"G:V('%s')\".select('redis')");
-            auto org_redisVersion = ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
-            if(org_redisVersion){
-                this->org_redisVersion = rxString(org_redisVersion->element[0]->element[5]->element[0]->str);
-                freeReplyObject(org_redisVersion);
-            }
+            rxServerLog(rxLL_NOTICE, "Shadow cluster %s using Redis %s for %s", this->shadow, this->redisVersion, this->clusterId);
 
             cmd = rxStringFormat("mercator.start.cluster %s", this->shadow);
             ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
@@ -954,7 +1006,8 @@ public:
                             RedisClientPool<redisContext>::Release(redis_node, "EXEC_REMOTE");
                         }
                         GetNumberOfReplicasAndKeysFromOrigin(origin_node, node);
-                        
+
+                        rxServerLog(rxLL_NOTICE, "Attached Shadow instance %s to %s as replica", node, origin_node);
                     }
                 }
             }
@@ -979,7 +1032,7 @@ public:
         if (redis_node != NULL)
         {
             char cmd[256];
-            snprintf(cmd, sizeof(cmd), "WAIT %d %ld", guard->no_of_replicas, guard->no_of_keys / 1000);
+            snprintf(cmd, sizeof(cmd), "WAIT %d %ld", guard->no_of_replicas, guard->no_of_keys ? guard->no_of_keys / 1000 : 1000);
             redisReply *rcc = (redisReply *)redisCommand(redis_node, cmd);
             if (rcc)
             {
@@ -987,22 +1040,58 @@ public:
                 if (shadow_node != NULL)
                 {
                     redisReply *srcc = (redisReply *)redisCommand(shadow_node, "INFO KEYSPACE");
-                    if (guard->no_of_keys == Parse_KeySpace(srcc))
+                    if (guard->no_of_keys == Parse_KeySpace(srcc) || guard->retries > 32)
                     {
+                        /* FAILOVER Command as of Redis 6.2.0 */
+                        if (this->redisVersion_num >= 0x602 && this->org_redisVersion_num >= 0x602)
+                        {
+                            rxString cmd = rxStringFormat("FAILOVER TO %s", guard->shadow);
+                            char *colon = strchr((char *)cmd, ':');
+                            if (colon)
+                                *colon = ' ';
+                            redisReply *frcc = (redisReply *)redisCommand(redis_node, cmd);
+                            auto start = mstime();
+                            while (!isNodeInRole(redis_node, "*role:slave*") && !isNodeInRole(shadow_node, "*role:master*"))
+                            {
+                                if (mstime() - start > 60 * 1000 /* 1 minute*/)
+                                    break;
+                                sched_yield();
+                            }
+                            redisReply *srcc = (redisReply *)redisCommand(redis_node, "SHUTDOWN NOW");
+                            rxStringFree(cmd);
+                            rxServerLog(rxLL_NOTICE, "Synced for Shadow instance %s to be fully synced with %s (%d replicas, %ld keys, %d retries), FAILOVER=%s, SHUTDOWN=%s",
+                                        guard->shadow, guard->origin,
+                                        guard->no_of_replicas, guard->no_of_keys, guard->retries,
+                                        frcc ? frcc->str : "?", srcc ? srcc->str : redis_node->errstr);
+                            freeReplyObject(frcc);
+                            freeReplyObject(srcc);
+                        }
+                        else
+                        {
+                            redisReply *frcc = (redisReply *)redisCommand(shadow_node, "REPLICAOF NO ONE");
+                            rxString cmd = rxStringFormat("REPLICAOF %s", guard->shadow);
+                            char *colon = strchr((char *)cmd, ':');
+                            if (colon)
+                                *colon = ' ';
+                            redisReply *forcc = (redisReply *)redisCommand(redis_node, cmd);
+                            redisReply *srcc = (redisReply *)redisCommand(redis_node, "SHUTDOWN NOW");
+                            rxStringFree(cmd);
+                            rxServerLog(rxLL_NOTICE, "Synced for Shadow instance %s to be fully synced with %s (%d replicas, %ld keys, %d retries), FAILOVER=%s, SHUTDOWN=%s",
+                                        guard->shadow, guard->origin,
+                                        guard->no_of_replicas, guard->no_of_keys, guard->retries,
+                                        frcc ? frcc->str : "?", srcc ? srcc->str : redis_node->errstr);
+                            freeReplyObject(forcc);
+                            freeReplyObject(frcc);
+                            freeReplyObject(srcc);
+                        }
                         ReplicationGuard::Discard(guard);
-                        rxString cmd = rxStringFormat("FAILOVER TO %s", guard->shadow);
-                        char *colon = strchr((char*)cmd, ':');
-                        if(colon)
-                            *colon = ' ';
-                        redisReply *frcc = (redisReply *)redisCommand(redis_node, cmd);
-                        freeReplyObject(frcc);
-                        frcc = (redisReply *)redisCommand(redis_node, "SHUTDOWN NOW");
-                        freeReplyObject(frcc);
-                        rxStringFree(cmd);
                     }
                     else
                     {
                         guard->retries++;
+                        rxServerLog(rxLL_NOTICE, "Waiting for Shadow instance %s to be fully synced with %s (%d replicas, %ld keys, %d retries)",
+                                    guard->shadow, guard->origin,
+                                    guard->no_of_replicas, guard->no_of_keys, guard->retries);
                         this->guards.Push(guard);
                     }
                     freeReplyObject(srcc);
@@ -1014,25 +1103,33 @@ public:
             RedisClientPool<redisContext>::Release(redis_node, "EXEC_ORIGIN");
         }
 
+
         return -1;
     }
 
     int SwapClusters()
     {
-         rxString temp_sha1 = getSha1("ss", this->clusterId, this->shadow);
-         rxString cmd = rxStringFormat("RXQUERY \"G:V(instance).has(owner,'%s').property(owner,'%s').V(instance).has(owner,'%s').property(owner,'%s').V(instance).has(owner,'%s').property(owner,'%s')\"", 
-            this->clusterId, temp_sha1,
-            this->shadow, this->clusterId, 
-            temp_sha1, this->shadow
-         );
-         ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
-         cmd = rxStringFormat("RXQUERY \"G:V('%s').property('redis','%s').V('%s').property('redis','%s')\"", this->clusterId, this->redisVersion, this->shadow, this->org_redisVersion);
-         ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
-         cmd = rxStringFormat("MERCATOR.INFO.CLUSTER %s", this->clusterId);
-         redisReply *rcc = ExecuteLocal(cmd, LOCAL_FREE_CMD);
-         this->result_text = rcc->str;
-         freeReplyObject(rcc);
-         return -1;
+        rxServerLog(rxLL_NOTICE, "Swap instance ownership between %s and %s", this->clusterId, this->shadow);
+        rxString temp_sha1 = getSha1("ss", this->clusterId, this->shadow);
+        rxString cmd = rxStringFormat("RXQUERY \"G:V(instance).has(owner,'%s').property(owner,'%s').V(instance).has(owner,'%s').property(owner,'%s').V(instance).has(owner,'%s').property(owner,'%s')\"",
+                                      this->clusterId, temp_sha1,
+                                      this->shadow, this->clusterId,
+                                      temp_sha1, this->shadow);
+        rxServerLog(rxLL_NOTICE, "%s", cmd);
+        ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
+        rxServerLog(rxLL_NOTICE, "Swap cluster redisversion between %s %s and %s %s", this->clusterId, this->org_redisVersion, this->shadow, this->redisVersion);
+        cmd = rxStringFormat("RXQUERY \"G:V('%s').property('redis','%s').V('%s').property('redis','%s')\"", this->clusterId, this->redisVersion, this->shadow, this->org_redisVersion);
+        rxServerLog(rxLL_NOTICE, "%s", cmd);
+        ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
+        cmd = rxStringFormat("MERCATOR.STOP.CLUSTER %s", this->shadow);
+        redisReply *rcc = ExecuteLocal(cmd, LOCAL_FREE_CMD);
+        cmd = rxStringFormat("MERCATOR.DESTROY.CLUSTER %s", this->shadow);
+        rcc = ExecuteLocal(cmd, LOCAL_FREE_CMD);
+        cmd = rxStringFormat("MERCATOR.INFO.CLUSTER %s", this->clusterId);
+        rcc = ExecuteLocal(cmd, LOCAL_FREE_CMD);
+        this->result_text = rxStringFormat("Cluster %s is now running Redis version %s, all clients must reconnect, cluster info: %s", this->clusterId, this->redisVersion, rcc->str);
+        freeReplyObject(rcc);
+        return -1;
     }
 };
 
@@ -1757,16 +1854,26 @@ int rx_start_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 
 int clusterKillOperationProc(RedisModuleCtx *, redisContext *redis_node, char *, const char *, char *, void *)
 {
-    redisReply *rcc = (redisReply *)redisCommand(redis_node, "SHUTDOWN");
-    freeReplyObject(rcc);
-    return C_OK;
+    if (redis_node)
+    {
+        redisReply *rcc = (redisReply *)redisCommand(redis_node, "SHUTDOWN");
+        freeReplyObject(rcc);
+        return C_OK;
+    }
+    else
+        return C_ERR;
 }
 
 int clusterStopOperationProc(RedisModuleCtx *, redisContext *redis_node, char *, const char *, char *, void *)
 {
-    redisReply *rcc = (redisReply *)redisCommand(redis_node, "SHUTDOWN");
-    freeReplyObject(rcc);
-    return C_OK;
+    if (redis_node)
+    {
+        redisReply *rcc = (redisReply *)redisCommand(redis_node, "SHUTDOWN");
+        freeReplyObject(rcc);
+        return C_OK;
+    }
+    else
+        return C_ERR;
 }
 
 int clusterSnapshotOperationProc(RedisModuleCtx *, redisContext *redis_node, char *, const char *, char *, void *)

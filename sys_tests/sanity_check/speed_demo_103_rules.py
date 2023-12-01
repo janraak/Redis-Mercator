@@ -11,7 +11,6 @@ def column(matrix, i):
     return [row[i] for row in matrix]
 
 def SD_103_Business_Rules_and_or_Triggers(cluster_id, controller, data, index):
-    # pdb.set_trace()
     succes_tally = 0
     reset_match_calls()
     succes_tally += match("get dataset",data.execute_command("g.wget", "https://roxoft.dev/assets/bedrock1.txt").decode(), 

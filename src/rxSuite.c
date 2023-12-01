@@ -5,55 +5,12 @@ extern "C"
 {
 #endif
 #include "../../src/server.h"
-#define REDISMODULE_EXPERIMENTAL_API
-#include "../../src/redismodule.h"
 
 #ifdef __cplusplus
 }
 #endif
 
 #define rxUNUSED(x) (void)(x)
-
-// uint64_t tokenSdsHash(const void *key)
-// {
-//     return dictGenHashFunction((unsigned char *)key, sdslen((char *)key));
-// }
-
-// int tokenSdsKeyCompare(void *privdata, const void *key1,
-//                        const void *key2)
-// {
-//     int l1, l2;
-//     DICT_NOTUSED(privdata);
-
-//     l1 = sdslen((sds)key1);
-//     l2 = sdslen((sds)key2);
-//     if (l1 != l2)
-//         return 0;
-//     return memcmp(key1, key2, l1) == 0;
-// }
-
-// void tokenSdsDestructor(void *privdata, void *val)
-// {
-//     DICT_NOTUSED(privdata);
-
-//     sdsfree(val);
-// }
-
-// void *tokenSdsDup(void *privdata, const void *key)
-// {
-//     DICT_NOTUSED(privdata);
-//     return sdsdup((char *const)key);
-// }
-
-// /* Db->dict, keys are sds strings, vals are Redis objects. */
-// dictType tokenDictTypeDefinition = {
-//     tokenSdsHash,       /* hash function */
-//     tokenSdsDup,        /* key dup */
-//     NULL,               /* val dup */
-//     tokenSdsKeyCompare, /* key compare */
-//     tokenSdsDestructor, /* key destructor */
-//     NULL                /* val destructor */
-// };
 
 void *rxMercatorShared = NULL;
 

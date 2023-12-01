@@ -21,9 +21,6 @@ extern "C"
 #include <signal.h>
 #include "../../src/rax.h"
 
-// #define REDISMODULE_EXPERIMENTAL_API
-// #include "../../src/redismodule.h"
-// #include "../../src/dict.h"
 #include "../../deps/hiredis/hiredis.h"
 #include "sdsWrapper.h"
 

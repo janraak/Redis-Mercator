@@ -1445,9 +1445,9 @@ SJIBOLETH_HANDLER(executeGremlinComparePropertyToValue)
             PushResult(kd, stack);
         }
     }
-    rxServerLog(rxLL_NOTICE, "executeGremlinComparePropertyToValue %s 0000", t->TokenAsSds());
-    stack->DumpStack();
-    rxServerLog(rxLL_NOTICE, "executeGremlinComparePropertyToValue %s 9999", t->TokenAsSds());
+    // rxServerLog(rxLL_NOTICE, "executeGremlinComparePropertyToValue %s 0000", t->TokenAsSds());
+    // stack->DumpStack();
+    // rxServerLog(rxLL_NOTICE, "executeGremlinComparePropertyToValue %s 9999", t->TokenAsSds());
 }
 END_SJIBOLETH_HANDLER(executeGremlinComparePropertyToValue)
 
@@ -3010,10 +3010,10 @@ END_SJIBOLETH_HANDLER(executePopStack)
 
 SJIBOLETH_HANDLER(debugBreak)
 {
-    rxServerLog(rxLL_NOTICE, "----- BREAKPOINT ---- %d stackentries", stack->Size());
-    rxServerLog(rxLL_NOTICE, "debugBreak 0000");
-    stack->DumpStack();
-    rxServerLog(rxLL_NOTICE, "debugBreak 9999");
+    // rxServerLog(rxLL_NOTICE, "----- BREAKPOINT ---- %d stackentries", stack->Size());
+    // rxServerLog(rxLL_NOTICE, "debugBreak 0000");
+    // stack->DumpStack();
+    // rxServerLog(rxLL_NOTICE, "debugBreak 9999");
 }
 END_SJIBOLETH_HANDLER(debugBreak)
 

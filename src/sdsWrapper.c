@@ -23,8 +23,8 @@ extern "C"
 #include <unistd.h>
 #include "../../src/zmalloc.h"
 #include "../../src/rax.h"
-#define REDISMODULE_EXPERIMENTAL_API
-#include "../../src/redismodule.h"
+#include "rxSuiteHelpers.h"
+typedef struct RedisModuleString RedisModuleString;
 
 #ifdef __cplusplus
 }
@@ -51,7 +51,7 @@ rxString rxStringEmpty()
 
 rxString rxStringDup(rxString s)
 {
-    return sdsdup((sds)s);
+    return sdsdup(sdsnew(s));
 }
 
 void rxStringFree(rxString s)
@@ -201,7 +201,7 @@ void serverLog(int level, const char *fmt, ...)
 
 void rxServerLog(int level, const char *fmt, ...)
 {
-    if(getRxSuite()->debugMessages != 16924)
+    if(level != rxLL_NOTICE && getRxSuite()->debugMessages != 16924)
         return;
     va_list ap;
     char msg[2048];
@@ -299,19 +299,19 @@ size_t rxMemAllocSize(void *ptr)
 const char *rxStringBuildRedisCommand(int argc, rxRedisModuleString **argv){
     int commandline_length = 1;
         size_t arg_len;
-        const char *s;
+        char *s;
     for(int n = 0 ; n < argc; ++n ){
-       s = RedisModule_StringPtrLen((RedisModuleString*)argv[n], &arg_len);
+       s = (char*)rxGetContainedObject(argv[n]);
         commandline_length += 3 + arg_len;
     }
 
     char *cmd = (char*)rxMemAlloc(commandline_length);
     memset(cmd, 0x00, commandline_length);
-    s = RedisModule_StringPtrLen((RedisModuleString*)argv[0], &arg_len);
+    s = (char*)rxGetContainedObject(argv[0]);
     strcpy(cmd, s);
     for (int n = 1; n < argc; ++n)
     {
-        s = RedisModule_StringPtrLen((RedisModuleString*)argv[n], &arg_len);
+        s = (char*)rxGetContainedObject(argv[n]);
         if (strchr(s, ' ')||strchr(s, '%'))
         {
             strcat(cmd, " \"");

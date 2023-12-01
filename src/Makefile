@@ -116,7 +116,7 @@ FILT = $(filter-out $(OBSOLETEFLAGS), $(CFLAGS))
 	$(CXX) -o $@ $(CXXFLAGS)   -shared  $(WARNNING) $(CFLAGS) $(SHOBJ_CFLAGS) -std=c++20 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -s  -DUSE_JEMALLOC $(INCLUDE_PATHS) -fPIC  -c $< 
 
 %.xo: %.cpp $(CPPSOURCES) 
-	$(CXX) -o $@ $(CXXFLAGS)  -shared   $(WARNNING) $(CFLAGS) $(SHOBJ_CFLAGS) -std=c++20 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -s  -DUSE_JEMALLOC $(INCLUDE_PATHS) -fPIC  -c $< 
+	$(CXX) -o $@ $(CXXFLAGS)  -shared   $(WARNNING) $(SHOBJ_CFLAGS) -std=c++20 -faligned-new -Wno-write-strings  $(OPT) $(DEBUG) -Wall -Wno-deprecated-declarations -s  -DUSE_JEMALLOC $(INCLUDE_PATHS) -fPIC  -c $< 
 
 
 rxSuiteHelpers.xo:       ../../src/server.h rxSuiteHelpers.h rxSuiteHelpers.c sdsWrapper.xo  rxSessionMemory.cpp
@@ -151,7 +151,7 @@ rxIndexStore.so: ../../src/redismodule.h rxIndexStore.cpp rxIndexStore.hpp comma
 	g++ -o rxIndexStore.so -shared -g -ggdb -fpermissive   $(SHOBJ_CFLAGS)   $(INCLUDE_PATHS)  -fPIC rxIndexStore.cpp rxSuiteHelpers.xo   rxSuite.xo   sdsWrapper.xo  rxSessionMemory.cpp  rxGraphdb.so
 
 rxMercator.so: ../../src/redismodule.h rxMercator.cpp rxMercatorMonitor.cpp rxMercatorMonitor.hpp rxMercator.hpp  rxSuiteHelpers.xo   sjiboleth.so client-pool.hpp client-pool.cpp tls.xo sdsWrapper.xo  rxSessionMemory.cpp
-	g++ -o rxMercator.so  -shared -g -ggdb -fpermissive  $(SHOBJ_CFLAGS)   $(INCLUDE_PATHS) -Wvarargs -fPIC rxMercator.cpp rxMercatorMonitor.cpp rxSuiteHelpers.xo   sjiboleth.xo rxSuite.xo sjiboleth.so   client-pool.cpp tls.xo  sdsWrapper.xo  rxSessionMemory.cpp rxGraphdb.so
+	g++ -o rxMercator.so  -shared -g -ggdb -fpermissive  $(SHOBJ_CFLAGS)   $(INCLUDE_PATHS) -Wno-varargs -fPIC rxMercator.cpp rxMercatorMonitor.cpp rxSuiteHelpers.xo   sjiboleth.xo rxSuite.xo sjiboleth.so   client-pool.cpp tls.xo  sdsWrapper.xo  rxSessionMemory.cpp rxGraphdb.so
 rxSuite.xo:       ../../src/server.h ../../src/dict.h rxSuite.h rxSuite.c sdsWrapper.xo
 
 clean:
