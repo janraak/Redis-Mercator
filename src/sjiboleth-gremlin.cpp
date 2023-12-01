@@ -1322,7 +1322,9 @@ static SJIBOLETH_HANDLER(executeGremlinHas)
     rxUNUSED(stack);
 
     short must_match = t->Is("HAS") || t->Is("EQ") ? MATCH_IS_TRUE : MATCH_IS_FALSE;
-
+    if(!must_match){
+        rxServerLogRaw(rxLL_NOTICE, "NOT");
+    }
     /* 1) Use top of stack = dict of keys/values.
        2) Filter all keys matching kvp
        3) Push filtered dict on the stack

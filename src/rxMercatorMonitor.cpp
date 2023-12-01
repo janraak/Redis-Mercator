@@ -129,11 +129,12 @@ void *RXQUERY = rxCreateStringObject(RXQUERY_cmd, strlen(RXQUERY_cmd));
                              ".property(HEALTH_AVG_bytes_per_key_0,'%lld')"            \
                              "\""
 
-#define UPDATE_SHIFT_STATS "RXQUERY \""                                                                                     \
-                           "g:"                                                                              \
+#define UPDATE_SHIFT_STATS "RXQUERY \""                                                                           \
+                           "g:"                                                                                   \
                            "v('%s'}"                                                                              \
-                           ".WHERE{'%lld' - HEALTH_CHECK_SHIFT >= '900000'}"                                            \
-                           ".property{HEALTH_CHECK_SHIFT='%lld'}"                                                     \
+                           ".HASNOT(STATUS,DESTROYED)"                                                            \
+                           ".WHERE{'%lld' - HEALTH_CHECK_SHIFT >= '900000'}"                                      \
+                           ".property{HEALTH_CHECK_SHIFT='%lld'}"                                                 \
                            ".property{SHIFT_AT_1=SHIFT_AT_0}"                                                       \
                            ".property(SHIFT_AT_0,'%s')"                                                             \
                            ".property(HEALTH_TALLY,0)"                                                              \
@@ -346,6 +347,7 @@ int queryInstance(RedisModuleCtx *ctx, redisContext *redis_node, char *sha1, con
 
 #define UPDATE_SHIFT_CLUSTER_STATE "RXQUERY \""                                 \
                                    "g:v('%s__HEALTH'}"                          \
+                                   ".HASNOT(STATUS,DESTROYED)"                  \
                                    ".WHERE{'%lld' - CHECK_SHIFT >= 900000}"     \
                                    ".property(CHECK_SHIFT,'%lld')"              \
                                    ".property{SHIFT_AT_1=SHIFT_AT_0}"           \
