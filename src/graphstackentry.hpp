@@ -129,7 +129,6 @@ void ExecuteRedisCommandRemote(SimpleQueue *ctx, void *stash, const char *host_r
 
 void FreeStash(void *stash)
 {
-    // rxServerLogHexDump(rxLL_NOTICE, stash, 128/*rxMemAllocSize(stash)*/, "stash %p DEQUEUE", stash);
     rxMemFree(stash);
 }
 

@@ -59,7 +59,7 @@ RedisClientPool<T> *RedisClientPool<T>::New(const char *address, int initial_num
 {
     RedisClientPool<T> *connector = NULL;
 
-    int l = strlen(address);
+    int l = strlen(address) + 1;
     const char *colon = strstr(address, ":");
     void *connectorSpace = rxMemAlloc(sizeof(RedisClientPool<T>) + 2 * l + 1);
     memset(connectorSpace, 0xff, sizeof(RedisClientPool<T>) + 2 * l + 1);

@@ -126,6 +126,11 @@ int rxRuleList(RedisModuleCtx *ctx, RedisModuleString **, int )
     return BusinessRule::WriteList(ctx);
 }
 
+int rxRuleResetCounters(RedisModuleCtx *ctx, RedisModuleString **, int )
+{
+    return BusinessRule::ResetCounters(ctx);
+}
+
 int rxRuleDel(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     size_t len;
@@ -212,6 +217,9 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "RULE.LIST",
                                   rxRuleList, "admin readonly", 0, 0, 0) == REDISMODULE_ERR)
+        return REDISMODULE_ERR;
+    if (RedisModule_CreateCommand(ctx, "RULE.RESET",
+                                  rxRuleResetCounters, "admin readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "RULE.DEL",
                                   rxRuleDel, "admin write", 0, 0, 0) == REDISMODULE_ERR)

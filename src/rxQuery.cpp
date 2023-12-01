@@ -538,7 +538,7 @@ int executeLoadScriptCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int 
     }
 
     stat(path, &sb);
-    script_text = (char *)rxMemAlloc(sb.st_size);
+    script_text = (char *)rxMemAlloc(sb.st_size + 1);
     fread(script_text, sb.st_size, 1, input_file);
     fclose(input_file);
 

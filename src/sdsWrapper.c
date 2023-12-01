@@ -298,16 +298,17 @@ size_t rxMemAllocSize(void *ptr)
 
 const char *rxStringBuildRedisCommand(int argc, rxRedisModuleString **argv){
     int commandline_length = 1;
-        size_t arg_len;
-        char *s;
-    for(int n = 0 ; n < argc; ++n ){
-       s = (char*)rxGetContainedObject(argv[n]);
+    size_t arg_len = 0;
+    char *s;
+    for (int n = 0; n < argc; ++n)
+    {
+        s = (char *)rxGetContainedObject(argv[n]);
         commandline_length += 3 + arg_len;
     }
 
-    char *cmd = (char*)rxMemAlloc(commandline_length);
+    char *cmd = (char *)rxMemAlloc(commandline_length);
     memset(cmd, 0x00, commandline_length);
-    s = (char*)rxGetContainedObject(argv[0]);
+    s = (char *)rxGetContainedObject(argv[0]);
     strcpy(cmd, s);
     for (int n = 1; n < argc; ++n)
     {

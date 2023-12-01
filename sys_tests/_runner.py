@@ -31,7 +31,7 @@ def parse_arguments(argv):
     folder = "scenarios"
     includes = []
     excludes = []
-    runs = 10
+    runs = 1000
     if len(argv) > 1:
         #[testset %folder] [include %filename, ...] [exclude %filename, ...]
         while n < len(argv):
@@ -128,23 +128,36 @@ def find_local_ip():
                     return xface[c+1].split('/')[0]
     return '127.0.0.1'
 
-def prepare_controller():
+def prepare_controller(argv):
     ip = find_local_ip()
-    redis_client = redis.StrictRedis(ip, 6380, 0)
-    redis_path = get_redis_path(redis_client)
-    #pdb.set_trace()
-    module_config = which_mercator_modules_has_been_loaded(redis_client)
-    if not "rxMercator" in module_config:
-        r = redis_client.execute_command(
-            "MODULE LOAD {}/extensions/src/rxQuery.so DEBUG".format(redis_path))
-        print("rxMercator loaded")
-        r = redis_client.execute_command(
-            "MODULE LOAD {}/extensions/src/rxMercator.so".format(redis_path))
-        print("rxMercator loaded")
-        r = redis_client.execute_command(
-            "mercator.add.server localhost {} 6GB BASE 6381 2".format(ip))
-        print("rxMercator server added")
-    return redis_client
+    retries_left = 10
+    while retries_left > 0:
+        try:
+            redis_client = redis.StrictRedis(ip, 6380, 0)
+            redis_path = get_redis_path(redis_client)
+            #pdb.set_trace()
+            module_config = which_mercator_modules_has_been_loaded(redis_client)
+            if not "rxMercator" in module_config:
+                r = redis_client.execute_command(
+                    "MODULE LOAD {}/extensions/src/rxQuery.so DEBUG".format(redis_path))
+                print("rxMercator loaded")
+                r = redis_client.execute_command(
+                    "MODULE LOAD {}/extensions/src/rxMercator.so".format(redis_path))
+                print("rxMercator loaded")
+                r = redis_client.execute_command(
+                    "mercator.add.server localhost {} 6GB BASE 6381 2".format(ip))
+                print("rxMercator server added")
+            return redis_client
+        except Exception as ex:
+            cwd = os.path.dirname(os.getcwd())
+            left = cwd.index('-')
+            version = cwd[left+1:] 
+            starter = f"~/__start_redis.sh {version} {ip} {6380}"
+            os.system(starter)
+            retries_left -= 1
+    print(f'{Style.RESET_ALL}{Fore.CYAN}{Back.RED}Unable to start Redis Mercator on port 6380!!!{Style.RESET_ALL}')
+    os._exit()
+            
 
 
 def connect_to_redis(node):
@@ -214,7 +227,7 @@ def main(argv):
     # scenarios = [method_name for method_name in globals()
     #               if "scenario" in method_name]
 
-    controller = prepare_controller()
+    controller = prepare_controller(argv)
     cluster_info = create_cluster(controller)
     #pdb.set_trace()
     data_node = connect_to_redis(cluster_info["data"])
@@ -254,6 +267,7 @@ def main(argv):
                     except Exception as ex:
                         print((Style.RESET_ALL+Fore.WHITE + Back.RED + "exception:{}"+Style.RESET_ALL).format(ex))
                         traceback.print_exc() 
+                        pass
 
 
     index_node.close()

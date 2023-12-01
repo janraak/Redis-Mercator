@@ -4,6 +4,7 @@ default: all
 
 .DEFAULT:
 	cd src && $(MAKE) $@
+	make SANITY
 
 install:
 	cd src && $(MAKE) $@
@@ -60,7 +61,7 @@ T:
 
 SANITY:
 	cd sys_tests
-	python3 sys_tests/_runner.py runs 1 testset sanity_check
+	python3 sys_tests/_runner.py runs 1000 testset sanity_check
 
 
 SW:

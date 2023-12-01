@@ -120,6 +120,30 @@ public:
         BusinessRule::RuleRegistry = NULL;
     }
 
+    static int ResetCounters(RedisModuleCtx *ctx)
+    {
+        if (BusinessRule::RuleRegistry != NULL)
+        {
+            raxIterator ri;
+            BusinessRule::RegistryLock = true;
+
+            raxStart(&ri, BusinessRule::RuleRegistry);
+            raxSeek(&ri, "^", NULL, 0);
+            while (raxNext(&ri))
+            {
+                BusinessRule *br = (BusinessRule *)ri.data;
+                br->apply_count = 0;
+                br->apply_skipped_count = 0;
+                br->apply_hit_count = 0;
+                br->apply_miss_count = 0;
+            }
+            raxStop(&ri);
+            BusinessRule::RegistryLock = false;
+        }
+        RedisModule_ReplyWithSimpleString(ctx, "Ok");
+        return REDISMODULE_OK;
+    }
+
     static int WriteList(RedisModuleCtx *ctx)
     {
         if (BusinessRule::RuleRegistry != NULL)

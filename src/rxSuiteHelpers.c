@@ -381,6 +381,22 @@ int rxHashTypeExists(void *o, const char *f)
     return retval;
 }
 
+extern const char *ValidateString(const char *s, size_t l){
+    char *p = s;
+    size_t pl = 0;
+    while((*p >= 0x20 && *p <= 0x7f) || (*p >= 0xa0 && *p <= 0xff)){
+        ++p;
+        ++pl;
+    }
+    if(*p != 0x00){
+        *p = 0x00;
+    }
+    if(l != pl){
+        printf("Unexpected string: [%ld == %ld] %s", pl, l, s);
+    }
+    return s;
+}
+
 rxString rxGetHashField(void *oO, const char *f)
 {
     rxString field = rxStringNew(f);
@@ -412,7 +428,7 @@ rxString rxGetHashField(void *oO, const char *f)
             if (vstr)
             {
                 rxStringFree(field);
-                return rxStringNewLen((const char *)vstr, vlen);
+                return ValidateString(rxStringNewLen((const char *)vstr, vlen), vlen);
             }
             else
             {
@@ -427,7 +443,7 @@ rxString rxGetHashField(void *oO, const char *f)
         if (value != NULL)
         {
             rxStringFree(field);
-            return rxStringDup(value);
+            return ValidateString(rxStringDup(value), strlen(value));
         }
     }
     else
@@ -1289,7 +1305,7 @@ rxSetMembers *rxHarvestSetmembers(void *obj)
     {
 #endif
         ++member_count;
-        total_member_size = total_member_size + strlen(member);
+        total_member_size = total_member_size + strlen(member) + 1;
     }
     setTypeReleaseIterator(si);
     total_member_size = total_member_size + member_count;
@@ -1398,7 +1414,7 @@ unsigned long rxHashTraverse(void *hash, rxTraversedHashField handler, void *prm
     return tally;
 }
 
-rxSetMembers *rxHarvestSetmembersForKey(int dbNo, const char *key)
+rxSetMembers *rxHarvestSetmembersForKey(int , const char *key)
 {
     void *o = rxFindKey(0, key);
     if (o)

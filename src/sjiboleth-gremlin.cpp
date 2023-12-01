@@ -310,8 +310,30 @@ static int redis_HDEL(SilNikParowy_Kontekst *, const char *key, const char *fiel
     return C_OK;
 }
 
+extern const char *ValidateString(const char *s, size_t l){
+    unsigned char *p = (unsigned char *)s;
+    size_t pl = 0;
+    while((*p >= 0x20 && *p <= 0x7f) || (*p >= 0xa0 && *p <= 0xff)){
+        ++p;
+        ++pl;
+    }
+    if(*p != 0x00){
+        rxServerLog(rxLL_WARNING, "Unexpected string: [%ld == %ld] %s", pl, l, s);
+        p = (unsigned char *)rxMemAlloc(pl + 1);
+        strncpy((char *)p, s, pl);
+        p[pl] = 0x00;
+        return (const char *)p;
+    }
+    if(l != pl){
+        printf("Unexpected string: [%ld == %ld] %s", pl, l, s);
+    }
+    return s;
+}
+
+
 static int redis_SREM(SilNikParowy_Kontekst *, const char *key, const char *member, const char *host_reference)
 {
+    key = ValidateString(key, strlen(key));
     rxServerLog(rxLL_DEBUG, "SREM %s %s", key, member);
     auto *stash = rxStashCommand(NULL, "SREM", 2, key, member);
     ExecuteRedisCommand(NULL, stash, host_reference);
@@ -321,6 +343,7 @@ static int redis_SREM(SilNikParowy_Kontekst *, const char *key, const char *memb
 
 static int redis_SADD(SilNikParowy_Kontekst *, const char *key, const char *member, const char *host_reference)
 {
+    key = ValidateString(key, strlen(key));
     rxServerLog(rxLL_DEBUG, "SADD %s %s", key, member);
     auto *stash = rxStashCommand(NULL, "SADD", 2, key, member);
     ExecuteRedisCommand(NULL, stash, host_reference);
@@ -344,6 +367,7 @@ static int redis_HSET_EDGE(SilNikParowy_Kontekst *stack, const char *key, const 
 
 static int redis_RENAME(SilNikParowy_Kontekst *, const char *key, const char *new_key, const char *host_reference)
 {
+    key = ValidateString(key, strlen(key));
     rxServerLog(rxLL_DEBUG, "RENAME %s %s", key, new_key);
     auto *stash = rxStashCommand(NULL, "RENAME", 2, key, new_key);
     ExecuteRedisCommand(NULL, stash, host_reference);
@@ -2371,7 +2395,6 @@ public:
     {
         size_t old_sz = strlen(old) + 1 + 1;
         size_t new_sz = strlen(neu) + 1 + 1;
-        size_t type_sz = object_type ? strlen(object_type) + 1 + 1 : 0;
         char meta_prefix = '~';
 
         if (!object_type)
@@ -2380,13 +2403,16 @@ public:
             if (o && rxGetObjectType(o) == rxOBJ_HASH)
             {
                 object_type = rxGetHashField(o, "type");
-                type_sz = strlen(object_type) + 1 + 1;
+                if(strchr(object_type,0x80)||strchr(object_type,0x02))
+                    rxServerLog(rxLL_DEBUG, "SADD %s", object_type);
             }
             meta_prefix = '`';
         }
+        size_t type_sz = object_type ?strlen(object_type) + 1 + 1 : 4;
 
-        size_t blob_sz = sizeof(renamert) + 2 * old_sz + 2 * new_sz + type_sz;
+        size_t blob_sz = 4 + sizeof(renamert) + 2 * old_sz + 2 * new_sz + type_sz;
         void *blob = rxMemAlloc(blob_sz);
+        memset(blob, 0x00, blob_sz);
         auto r = (renamert *)blob;
         char *key = (char *)blob + sizeof(renamert);
         r->old_key = key;
@@ -2414,7 +2440,11 @@ public:
             key[0] = meta_prefix;
             strcpy(key + 1, object_type);
             key[type_sz + 1] = 0x00;
+            if(strchr(key,0x80)||strchr(key,0x02)){
+                printf("Problem?! %s\n", key);
+            }
             r->marker = 2;
+            ValidateString(r->type, strlen(r->type));
         }
         else
             r->type = NULL;
