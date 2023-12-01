@@ -230,7 +230,7 @@ extern "C" void    ExecuteOnFake(const char *commandName, int argc, void **argv)
 
 char *extractStringFromRedisReply(redisReply *r, const char *field)
 {
-    if (r->type == REDIS_REPLY_ARRAY)
+    if (r && r->type == REDIS_REPLY_ARRAY)
     {
         for (size_t n = 0; n < r->elements; n += 2)
         {
@@ -245,7 +245,7 @@ char *extractStringFromRedisReply(redisReply *r, const char *field)
 
 redisReply *extractGroupFromRedisReply(redisReply *r, const char *field)
 {
-    if (r->type == REDIS_REPLY_ARRAY)
+    if (r && r->type == REDIS_REPLY_ARRAY)
     {
         for (size_t n = 0; n < r->elements; n += 2)
         {
@@ -254,6 +254,15 @@ redisReply *extractGroupFromRedisReply(redisReply *r, const char *field)
                 return r->element[n + 1];
             }
         }
+    }
+    return NULL;
+}
+
+redisReply *extractGroupFromRedisReplyByIndex(redisReply *r, size_t index)
+{
+    if (r && (r->type == REDIS_REPLY_ARRAY) && (r->elements >= index))
+    {
+                return r->element[index];
     }
     return NULL;
 }

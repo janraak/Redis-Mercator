@@ -667,11 +667,11 @@ public:
         {
             for (size_t n = 0; n < rcc->elements; ++n)
             {
-                redisReply *row = rcc->element[n];
-                redisReply *hash = row->element[5];
-                const char *ip = hash->element[1]->str;
-                const char *port = hash->element[3]->str;
-                const char *zone = hash->element[5]->str;
+                redisReply *row = extractGroupFromRedisReplyByIndex(rcc, n);
+                redisReply *hash = extractGroupFromRedisReply(row, "value");
+                const char *ip = extractStringFromRedisReply(hash,"address");
+                const char *port = extractStringFromRedisReply(hash,"port");
+                const char *zone = extractStringFromRedisReply(hash,"zone");
                 cmd = rxStringAppend(cmd, "SCOPE", ' ');
                 cmd = rxStringAppend(cmd, zone, ' ');
                 cmd = rxStringAppend(cmd, "ADDRESS", ' ');
@@ -952,8 +952,8 @@ public:
         rxString cmd = rxStringFormat("RXGET \"G:V('%s').select('redis')\"", this->clusterId);
         redisReply *org_redisVersion = ExecuteLocal(cmd, LOCAL_FREE_CMD);
         if (org_redisVersion)
-        {
-            this->org_redisVersion = rxStringDup(org_redisVersion->element[0]->element[5]->element[1]->str);
+        {   auto row = extractGroupFromRedisReply(extractGroupFromRedisReplyByIndex(org_redisVersion,0), "value");
+            this->org_redisVersion = rxStringDup((const char*)extractStringFromRedisReply(row,"redis"));
             this->org_redisVersion_num = this->AsNumber(this->org_redisVersion);
 
             freeReplyObject(org_redisVersion);
@@ -976,13 +976,14 @@ public:
                 // Attach shadow as replica to the origin
                 for (size_t rowNo = 0; rowNo < origin->elements; ++rowNo)
                 {
-                    redisReply *row = origin->element[rowNo];
-                    redisReply *rowFields = row->element[5];
-                    char *address = rowFields->element[1]->str;
-                    int port = atoi(rowFields->element[3]->str);
-                    char *role = rowFields->element[5]->str;
-                    char *shard = rowFields->element[7]->str;
-                    char *order = rowFields->element[9]->str;
+                    redisReply *row = extractGroupFromRedisReplyByIndex(origin, rowNo);
+
+                    redisReply *rowFields = extractGroupFromRedisReply(row, "value");
+                    auto address = extractStringFromRedisReply(rowFields,"address");
+                    auto port = atoi(extractStringFromRedisReply(rowFields,"port"));
+                    auto role = extractStringFromRedisReply(rowFields,"role");
+                    auto shard = extractStringFromRedisReply(rowFields,"shard");
+                    auto order = extractStringFromRedisReply(rowFields,"order");
                     char origin_node[24];
                     snprintf(origin_node, sizeof(origin_node), "%s:%d", address, port);
 
@@ -992,10 +993,10 @@ public:
                     if (replica->type == REDIS_REPLY_ARRAY && replica->elements > 0)
                     {
                         // Attach shadow as replica to the origin
-                        redisReply *row = replica->element[0];
-                        redisReply *rowFields = row->element[5];
-                        char *r_address = rowFields->element[1]->str;
-                        int r_port = atoi(rowFields->element[3]->str);
+                        redisReply *row = extractGroupFromRedisReplyByIndex(replica, 0);
+                        redisReply *rowFields = extractGroupFromRedisReply(row, "value");
+                        char *r_address = extractStringFromRedisReply(rowFields,"address");
+                        int r_port = atoi(extractStringFromRedisReply(rowFields,"port"));
 
                         char node[24];
                         snprintf(node, sizeof(node), "%s:%d", r_address, r_port);
@@ -1056,7 +1057,7 @@ public:
                             auto start = mstime();
                             while (!isNodeInRole(redis_node, "*role:slave*") && !isNodeInRole(shadow_node, "*role:master*"))
                             {
-                                if (mstime() - start > (guard->no_of_keys / 100 )) // Assume 100 writes per sec
+                                if (mstime() - start > (long long int)(guard->no_of_keys / 100 )) // Assume 100 writes per sec
                                     break;
                                 sched_yield();
                             }
@@ -1395,10 +1396,10 @@ void *CreateClusterAsync_Go(void *privData)
                 multiplexer->result_text = "Cluster not found";
                 return multiplexer->StopThread();
             }
-            redisReply *row = rcc->element[0];
-            redisReply *hash = row->element[5];
-            const char *ip = hash->element[1]->str;
-            const char *port = hash->element[3]->str;
+            redisReply *row = extractGroupFromRedisReplyByIndex(rcc, 0);
+            redisReply *hash = extractGroupFromRedisReply(row, "value");
+            const char *ip = extractStringFromRedisReply(hash, "address");
+            const char *port = extractStringFromRedisReply(hash, "port");
 
             char sub_controller[24];
             snprintf(sub_controller, sizeof(sub_controller), "%s:%s", ip, port);
@@ -1699,21 +1700,21 @@ void *DestroyControllerAsync_Go(void *privData)
     rxString msg = rxStringEmpty();
     while (n < nodes->elements) // rxScanSetMembers(nodes, &si, (char **)&node, &l) != NULL)
     {
-        char *node = nodes->element[n]->element[1]->str;
-        redisReply *values = nodes->element[n]->element[5];
-        char *port = values->element[1]->str;
-        char *server = values->element[3]->str;
+        redisReply *row = extractGroupFromRedisReplyByIndex(nodes, n);
+        char *node = extractStringFromRedisReply(row, "key");
+        redisReply *values = extractGroupFromRedisReply(row, "value");
+        char *port = extractStringFromRedisReply(values,"port");
+        char *server = extractStringFromRedisReply(values,"server");
 
         rxString cmd = rxStringFormat("SADD %s %s", server, port);
         ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
 
-        rxString imsg = rxStringFormat("Released instance %s from %s, %s returned to %s", node, sha1, port, server);
-        rxServerLog(rxLL_NOTICE, imsg);
-        msg = rxStringAppend(msg, imsg, '\n');
+        rxString release_notification = rxStringFormat("Released instance %s from %s, %s returned to %s", node, sha1, port, server);
+        rxServerLog(rxLL_NOTICE, release_notification);
+        msg = rxStringAppend(msg, release_notification, '\n');
         n++;
     }
-    // rxString cmd = rxStringFormat("G \"V('%s').pushdup.property('STATUS','DESTROYED').OUT(has_status).property('STATUS','DESTROYED').pop().out(has_instance).pushdup.property('STATUS','DESTROYED').property('server').property('address').property('port').pop.out(has_instance).property('STATUS','DESTROYED')\"", sha1, sha1);
-    rxString cmd = rxStringFormat("G \"V('%s').as(clusters).property('STATUS','DESTROYED').OUT(has_status).property('STATUS','DESTROYED').use(clusters).out(has_instance).as(instances).pushdup.property('STATUS','DESTROYED').as(instances).out(has_status).property('STATUS','DESTROYED')\"", sha1, sha1);
+    rxString cmd = rxStringFormat("G \"V('%s').as(clusters).property('STATUS','DESTROYED').OUT(has_status).property('STATUS','DESTROYED').use(clusters).out(has_instance).as(instances).pushdup().property('STATUS','DESTROYED').as(instances).out(has_status).property('STATUS','DESTROYED')\"", sha1, sha1);
     ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
 
     multiplexer->result_text = msg;
@@ -1800,9 +1801,9 @@ int start_cluster(RedisModuleCtx *ctx, char *osha1)
     redisReply *cluster_info = ExecuteLocal(cmd, LOCAL_FREE_CMD);
     if (cluster_info && cluster_info->type == REDIS_REPLY_ARRAY && cluster_info->elements == 1)
     {
-        redisReply *values = cluster_info->element[0]->element[5];
-        if (strcmp(values->element[1]->str, "(null)") != 0)
-            redis_version = values->element[1]->str;
+        redisReply *values = extractGroupFromRedisReply(extractGroupFromRedisReplyByIndex(cluster_info,0), "value");
+        if (strcmp(extractStringFromRedisReply(values,"redis"), "(null)") != 0)
+            redis_version = extractStringFromRedisReply(values,"redis");
     }
     if (!redis_version)
         redis_version = (char *)REDIS_VERSION;
@@ -1818,13 +1819,14 @@ int start_cluster(RedisModuleCtx *ctx, char *osha1)
     size_t n = 0;
     while (n < nodes->elements)
     {
-        char *node = nodes->element[n]->element[1]->str;
-        redisReply *values = nodes->element[n]->element[5];
-        char *address = values->element[1]->str;
-        char *port = values->element[3]->str;
-        char *role = values->element[5]->str;
-        // char *shard = values->element[7]->str;
-        char *index_name = values->element[9]->str;
+        redisReply *row = extractGroupFromRedisReplyByIndex(nodes, n);
+        char *node = extractStringFromRedisReply(row, "key");
+        redisReply *values = extractGroupFromRedisReply(row, "value");
+        char *address = extractStringFromRedisReply(values,"address");
+        char *port = extractStringFromRedisReply(values,"port");
+        char *role = extractStringFromRedisReply(values,"role");
+        // char *shard = extractStringFromRedisReply(values,"shard");
+        char *index_name = extractStringFromRedisReply(values,"index");
         char *index_address = NULL;
         char *index_port = NULL;
         if (index_name && strlen(index_name))
@@ -1833,9 +1835,9 @@ int start_cluster(RedisModuleCtx *ctx, char *osha1)
             auto index_node_info = ExecuteLocal(cmd, LOCAL_FREE_CMD);
             if (index_node_info && index_node_info->type == REDIS_REPLY_ARRAY && index_node_info->elements != 0)
             {
-                redisReply *ixvalues = index_node_info->element[0]->element[5];
-                index_address = ixvalues->element[1]->str;
-                index_port = ixvalues->element[3]->str;
+                redisReply *ixvalues = extractGroupFromRedisReply(extractGroupFromRedisReplyByIndex(index_node_info, 0), "value");
+                index_address = extractStringFromRedisReply(ixvalues, "address");
+                index_port = extractStringFromRedisReply(ixvalues, "port");
             }
         }
         if (!index_address && !index_port)
@@ -1846,7 +1848,7 @@ int start_cluster(RedisModuleCtx *ctx, char *osha1)
         auto *config = getRxSuite();
         if (Is_node_Online(address, port) != 0)
         {
-            char *primary_name = values->element[11]->str;
+            char *primary_name = extractStringFromRedisReply(values, "primary");
             rxString startup_command = rxStringFormat(
                 "cd %s;python3 extensions/src/start_node.py %s %s %s %s %s %s %s %s %s %s >>%s/startup.log  2>>%s/startup.log ",
                 cwd,
@@ -2021,12 +2023,13 @@ int clusterOperation(RedisModuleCtx *ctx, const char *sha1, const char *state, c
     while (n < nodes->elements) // rxScanSetMembers(nodes, &si, (char **)&node, &l) != NULL)
     {
         // void *node_info = rxFindHashKey(0, node);
-        char *node = nodes->element[n]->element[1]->str;
-        redisReply *values = nodes->element[n]->element[5];
+        redisReply *row = extractGroupFromRedisReplyByIndex(nodes, n);
+        char *node = extractStringFromRedisReply(row, "key");
+        redisReply *values = extractGroupFromRedisReply(row, "value");
 
-        char *address = values->element[1]->str;
-        char *port = values->element[3]->str;
-        char *status = values->element[5]->str;
+        char *address = extractStringFromRedisReply(values,"address");
+        char *port = extractStringFromRedisReply(values,"port");
+        char *status = extractStringFromRedisReply(values,"status");
         if(rxStringMatch("DESTROYED", status, MATCH_IGNORE_CASE) || rxStringMatch("KILLED", status, MATCH_IGNORE_CASE))
             continue;
 
@@ -2181,11 +2184,11 @@ void *PropagateCommandToAllSubordinateControllers(CreateClusterAsync *multiplexe
         char sep = ' ';
         for (size_t n = 0; n < rcc->elements; ++n)
         {
-            redisReply *row = rcc->element[n];
-            redisReply *hash = row->element[5];
-            const char *ip = hash->element[1]->str;
-            const char *port = hash->element[3]->str;
-            const char *zone = hash->element[5]->str;
+            redisReply *row = extractGroupFromRedisReplyByIndex(rcc, n);
+            redisReply *hash = extractGroupFromRedisReply(row, "value");
+            const char *ip = extractStringFromRedisReply(hash,"address");
+            const char *port = extractStringFromRedisReply(hash,"port");
+            const char *zone = extractStringFromRedisReply(hash,"zone");
 
             char sub_controller[24];
             snprintf(sub_controller, sizeof(sub_controller), "%s:%s", ip, port);
@@ -2288,15 +2291,16 @@ void *GetClusterInfoAsync_Go(void *privData)
     size_t n = 0;
     while (n < nodes->elements) // rxScanSetMembers(nodes, &si, (char **)&node, &l) != NULL)
     {
-        char *node = nodes->element[n]->element[1]->str;
-        redisReply *values = nodes->element[n]->element[5];
-        char *address = values->element[1]->str;
-        char *port = values->element[3]->str;
-        char *role = values->element[5]->str;
-        char *shard = values->element[7]->str;
-        char *index_name = values->element[9]->str;
-        char *primary_name = values->element[11]->str;
-        char *status = values->element[13]->str;
+        redisReply *row = extractGroupFromRedisReplyByIndex(nodes, n);
+        char *node = extractStringFromRedisReply(row, "key");
+        redisReply *values = extractGroupFromRedisReply(row, "value");
+        char *address = extractStringFromRedisReply(values,"address");
+        char *port = extractStringFromRedisReply(values, "port");
+        char *role = extractStringFromRedisReply(values, "role");
+        char *shard = extractStringFromRedisReply(values, "shard");
+        char *index_name = extractStringFromRedisReply(values, "index");
+        char *primary_name = extractStringFromRedisReply(values, "primary");
+        char *status = extractStringFromRedisReply(values, "STATUS");
 
         info = rxStringFormat("%s%s{ \"node\":\"%s\", \"ip\":\"%s\", \"port\":\"%s\", \"role\":\"%s\", \"shard\":\"%s\", \"index_name\":\"%s\", \"primary_name\":\"%s\", \"status\":\"%s\" }\n", info, sep, node, address, port, role, shard, index_name, primary_name, status);
         sep[0] = ',';
@@ -2362,9 +2366,10 @@ void *InstallRedisAsync_Go(void *privData)
 
     while (n < nodes->elements)
     {
-        redisReply *values = nodes->element[n]->element[5];
-        char *address = values->element[1]->str;
-        rxString install_log = "";//rxStringFormat(">>$HOME/_install_%s.log", redis_version);
+        redisReply *row = extractGroupFromRedisReplyByIndex(nodes, n);
+        redisReply *values = extractGroupFromRedisReply(row, "value");
+        char *address = extractStringFromRedisReply(values, "address");
+        rxString install_log = rxStringFormat(">>$HOME/_install_%s.log", redis_version);
         rxString cmd = rxStringFormat("cd $HOME;"
                                       "rm -rf redis-%s %s;"
                                       "pwd %s;"
@@ -2423,8 +2428,9 @@ void *GetRedisAndMercatorStatusAsync_Go(void *privData)
 
         while (n < nodes->elements)
         {
-            redisReply *values = nodes->element[n]->element[5];
-            char *address = values->element[1]->str;
+            redisReply *row = extractGroupFromRedisReplyByIndex(nodes, n);
+            redisReply *values = extractGroupFromRedisReply(row, "value");
+            char *address = extractStringFromRedisReply(values, "address");
             multiplexer->InterrogateServerStatus(address);
             n++;
         }
@@ -2460,9 +2466,9 @@ void *UpgradeClusterAync_Go(void *privData)
         freeReplyObject(nodes);
         return multiplexer->StopThread();
     }
-    redisReply *row0 = nodes->element[0];
-    redisReply *vertex0 = row0->element[5];
-    if (rxStringMatch(multiplexer->redisVersion, vertex0->element[1]->str, 1))
+    redisReply *row0 = extractGroupFromRedisReplyByIndex(nodes, 0);
+    redisReply *vertex0 = extractGroupFromRedisReply(row0, "value");
+    if (rxStringMatch(multiplexer->redisVersion, extractStringFromRedisReply(vertex0,"redis"), 1))
     {
         multiplexer->result_text = rxStringFormat("cluster %s is already at Redis %s", multiplexer->clusterId, multiplexer->redisVersion);
         freeReplyObject(nodes);
@@ -2657,6 +2663,8 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
             return REDISMODULE_ERR;
 
         if (RedisModule_CreateCommand(ctx, "mercator.destroy.cluster", rx_destroy_cluster, "admin write", 0, 0, 0) == REDISMODULE_ERR)
+            return REDISMODULE_ERR;
+        if (RedisModule_CreateCommand(ctx, "mercator.drop.cluster", rx_destroy_cluster, "admin write", 0, 0, 0) == REDISMODULE_ERR)
             return REDISMODULE_ERR;
 
         if (RedisModule_CreateCommand(ctx, "mercator.start.cluster", rx_start_cluster, "admin write", 0, 0, 0) == REDISMODULE_ERR)

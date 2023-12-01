@@ -52,5 +52,5 @@ public:
     char *extractStringFromRedisReply(redisReply *r, const char *field);
 
     redisReply *extractGroupFromRedisReply(redisReply *r, const char *field);
-
+    redisReply *extractGroupFromRedisReplyByIndex(redisReply *r, size_t index);
 #endif
