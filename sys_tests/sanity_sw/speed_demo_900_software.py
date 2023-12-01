@@ -4,18 +4,23 @@ import time
 import redis
 import json
 
-from match import Matcher, HeaderOnly, find_local_ip, filterRows, stripField
+from match import Matcher, HeaderOnly, find_local_ip, filterRows, stripField, ReconnectException
 
 def reconnect(connection):
     cluster_info = json.loads(connection["controller"].execute_command(
         "mercator.info.cluster", connection["cluster_id"]).decode('utf-8'))
+    print("After reconnect: {}".format(cluster_info))
     for node in cluster_info["nodes"]:
         if node["role"] == "data":
             print((Style.RESET_ALL+Fore.YELLOW + Back.CYAN + "DATA: {}:{}"+Style.RESET_ALL).format(node["ip"], node["port"]))
             connection["data"] = redis.StrictRedis(node["ip"], node["port"], 0)
+            modules = connection['data'].execute_command("info modules")
+            print("Data: {}".format(modules))
         elif node["role"] == "index":
             print((Style.RESET_ALL+Fore.YELLOW + Back.CYAN + "INDEX: {}:{}"+Style.RESET_ALL).format(node["ip"], node["port"]))
             connection["index"] = redis.StrictRedis(node["ip"], node["port"], 0)
+            modules = connection['index'].execute_command("info modules")
+            print("Index: {}".format(modules))
     return connection
 
 
@@ -45,7 +50,6 @@ def SD_910_Upgrade_Downgrade_setup(cluster_id, controller, data, index):
 # This test verifies the VERTEX and EDGE type tree features#
 def Regrade_And_Check_Sanity(step, version, connection):
     matcher = connection["Matcher"]
-    succes_tally = connection["succes_tally"]
     matcher.by_strings("{}.A.  mercator.upgrade.cluster REDIS {}".format(step, version), connection["controller"].execute_command("mercator.upgrade.cluster", connection["cluster_id"], version), 
                           ["*is now running Redis version {}".format(version), b'Request timedout'])
 
@@ -55,7 +59,7 @@ def Regrade_And_Check_Sanity(step, version, connection):
     matcher.by_hashed("{}.C.  REDIS {} INDEX".format(step, version), connection["index"].execute_command("info", "server")["redis_version"], version)
 
     matcher.by_hashed("{}.D.  REDIS {} KEYS".format(step, version), connection["data"].execute_command("keys", "*"), connection["keys"])
-    matcher.by_hashed("{}.E.  REDIS {} MATCH".format(step, version), HeaderOnly(connection["data"].execute_command("g", "match(fred,barney)")), connection["sanity"])
+    matcher.by_hashed("{}.E.  REDIS {} MATCH".format(step, version), HeaderOnly(connection["data"].execute_command("RXGET", "G:match(fred,barney)")), connection["sanity"])
     return connection
 
 
@@ -80,11 +84,14 @@ def SD_910_Upgrade_Downgrade(cluster_id, controller, data, index):
 
     matcher.finalize()
 
-    raise  Exception("Reconnect")
+    raise ReconnectException()
 
 def start_install(version, controller, matcher):
-    matcher.by_strings("mercator.redis.install", controller.execute_command("mercator.redis.install", version), 
-                          "{}".format(b'OK, Software installation started, use the mercator.redis.status command to verify the installation.'))
+    matcher.by_strings(
+        "mercator.redis.install",
+        controller.execute_command("mercator.redis.install", version),
+        "b'OK, Software installation started, use the mercator.redis.status command to verify the installation.'",
+    )
 
 def SD_900_Mercator_Check_Software(cluster_id, controller, data, index):
     # return

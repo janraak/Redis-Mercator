@@ -414,13 +414,14 @@ class ServerInstallationStatus
 protected:
     eInstalationStatus FromLabel(const char *status)
     {
-        for (int l = 0; l < 5; ++l)
-        {
-            if (rxStringMatch(status, eInstalationStatusLabels[l], true))
+        if(status)
+            for (int l = 0; l < 5; ++l)
             {
-                return (eInstalationStatus)l;
+                if (rxStringMatch(status, eInstalationStatusLabels[l], true))
+                {
+                    return (eInstalationStatus)l;
+                }
             }
-        }
         return _undefined;
     }
     // Key: address + scope
@@ -463,19 +464,21 @@ public:
     static ServerInstallationStatus *New(const char *version, const char *scope, const char *address)
     {
         int vl = strlen(version);
-        int zl = strlen(scope);
-        int al = strlen(address);
+        int zl = scope ? strlen(scope) : 0;
+        int al = address ? strlen(address) : 0;
         void *sis = rxMemAlloc(sizeof(ServerInstallationStatus) + vl + zl + al + 3);
 
         char *v = (char *)sis + sizeof(ServerInstallationStatus);
         strncpy(v, version, vl);
         v[vl] = 0x00;
         char *z = v + vl + 1;
-        ;
-        strncpy(z, scope, zl);
+        
+        if(scope)
+            strncpy(z, scope, zl);        
         z[zl] = 0x00;
         char *a = z + zl + 1;
-        strncpy(a, address, al);
+        if(address)
+            strncpy(a, address, al);
         a[al] = 0x00;
         return ((ServerInstallationStatus *)sis)->Init(v, z, a);
     }
@@ -872,6 +875,8 @@ public:
 
     size_t Parse_KeySpace(redisReply *rcc)
     {
+        if(!rcc)
+            return 0;
         char *lines[20];
         int max_lines = sizeof(lines) / sizeof(char *);
         breakupPointer(rcc->str, '\r', lines, max_lines);
@@ -1113,15 +1118,16 @@ public:
 
     int SwapClusters()
     {
-        rxServerLog(rxLL_NOTICE, "Swap instance ownership between %s and %s", this->clusterId, this->shadow);
-        rxString temp_sha1 = getSha1("ss", this->clusterId, this->shadow);
-        rxString cmd = rxStringFormat("RXQUERY \"G:V(instance).has(owner,'%s').property(owner,'%s').V(instance).has(owner,'%s').property(owner,'%s').V(instance).has(owner,'%s').property(owner,'%s')\"",
-                                      this->clusterId, temp_sha1,
-                                      this->shadow, this->clusterId,
-                                      temp_sha1, this->shadow);
-        ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
         rxServerLog(rxLL_NOTICE, "Swap cluster redisversion between %s %s and %s %s", this->clusterId, this->org_redisVersion, this->shadow, this->redisVersion);
-        cmd = rxStringFormat("RXQUERY \"G:V('%s').property('redis','%s').V('%s').property('redis','%s')\"", this->clusterId, this->redisVersion, this->shadow, this->org_redisVersion);
+        // cmd = rxStringFormat("RXQUERY \"G:V('%s').property('redis','%s').V('%s').property('redis','%s')\"", this->clusterId, this->redisVersion, this->shadow, this->org_redisVersion);
+        rxString cmd = rxStringFormat("RXQUERY \"G:swapKeys('%s','%s')\"", this->clusterId, this->shadow);
+        ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
+        rxServerLog(rxLL_NOTICE, "Swap instance ownership between %s and %s", this->clusterId, this->shadow);
+        // rxString temp_sha1 = getSha1("ss", this->clusterId, this->shadow);
+        // rxString cmd = rxStringFormat("RXQUERY \"G:V(instance).has(owner,'%s').property(owner,'%s').V(instance).has(owner,'%s').property(owner,'%s').V(instance).has(owner,'%s').property(owner,'%s')\"",
+        cmd = rxStringFormat("RXQUERY \"G:V('%s').out(has_instance).property(owner,'%s').V('%s').out(has_instance).property(owner,'%s')\"",
+                                      this->clusterId, this->clusterId,
+                                      this->shadow, this->shadow);
         ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
         cmd = rxStringFormat("MERCATOR.STOP.CLUSTER %s", this->shadow);
         redisReply *rcc = ExecuteLocal(cmd, LOCAL_FREE_CMD);
@@ -2470,7 +2476,10 @@ void *UpgradeClusterAync_Go(void *privData)
     redisReply *vertex0 = extractGroupFromRedisReply(row0, "value");
     if (rxStringMatch(multiplexer->redisVersion, extractStringFromRedisReply(vertex0,"redis"), 1))
     {
-        multiplexer->result_text = rxStringFormat("cluster %s is already at Redis %s", multiplexer->clusterId, multiplexer->redisVersion);
+        auto cmd = rxStringFormat("MERCATOR.INFO.CLUSTER %s", multiplexer->clusterId);
+        redisReply *rcc = ExecuteLocal(cmd, LOCAL_FREE_CMD);
+        multiplexer->result_text = rxStringFormat("Cluster %s is already running Redis version %s, all clients must reconnect, cluster info: %s", multiplexer->clusterId, multiplexer->redisVersion, rcc->str);
+        freeReplyObject(rcc);
         freeReplyObject(nodes);
         return multiplexer->StopThread();
     }
@@ -2598,14 +2607,13 @@ int rx_add_server(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
             node_ports = (char *)RedisModule_StringPtrLen(argv[j + 3 + 2], &arg_len);
             j += 2;
         }
-        rxString key = rxStringNew(generate_uuid().c_str() /*"__MERCATOR__SERVER__"*/);
-        rxString key2 = rxStringFormat("%s%s", key, "__FREEPORTS__");
-        rxString key3 = rxStringFormat("%s%s", key2, "__USEDPORTS__");
+        auto key = rxStringNew(generate_uuid().c_str() /*"__MERCATOR__SERVER__"*/);
+        auto key2 = rxStringFormat("%s%s", key, "__FREEPORTS__");
         RedisModule_FreeCallReply(
-            RedisModule_Call(ctx, HMSET_COMMAND, "ccccccccccccc", (char *)key, "type", "server", "name", node_name, ADDRESS_FIELD, node_ip, MAXMEM_FIELD, node_mem, PORTS_FIELD, key2, "claims", key3));
+            RedisModule_Call(ctx, HMSET_COMMAND, "ccccccccccc", (char *)key, "type", "server", "name", node_name, ADDRESS_FIELD, node_ip, MAXMEM_FIELD, node_mem, PORTS_FIELD, key2));
         RedisModule_FreeCallReply(
             RedisModule_Call(ctx, "SADD", "cc", (char *)"__MERCATOR__SERVERS__", key));
-        rxString cmd = rxStringFormat("G \"predicate(has_pool,pool_for).object('%s').subject(__MERCATOR__SERVERS__)\"", key);
+        auto cmd = rxStringFormat("G \"predicate(has_pool,pool_for).object('%s').subject(__MERCATOR__SERVERS__)\"", key);
         RedisModule_Call(ctx, "SADD", "c", (char *)cmd);
 
         int nr_of_ports = atoi(node_ports);

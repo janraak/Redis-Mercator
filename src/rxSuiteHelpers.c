@@ -1296,6 +1296,7 @@ rxSetMembers *rxHarvestSetmembers(void *obj)
 
     rxSetMembers *mob = (rxSetMembers *)rxMemAlloc(sizeof(rxSetMembers) + member_count * sizeof(void *) + total_member_size);
     mob->member_count = member_count;
+    mob->member_index = 0;
     si = setTypeInitIterator(r);
 
     char **p = (char **)&mob->members;
@@ -1318,6 +1319,17 @@ rxSetMembers *rxHarvestSetmembers(void *obj)
     return mob;
 }
 
+    const char *rxGetSetMember(rxSetMembers *mob){
+        if(!mob)
+            return NULL;
+        const char *member = NULL;
+        if(mob->member_index < mob->member_count){
+            member = mob->members[mob->member_index];
+            mob->member_index++;
+        }
+        return member;
+    }
+
 rxSetMembers *rxFreeSetmembers(rxSetMembers *mob)
 {
     if (mob)
@@ -1337,21 +1349,29 @@ int raxTryInsert(rax *rax, unsigned char *s, size_t len, void *data, void **old)
 
 void *rxFused(const char *key, const char *fuse_key, const char *barKey, void *fuse_subject, void *fuse_object, void *fuse_predicate)
 {
-    robj *fused = createSetObject(); // hashTypeDup(fuse_subject);
-    hashTypeSet(fused, "subject", key, HASH_SET_COPY);
-    hashTypeSet(fused, "object", barKey, HASH_SET_COPY);
-    hashTypeSet(fused, "predicate", fuse_key + 1, HASH_SET_COPY);
+    robj *fused = createHashObject(); // hashTypeDup(fuse_subject);
+    sds cSubject = sdsnew("subject");
+    sds cObject = sdsnew("object");
+    sds cPredicate = sdsnew("predicate");
+    hashTypeSet(fused, cSubject, key, HASH_SET_COPY);
+    hashTypeSet(fused, cObject, barKey, HASH_SET_COPY);
+    hashTypeSet(fused, cPredicate, fuse_key + 1, HASH_SET_COPY);
+    sdsfree(cSubject);
+    sdsfree(cObject);
+    sdsfree(cPredicate);
 
-    void **inputs[] = {fused, fuse_object, fuse_predicate};
+    void **inputs[] = {fuse_subject, fuse_object, fuse_predicate};
 
     for (int n = 0; n < 3; ++n)
     {
         hashTypeIterator *hi = hashTypeInitIterator(inputs[n]);
         while (hashTypeNext(hi) != C_ERR)
         {
-            rxString f = hashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_KEY);
-            rxString v = hashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_VALUE);
+            sds f = hashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_KEY);
+            sds v = hashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_VALUE);
             hashTypeSet(fused, f, v, HASH_SET_COPY);
+            sdsfree(f);
+            sdsfree(v);
         }
         hashTypeReleaseIterator(hi);
     }
@@ -1376,4 +1396,12 @@ unsigned long rxHashTraverse(void *hash, rxTraversedHashField handler, void *prm
     }
     hashTypeReleaseIterator(hi);
     return tally;
+}
+
+rxSetMembers *rxHarvestSetmembersForKey(int dbNo, const char *key)
+{
+    void *o = rxFindKey(0, key);
+    if (o)
+        return rxHarvestSetmembers(o);
+    return NULL;
 }

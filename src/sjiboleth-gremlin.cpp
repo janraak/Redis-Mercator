@@ -310,13 +310,24 @@ static int redis_HDEL(SilNikParowy_Kontekst *, const char *key, const char *fiel
     return C_OK;
 }
 
+static int redis_SREM(SilNikParowy_Kontekst *, const char *key, const char *member, const char *host_reference)
+{
+    rxServerLog(rxLL_DEBUG, "SREM %s %s", key, member);
+    auto *stash = rxStashCommand(NULL, "SREM", 2, key, member);
+    ExecuteRedisCommand(NULL, stash, host_reference);
+    FreeStash(stash);
+    return C_OK;
+}
+
 static int redis_SADD(SilNikParowy_Kontekst *, const char *key, const char *member, const char *host_reference)
 {
+    rxServerLog(rxLL_DEBUG, "SADD %s %s", key, member);
     auto *stash = rxStashCommand(NULL, "SADD", 2, key, member);
     ExecuteRedisCommand(NULL, stash, host_reference);
     FreeStash(stash);
     return C_OK;
 }
+
 static int redis_HSET_EDGE(SilNikParowy_Kontekst *stack, const char *key, const char *field, const char *value, const char *inverse_key, const char *host_reference, bool setMetaType)
 {
     auto *stash = rxStashCommand(NULL, "HMSET", 5, key, field, value, "half", inverse_key);
@@ -328,6 +339,15 @@ static int redis_HSET_EDGE(SilNikParowy_Kontekst *stack, const char *key, const 
         redis_SADD(stack, metatype, key, host_reference);
     }
 
+    return C_OK;
+}
+
+static int redis_RENAME(SilNikParowy_Kontekst *, const char *key, const char *new_key, const char *host_reference)
+{
+    rxServerLog(rxLL_DEBUG, "RENAME %s %s", key, new_key);
+    auto *stash = rxStashCommand(NULL, "RENAME", 2, key, new_key);
+    ExecuteRedisCommand(NULL, stash, host_reference);
+    FreeStash(stash);
     return C_OK;
 }
 
@@ -694,7 +714,6 @@ int executeMultiMatch(ParserToken *, SilNikParowy_Kontekst *stack, FaBlok *pl, M
             }
             nof_matches += executeSingleMatch(start_key, end_key, stack, from, to, result, parms);
 
-            // rxServerLog(rxLL_NOTICE, "%s => %d", trace, nof_matches);
             if (nof_matches == row_size)
             {
                 OptimizeMatch(result, row_size, steps, joined_keys);
@@ -1323,7 +1342,8 @@ static SJIBOLETH_HANDLER(executeGremlinHas)
     rxUNUSED(stack);
 
     short must_match = t->Is("HAS") || t->Is("EQ") ? MATCH_IS_TRUE : MATCH_IS_FALSE;
-    if(!must_match){
+    if (!must_match)
+    {
         rxServerLogRaw(rxLL_DEBUG, "NOT");
     }
     /* 1) Use top of stack = dict of keys/values.
@@ -2250,30 +2270,30 @@ SJIBOLETH_HANDLER(executeGremlinDropVertexOrEdge)
     {
         dropper.to_drop_key = rxStringNewLen((const char *)drop_iterator.key, drop_iterator.key_len);
         dropper.to_drop_members_key = rxStringFormat("^%s", dropper.to_drop_key);
-        rxServerLog(rxLL_NOTICE, "--A--> From key set to queue: %s", dropper.to_drop_key);
+        rxServerLog(rxLL_DEBUG, "--A--> From key set to queue: %s", dropper.to_drop_key);
 
         if (rxStringMatch("*[:]*[:]*", dropper.to_drop_key, 1))
         { // Is Edge
-            rxServerLog(rxLL_NOTICE, "--AA--> drop edge: %s", dropper.to_drop_key);
+            rxServerLog(rxLL_DEBUG, "--AA--> drop edge: %s", dropper.to_drop_key);
             dropper.to_drop_hash = rxFindHashKey(0, dropper.to_drop_key);
             dropper.one_side = rxGetHashField(dropper.to_drop_hash, "edge");
             if (dropper.one_side && strlen(dropper.one_side))
             {
                 // queue.Push(dropper.one_side);
-                rxServerLog(rxLL_NOTICE, "--AA--> Purge (edge): %s", dropper.one_side);
+                rxServerLog(rxLL_DEBUG, "--AA--> Purge (edge): %s", dropper.one_side);
                 rxString contra = rxStringFormat("^%s", dropper.one_side);
-                rxServerLog(rxLL_NOTICE, "--AB--> DEL %s, %d", dropper.one_side, rxDbDelete(0, dropper.one_side));
-                rxServerLog(rxLL_NOTICE, "--AC--> DEL %s, %d", contra, rxDbDelete(0, contra));
+                rxServerLog(rxLL_DEBUG, "--AB--> DEL %s, %d", dropper.one_side, rxDbDelete(0, dropper.one_side));
+                rxServerLog(rxLL_DEBUG, "--AC--> DEL %s, %d", contra, rxDbDelete(0, contra));
                 rxStringFree(contra);
             }
             dropper.other_side = rxGetHashField(dropper.to_drop_hash, "half");
             if (dropper.other_side && strlen(dropper.other_side))
             {
                 // queue.Push(dropper.other_side);
-                rxServerLog(rxLL_NOTICE, "To queue (half): %s", dropper.other_side);
+                rxServerLog(rxLL_DEBUG, "To queue (half): %s", dropper.other_side);
                 rxString contra = rxStringFormat("^%s", dropper.other_side);
-                rxServerLog(rxLL_NOTICE, "--AB--> DEL %s, %d", dropper.one_side, rxDbDelete(0, dropper.other_side));
-                rxServerLog(rxLL_NOTICE, "--AC--> DEL %s, %d", contra, rxDbDelete(0, contra));
+                rxServerLog(rxLL_DEBUG, "--AB--> DEL %s, %d", dropper.one_side, rxDbDelete(0, dropper.other_side));
+                rxServerLog(rxLL_DEBUG, "--AC--> DEL %s, %d", contra, rxDbDelete(0, contra));
                 rxStringFree(contra);
             }
         }
@@ -2289,7 +2309,7 @@ SJIBOLETH_HANDLER(executeGremlinDropVertexOrEdge)
                 for (size_t n = 0; n < mob->member_count; ++n)
                 {
                     char *member = *p;
-                    rxServerLog(rxLL_NOTICE, "--AD--> member to be purged: %s", member);
+                    rxServerLog(rxLL_DEBUG, "--AD--> member to be purged: %s", member);
 
                     auto caret = strstr(member, "|^");
                     auto mk = caret + 2;
@@ -2310,24 +2330,24 @@ SJIBOLETH_HANDLER(executeGremlinDropVertexOrEdge)
                         const char *other_side = rxGetHashField(edge_hash, "half");
                         if (other_side && strlen(other_side))
                         {
-                            rxServerLog(rxLL_NOTICE, "--H--> To queue (half): %s", other_side);
+                            rxServerLog(rxLL_DEBUG, "--H--> To queue (half): %s", other_side);
                             rxString contra = rxStringFormat("^%s", other_side);
-                            rxServerLog(rxLL_NOTICE, "--AE--> DEL %s, %d", other_side, rxDbDelete(0, other_side));
-                            rxServerLog(rxLL_NOTICE, "--AF--> DEL %s, %d", contra, rxDbDelete(0, contra));
+                            rxServerLog(rxLL_DEBUG, "--AE--> DEL %s, %d", other_side, rxDbDelete(0, other_side));
+                            rxServerLog(rxLL_DEBUG, "--AF--> DEL %s, %d", contra, rxDbDelete(0, contra));
                             rxStringFree(contra);
                         }
 
                         if (other_side && strlen(other_side))
                         {
                             rxString contra = rxStringFormat("^%s", one_side);
-                            rxServerLog(rxLL_NOTICE, "--J--> To queue (edge): %s", one_side);
-                            rxServerLog(rxLL_NOTICE, "--AJ--> DEL %s, %d", one_side, rxDbDelete(0, one_side));
-                            rxServerLog(rxLL_NOTICE, "--AK--> DEL %s, %d", contra, rxDbDelete(0, contra));
+                            rxServerLog(rxLL_DEBUG, "--J--> To queue (edge): %s", one_side);
+                            rxServerLog(rxLL_DEBUG, "--AJ--> DEL %s, %d", one_side, rxDbDelete(0, one_side));
+                            rxServerLog(rxLL_DEBUG, "--AK--> DEL %s, %d", contra, rxDbDelete(0, contra));
                             rxStringFree(contra);
                         }
-                        rxServerLog(rxLL_NOTICE, "--K--> To queue (edge): %s", dropper.to_drop_key);
-                        rxServerLog(rxLL_NOTICE, "--AJ--> DEL %s, %d", dropper.to_drop_key, rxDbDelete(0, dropper.to_drop_key));
-                        rxServerLog(rxLL_NOTICE, "--AK--> DEL %s, %d", dropper.to_drop_members_key, rxDbDelete(0, dropper.to_drop_members_key));
+                        rxServerLog(rxLL_DEBUG, "--K--> To queue (edge): %s", dropper.to_drop_key);
+                        rxServerLog(rxLL_DEBUG, "--AJ--> DEL %s, %d", dropper.to_drop_key, rxDbDelete(0, dropper.to_drop_key));
+                        rxServerLog(rxLL_DEBUG, "--AK--> DEL %s, %d", dropper.to_drop_members_key, rxDbDelete(0, dropper.to_drop_members_key));
                     }
                 }
             }
@@ -2336,6 +2356,314 @@ SJIBOLETH_HANDLER(executeGremlinDropVertexOrEdge)
     }
 }
 END_SJIBOLETH_HANDLER(executeGremlinDropVertexOrEdge)
+
+class renamert
+{
+public:
+    const char *old_key;
+    const char *old_link;
+    const char *new_key;
+    const char *new_link;
+    const char *type;
+    int marker;
+
+    static renamert *New(const char *old, const char *neu, const char *object_type = NULL)
+    {
+        size_t old_sz = strlen(old) + 1 + 1;
+        size_t new_sz = strlen(neu) + 1 + 1;
+        size_t type_sz = object_type ? strlen(object_type) + 1 + 1 : 0;
+        char meta_prefix = '~';
+
+        if (!object_type)
+        {
+            void *o = rxFindKey(0, old);
+            if (o && rxGetObjectType(o) == rxOBJ_HASH)
+            {
+                object_type = rxGetHashField(o, "type");
+                type_sz = strlen(object_type) + 1 + 1;
+            }
+            meta_prefix = '`';
+        }
+
+        size_t blob_sz = sizeof(renamert) + 2 * old_sz + 2 * new_sz + type_sz;
+        void *blob = rxMemAlloc(blob_sz);
+        auto r = (renamert *)blob;
+        char *key = (char *)blob + sizeof(renamert);
+        r->old_key = key;
+        strcpy(key, old);
+        key[old_sz] = 0x00;
+        key = key + old_sz;
+        r->old_link = key;
+        key[0] = '^';
+        strcpy(key + 1, old);
+        key[old_sz + 1] = 0x00;
+        key = key + old_sz + 1;
+        r->new_key = key;
+        strcpy(key, neu);
+        key[new_sz] = 0x00;
+        key = key + new_sz;
+        r->new_link = key;
+        key[0] = '^';
+        strcpy(key + 1, neu);
+        key[new_sz + 1] = 0x00;
+        key = key + new_sz + 1;
+        r->marker = 1;
+        if (object_type)
+        {
+            r->type = key;
+            key[0] = meta_prefix;
+            strcpy(key + 1, object_type);
+            key[type_sz + 1] = 0x00;
+            r->marker = 2;
+        }
+        else
+            r->type = NULL;
+
+        rxServerLog(rxLL_DEBUG, "renameT  from %s to %s and from %s to %s, meta: %s", r->old_key, r->new_key, r->old_link ? r->old_link : "", r->new_link ? r->new_link : "", r->type ? r->type : "");
+                
+        return r;
+    }
+
+    static renamert *New(const char *old, char prefix)
+    {
+        if (old[0] == prefix)
+            ++prefix;
+        size_t old_sz = strlen(old) + 1;
+
+        size_t blob_sz = sizeof(renamert) + old_sz;
+        void *blob = rxMemAlloc(blob_sz);
+        auto r = (renamert *)blob;
+        char *key = (char *)blob + sizeof(renamert);
+        r->old_key = key;
+        key[0] = prefix;
+        strcpy(key + 1, old);
+        key[old_sz + 1] = 0x00;
+        r->old_link = NULL;
+        r->new_key = NULL;
+        r->new_link = NULL;
+        r->type = NULL;
+        r->marker = 3;
+        return r;
+    }
+
+    static renamert *New(const char *edge, size_t edge_sz, renamert *scope)
+    {
+        bool key_change = false;
+        if (!edge || edge_sz == 0)
+            return NULL;
+        size_t old_key_sz = strlen(scope->old_key);
+        size_t new_key_sz = strlen(scope->new_key);
+        size_t edge_type_sz = 0;
+        char *colons[8];
+        breakupPointer((char *)edge, ':', colons, 8);
+        if (!colons[1])
+        {
+            if (rxStringMatch(edge, scope->old_link, 1))
+            {
+                return renamert::New(edge + 1, scope->new_key);
+            }
+
+            return NULL;
+        }
+        char edge_type[256];
+        char buffer[1024], *b = buffer;
+        strncpy(edge_type, colons[0] + 1, colons[1] - colons[0] + 1);
+        edge_type_sz = colons[1] - colons[0] - 1;
+        edge_type[edge_type_sz] = 0x00;
+        strncpy(b, colons[0] + 1, colons[1] - colons[0]);
+        b += (colons[1] + 1) - colons[0] - 1;
+        for (int n = 1; n < 3; ++n)
+        {
+            if (!colons[n + 1])
+                colons[n + 1] = strchr((char *)edge, 0x00);
+            if (rxStringMatchLen((const char *)colons[n] + 1, colons[n + 1] - colons[n] - 1, scope->old_key, old_key_sz, 1))
+            {
+                key_change = true;
+                strncpy(b, scope->new_key, new_key_sz);
+                b += new_key_sz;
+                if (n == 1)
+                {
+                    *b = ':';
+                    b++;
+                }
+            }
+            else
+            {
+                strncpy(b, colons[n] + 1, colons[n + 1] - colons[n]);
+                b += colons[n + 1] - colons[n];
+            }
+        }
+        *b = 0x00;
+        if (key_change)
+            return renamert::New(edge + 1, buffer, edge_type);
+        return NULL;
+    }
+};
+
+static char *extractLink(char *buffer, size_t buffer_sz, char *colons[])
+{
+    size_t link_sz = colons[2] - colons[1] - 1;
+    if (link_sz > buffer_sz)
+        link_sz = buffer_sz - 1;
+    strncpy(buffer, colons[1] + 1, link_sz);
+    buffer[link_sz] = 0x00;
+    return buffer;
+}
+
+// static void renameSetMember(const char *link, const char *old_member, const char *new_link, char *colons[], SilNikParowy_Kontekst *stack, redisNodeInfo *data_config)
+// {
+//     redis_SREM(stack, link, old_member, data_config->host_reference);
+//     char new_member[1024];
+//     char *b = new_member;
+//     strncpy(b, colons[0], colons[1] - colons[0] + 1);
+//     b += colons[1] - colons[0] + 1;
+//     strcpy(b, new_link);
+//     strcat(b, colons[2]);
+//     redis_SADD(stack, link, new_member, data_config->host_reference);
+// }
+
+void rename_keys(const char *old_key, const char *new_key, SilNikParowy_Kontekst *stack)
+{
+
+    GraphStack<renamert> rename_queue{};
+    redisNodeInfo *data_config = rxDataNode();
+
+    auto rename = renamert::New(old_key, new_key);
+    auto renameSaved = renamert::New(old_key, new_key);
+
+    rename_queue.Enqueue(rename);
+
+    while (rename_queue.HasEntries())
+    {
+        auto action = rename_queue.Dequeue();
+        // Rename Redis Object
+        // Rename Redis Set members
+        if (!action)
+            continue;
+        rxServerLog(rxLL_DEBUG, "Rename key set from %s to %s and from %s to %s, meta: %s", action->old_key, action->new_key, action->old_link ? action->old_link : "", action->new_link ? action->new_link : "", action->type ? action->type : "");
+        if (action->type)
+        {
+            redis_SREM(stack, action->type, action->old_key, data_config->host_reference);
+            redis_SADD(stack, action->type, action->new_key, data_config->host_reference);
+        }
+        if (action->old_link)
+        {
+            rxSetMembers *mob = rxHarvestSetmembersForKey(0, action->old_link);
+            while (auto member = rxGetSetMember(mob))
+            {
+                rxServerLog(rxLL_DEBUG, "link: %s member: %s", action->old_link, member);
+                char *colons[8];
+                breakupPointer((char *)member, '|', colons, 8);
+                if (colons[1])
+                {
+                    // auto type_rename = renamert::New(colons[0], '~');
+                    // rename_queue.Enqueue(type_rename);
+                    char buffer[1024];
+                    extractLink(buffer, sizeof(buffer), colons);
+                    auto r = renamert::New(buffer, colons[2] - colons[1] - 1, renameSaved);
+                    if (r)
+                    {
+                        if (r->type)
+                            rename_queue.Enqueue(r);
+                        // renameSetMember(action->old_link, member, action->new_link, colons, stack, data_config);
+                        // // construct new renamed member
+                        redis_SREM(stack, action->old_link, member, data_config->host_reference);
+                        char *b = buffer;
+                        strncpy(b, colons[0], colons[1] - colons[0] + 1);
+                        b += colons[1] - colons[0] + 1;
+                        strcpy(b, r->new_link);
+                        strcat(b, colons[2]);
+                        redis_SADD(stack, action->old_link, buffer, data_config->host_reference);
+                    }
+                    else
+                    {
+                        // Reference key may be reverse edge!
+                        rxSetMembers *mob = rxHarvestSetmembersForKey(0, buffer);
+                        while (auto member = rxGetSetMember(mob))
+                        {
+                            rxServerLog(rxLL_DEBUG, "link: %s member: %s", buffer, member);
+                            char *colons[8];
+                            breakupPointer((char *)member, '|', colons, 8);
+                            if (colons[1])
+                            {
+                                char rbuffer[1024];
+                                extractLink(rbuffer, sizeof(rbuffer), colons);
+                                auto r = renamert::New(rbuffer, colons[2] - colons[1] - 1, renameSaved);
+                                if (r)
+                                {
+                                    // construct new renamed member
+                                    // renameSetMember(buffer, member, r->new_link, colons, stack, data_config);
+                                    redis_SREM(stack, buffer, member, data_config->host_reference);
+                                    char *b = rbuffer;
+                                    strncpy(b, colons[0], colons[1] - colons[0] + 1);
+                                    b += colons[1] - colons[0] + 1;
+                                    strcpy(b, r->new_link);
+                                    strcat(b, colons[2]);
+                                    redis_SADD(stack, buffer, rbuffer, data_config->host_reference);
+                                    rxMemFree(r);
+                                }
+                            }
+                        }
+                        rxFreeSetmembers(mob);
+                    }
+                }
+                else
+                {
+                    if (rxStringMatch(action->old_key, colons[0], 1))
+                    {
+                        rxServerLog(rxLL_DEBUG, "On %s Replace %s by %s", action->old_link, action->old_key, action->new_key);
+                        redis_SREM(stack, action->old_link, action->old_key, data_config->host_reference);
+                        redis_SADD(stack, action->old_link, action->new_key, data_config->host_reference);
+                    }
+                }
+            }
+            rxFreeSetmembers(mob);
+        }
+        if (action->new_key)
+        {
+            redis_RENAME(stack, action->old_key, action->new_key, data_config->host_reference);
+            redis_RENAME(stack, action->old_link, action->new_link, data_config->host_reference);
+        }
+        rxMemFree(action);
+    }
+    rxMemFree(renameSaved);
+}
+SJIBOLETH_HANDLER(executeGremlinRenameVertexOrEdge)
+{
+    rxUNUSED(t);
+    // Get parameters g:V(...).drop()
+    FaBlok *v = stack->Pop();
+    if (!v->IsParameterList() || v->parameter_list->Size() != 2)
+    {
+        stack->AddError("Requires 2 parameters [.renameKeys(%old,%new)");
+        return C_ERR;
+    }
+    FaBlok *old_key_prm = v->parameter_list->Dequeue();
+    FaBlok *new_key_prm = v->parameter_list->Dequeue();
+    rename_keys(old_key_prm->setname, new_key_prm->setname, stack);
+}
+END_SJIBOLETH_HANDLER(executeGremlinRenameVertexOrEdge)
+
+SJIBOLETH_HANDLER(executeGremlinSwapVertexOrEdge)
+{
+    rxUNUSED(t);
+    // Get parameters g:V(...).drop()
+    FaBlok *v = stack->Pop();
+    if (!v->IsParameterList() || v->parameter_list->Size() != 2)
+    {
+        stack->AddError("Requires 2 parameters [.swapKeys(%old,%new)");
+        return C_ERR;
+    }
+    FaBlok *old_key_prm = v->parameter_list->Dequeue();
+    FaBlok *new_key_prm = v->parameter_list->Dequeue();
+    auto temp_key = generate_uuid();
+
+    rename_keys(old_key_prm->setname, temp_key.c_str(), stack);
+    rename_keys(new_key_prm->setname, old_key_prm->setname, stack);
+    rename_keys(temp_key.c_str(), new_key_prm->setname, stack);
+}
+END_SJIBOLETH_HANDLER(executeGremlinSwapVertexOrEdge)
+
 /*
 
              .-------------.             .-------------.             .-------------.
@@ -2622,23 +2950,23 @@ void executeGremlinAddEdgeUsingProperty(SilNikParowy_Kontekst *stack, FaBlok *et
                 redis_HSET(stack, bridge_keys[j], "edge", backLink, data_config->host_reference);
         }
 
-    rxString keys[] = {fwd_predicate, key, edge_link, objectKey, bwd_predicate, objectKey, inv_edge_link, key};
-    rxString links[] = {subject_link, edge_link, edge_link, object_link, object_link, inv_edge_link, inv_edge_link, subject_link};
+        rxString keys[] = {fwd_predicate, key, edge_link, objectKey, bwd_predicate, objectKey, inv_edge_link, key};
+        rxString links[] = {subject_link, edge_link, edge_link, object_link, object_link, inv_edge_link, inv_edge_link, subject_link};
 
-    for (int set = 0; set < 8; set += 4)
-    {
-        auto SE = rxStringFormat("%s|%s|SE|%f|+", keys[set], keys[set + 2], weight);
-        auto ES = rxStringFormat("%s|^%s|ES|%f", keys[set], keys[set + 1], weight);
-        auto OE = rxStringFormat("%s|%s|OE|%f", keys[set], keys[set + 2], weight);
-        auto EO = rxStringFormat("%s|^%s|EO|%f", keys[set], keys[set + 3], weight);
-
-        rxString keys[4] = {links[set], links[set + 1], links[set + 3], links[set + 2]};
-        rxString member[4] = {SE, EO, OE, ES};
-        for (int j = 0; j < 4; ++j)
+        for (int set = 0; set < 8; set += 4)
         {
-            redis_SADD(stack, keys[j], member[j], data_config->host_reference);
+            auto SE = rxStringFormat("%s|%s|SE|%f|+", keys[set], keys[set + 2], weight);
+            auto ES = rxStringFormat("%s|^%s|ES|%f", keys[set], keys[set + 1], weight);
+            auto OE = rxStringFormat("%s|%s|OE|%f", keys[set], keys[set + 2], weight);
+            auto EO = rxStringFormat("%s|^%s|EO|%f", keys[set], keys[set + 3], weight);
+
+            rxString keys[4] = {links[set], links[set + 1], links[set + 3], links[set + 2]};
+            rxString member[4] = {SE, EO, OE, ES};
+            for (int j = 0; j < 4; ++j)
+            {
+                redis_SADD(stack, keys[j], member[j], data_config->host_reference);
+            }
         }
-    }
 
         // rxString keys[4] = {subject_link, edge_link, inv_edge_link, object_link};
         // rxString member[4] = {SE, OE, ES, EO};
@@ -2821,12 +3149,14 @@ SJIBOLETH_HANDLER(executeGremlinAddProperty)
             // TODO: Allow multiple properties to be set!
             // while (pl->parameter_list->Size() >= 2)
             // {
-            if (stack->module_contex || targetObjectIterator.data == NULL){
-                if(strlen(v->setname) == 0)
+            if (stack->module_contex || targetObjectIterator.data == NULL)
+            {
+                if (strlen(v->setname) == 0)
                     redis_HDEL(stack, key, a->setname, data_config->host_reference);
                 else
                     redis_HSET(stack, key, a->setname, v->setname, data_config->host_reference);
-            }else
+            }
+            else
             {
                 rxHashTypeSet(targetObjectIterator.data, a->setname, v->setname, 0);
             }
@@ -2863,7 +3193,7 @@ SJIBOLETH_HANDLER(executeGremlinAddProperty)
         }
         else
         {
-            rxServerLog(rxLL_NOTICE, "parameter list: %s %p\ninput_set: %s %ld entries", pl->setname, pl->parameter_list, input_set->setname, raxSize(input_set->keyset));
+            rxServerLog(rxLL_DEBUG, "parameter list: %s %p\ninput_set: %s %ld entries", pl->setname, pl->parameter_list, input_set->setname, raxSize(input_set->keyset));
             raxShow(input_set->keyset);
             ERROR("Incorrect parameters for AddProperty, must be [<a>, <v>]...");
         }
@@ -2958,9 +3288,6 @@ SJIBOLETH_HANDLER(executeGremlinRedisCommand)
         ERROR("Incorrect parameters for executeGremlinRedisCommand, must be [<token> | <literal>]...");
     }
     PushResult(input_set, stack);
-    rxServerLog(rxLL_NOTICE, "REDIS 0000");
-    stack->DumpStack();
-    rxServerLog(rxLL_NOTICE, "REDIS 9999");
 }
 END_SJIBOLETH_HANDLER(executeGremlinRedisCommand)
 
@@ -3005,11 +3332,10 @@ SJIBOLETH_HANDLER(executeWhereExpression)
     operation_parameters p;
     auto *params = get_For_object_expressions(&p, expr->ObjectExpression(), stack, NULL, NULL, OBJECT_EXPRESSION_IS_PREDICATE);
     FaBlok *output_set = input_set->Copy(
-                                            input_set->AsSds(), 
-                                            KeysetDescriptor_TYPE_GREMLINSET, 
-                                            ExecuteObjectExpression, 
-                                            params
-                                        );
+        input_set->AsSds(),
+        KeysetDescriptor_TYPE_GREMLINSET,
+        ExecuteObjectExpression,
+        params);
 
     FaBlok::Delete(input_set);
     PushResult(output_set, stack);
@@ -3073,10 +3399,10 @@ END_SJIBOLETH_HANDLER(executePopStack)
 
 SJIBOLETH_HANDLER(debugBreak)
 {
-    // rxServerLog(rxLL_NOTICE, "----- BREAKPOINT ---- %d stackentries", stack->Size());
-    // rxServerLog(rxLL_NOTICE, "debugBreak 0000");
+    // rxServerLog(rxLL_DEBUG, "----- BREAKPOINT ---- %d stackentries", stack->Size());
+    // rxServerLog(rxLL_DEBUG, "debugBreak 0000");
     // stack->DumpStack();
-    // rxServerLog(rxLL_NOTICE, "debugBreak 9999");
+    // rxServerLog(rxLL_DEBUG, "debugBreak 9999");
 }
 END_SJIBOLETH_HANDLER(debugBreak)
 
@@ -3227,9 +3553,13 @@ bool GremlinDialect::RegisterDefaultSyntax()
     //
     // Fuse subject (predicate) object to single vertex (hash)
     //
-   this->RegisterSyntax("fuseOut", 500, 2, 1, &executeGremlinFuseOut);
+    this->RegisterSyntax("fuseOut", 500, 2, 1, &executeGremlinFuseOut);
     this->RegisterSyntax("fuseIn", 500, 2, 1, &executeGremlinFuseIn);
     this->RegisterSyntax("fuseInOut", 500, 2, 1, &executeGremlinFuseInOut);
+    //
+    this->RegisterSyntax("renameKeys", 20, 0, 0, &executeGremlinRenameVertexOrEdge);
+    this->RegisterSyntax("swapKeys", 20, 0, 0, &executeGremlinSwapVertexOrEdge);
+
     return true;
 }
 
@@ -3429,7 +3759,7 @@ int AddMemberToKeysetForMatch(int db, unsigned char *vstr, size_t vlen, FaBlok *
         for (size_t n = 0; n < mob->member_count; ++n)
         {
             char *member = *p;
-            rxServerLog(rxLL_NOTICE, "AddMemberToKeysetForMatch for %s : %ld: %s", edge_key, n, *p);
+            rxServerLog(rxLL_DEBUG, "AddMemberToKeysetForMatch for %s : %ld: %s", edge_key, n, *p);
             ++p;
             int msegments = 0;
             rxString *mparts = rxStringSplitLen(member, strlen(member), "|", 1, &msegments);
@@ -3550,7 +3880,7 @@ int matchEdges(int db, Graph_Leg *leg, FaBlok *kd, GraphStack<Graph_Leg> *bsf_q,
     for (size_t n = 0; n < mob->member_count; ++n)
     {
         char *elesds = *p;
-        rxServerLog(rxLL_NOTICE, "matchEdges for %s : %ld: %s", key, n, elesds);
+        rxServerLog(rxLL_DEBUG, "matchEdges for %s : %ld: %s", key, n, elesds);
         int segments = 0;
         rxString *parts = rxStringSplitLen(elesds, strlen(elesds), "|", 1, &segments);
         double weight = segments > 3 ? atof(parts[3]) : 1.0;
@@ -3741,7 +4071,7 @@ int traverseAdjacent(FaBlok *leaders, FaBlok *kd, MatchParameters *parms)
 
         rxString key = rxStringNewLen((const char *)leadersIterator.key, leadersIterator.key_len);
         rxString edge = rxStringFormat("^%s", key);
-        if(parms->final_vertex_or_edge == TRAVERSE_FINAL_FUSED)
+        if (parms->final_vertex_or_edge == TRAVERSE_FINAL_FUSED)
             fuse_subject = rxFindHashKey(0, key);
         //
         // Get edge halfes from/to vertex
@@ -3823,7 +4153,7 @@ int traverseAdjacent(FaBlok *leaders, FaBlok *kd, MatchParameters *parms)
                     }
                     rxString barKey = rxStringNewLen(bars[1] + 2, bars[2] - bars[1] - 2);
                     numkeys++;
-                    if(parms->final_vertex_or_edge == TRAVERSE_FINAL_FUSED)
+                    if (parms->final_vertex_or_edge == TRAVERSE_FINAL_FUSED)
                         fuse_object = rxFindHashKey(0, barKey);
                     switch (parms->final_vertex_or_edge)
                     {

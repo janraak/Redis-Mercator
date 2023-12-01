@@ -217,12 +217,15 @@ extern "C"
   typedef struct rxSetMembers
     {
         size_t member_count;    // Number of members in this block
-        const char *members;   // Pointer to the members
+        size_t member_index;    // Number of members in this block
+        const char *members[];   // Pointer to the members
         // The members are embedding in the allocated block;
     } rxSetMembers;
 
     rxSetMembers *rxHarvestSetmembers(void *obj);
+    rxSetMembers *rxHarvestSetmembersForKey(int dbNo, const char *key);
     rxSetMembers *rxFreeSetmembers(rxSetMembers *mob);
+    const char *rxGetSetMember(rxSetMembers *mob);
 
 #ifdef __cplusplus
 }
