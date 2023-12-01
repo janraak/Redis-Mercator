@@ -37,6 +37,8 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+ #include <libgen.h>
+#include <sys/stat.h>
 
 #include <array>
 #include <cstdio>
@@ -1782,6 +1784,23 @@ int Is_node_Online(const char *address, const char *port)
     return response;
 }
 
+int mkpath(const char *dir, mode_t mode)
+{
+    struct stat sb;
+
+    if (!dir) {
+        errno = EINVAL;
+        return 1;
+    }
+
+    if (!stat(dir, &sb))
+        return 0;
+
+    mkpath(dirname(strdupa(dir)), mode);
+
+    return mkdir(dir, mode);
+}
+
 int start_cluster(RedisModuleCtx *ctx, char *osha1)
 {
     char *sha1 = strdup(osha1);
@@ -1795,7 +1814,8 @@ int start_cluster(RedisModuleCtx *ctx, char *osha1)
         if (strcmp(values->element[1]->str, "(null)") != 0)
             redis_version = values->element[1]->str;
     }
-    if (!redis_version)
+
+    if (!redis_version || strlen(redis_version) == 0)
         redis_version = (char *)REDIS_VERSION;
 
     redisReply *nodes = FindInstanceGroup(sha1, "address,port,role,order,index,primary");
@@ -1803,8 +1823,12 @@ int start_cluster(RedisModuleCtx *ctx, char *osha1)
     {
         return RedisModule_ReplyWithSimpleString(ctx, "cluster not found");
     }
-    rxString cwd = rxStringFormat("$HOME/redis-%s", redis_version);
-    rxString data = rxStringFormat("$HOME/redis-%s/data", redis_version);
+    char homedir[256];
+    snprintf(homedir, sizeof(homedir), "%s", getenv("HOME"));
+    rxString cwd = rxStringFormat("%s/redis-%s", homedir, redis_version);
+    // rxString data = rxStringFormat("$HOME/redis-%s/data", redis_version);
+    rxString data = rxStringFormat("%s/data/%s", homedir, sha1);
+    mkpath(data, S_IRWXU);
 
     size_t n = 0;
     while (n < nodes->elements)

@@ -131,8 +131,12 @@ void *RXQUERY = rxCreateStringObject(RXQUERY_cmd, strlen(RXQUERY_cmd));
 
 #define UPDATE_SHIFT_STATS "RXQUERY \""                                                                           \
                            "g:"                                                                                   \
+#define UPDATE_SHIFT_STATS "RXQUERY \""                                                                           \
+                           "g:"                                                                                   \
                            "v('%s'}"                                                                              \
                            ".HASNOT(STATUS,DESTROYED)"                                                            \
+                           ".HASNOT(STATUS,KILLED)"                                                            \
+                           ".HASNOT(STATUS,STOPPED)"                                                            \
                            ".WHERE{'%lld' - HEALTH_CHECK_SHIFT >= '900000'}"                                      \
                            ".property{HEALTH_CHECK_SHIFT='%lld'}"                                                 \
                            ".property{SHIFT_AT_1=SHIFT_AT_0}"                                                       \
