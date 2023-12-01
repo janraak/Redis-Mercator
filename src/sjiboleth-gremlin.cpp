@@ -301,6 +301,14 @@ static int redis_HSET(SilNikParowy_Kontekst *, const char *key, const char *fiel
     return C_OK;
 }
 
+static int redis_HDEL(SilNikParowy_Kontekst *, const char *key, const char *field, const char *host_reference)
+{
+    auto *stash = rxStashCommand(NULL, "HDEL", 2, key, field);
+    ExecuteRedisCommand(NULL, stash, host_reference);
+    FreeStash(stash);
+    return C_OK;
+}
+
 static int redis_SADD(SilNikParowy_Kontekst *, const char *key, const char *member, const char *host_reference)
 {
     auto *stash = rxStashCommand(NULL, "SADD", 2, key, member);
@@ -2778,9 +2786,12 @@ SJIBOLETH_HANDLER(executeGremlinAddProperty)
             // TODO: Allow multiple properties to be set!
             // while (pl->parameter_list->Size() >= 2)
             // {
-            if (stack->module_contex || targetObjectIterator.data == NULL)
-                redis_HSET(stack, key, a->setname, v->setname, data_config->host_reference);
-            else
+            if (stack->module_contex || targetObjectIterator.data == NULL){
+                if(strlen(v->setname) == 0)
+                    redis_HDEL(stack, key, a->setname, data_config->host_reference);
+                else
+                    redis_HSET(stack, key, a->setname, v->setname, data_config->host_reference);
+            }else
             {
                 rxHashTypeSet(targetObjectIterator.data, a->setname, v->setname, 0);
             }
@@ -2801,9 +2812,26 @@ SJIBOLETH_HANDLER(executeGremlinAddProperty)
     }
     else
     {
-        rxServerLog(rxLL_NOTICE, "parameter list: %s %p\ninput_set: %s %ld entries", pl->setname, pl->parameter_list, input_set->setname, raxSize(input_set->keyset));
-        raxShow(input_set->keyset);
-        ERROR("Incorrect parameters for AddProperty, must be [<a>, <v>]...");
+        if (pl)
+        {
+            raxIterator targetObjectIterator;
+            raxStart(&targetObjectIterator, input_set->keyset);
+            raxSeek(&targetObjectIterator, "^", NULL, 0);
+            while (raxNext(&targetObjectIterator))
+            {
+                rxString key = rxStringNewLen((const char *)targetObjectIterator.key, targetObjectIterator.key_len);
+                redis_HDEL(stack, key, pl->setname, data_config->host_reference);
+            }
+            raxStop(&targetObjectIterator);
+            FaBlok::Delete(pl);
+            PushResult(input_set, stack);
+        }
+        else
+        {
+            rxServerLog(rxLL_NOTICE, "parameter list: %s %p\ninput_set: %s %ld entries", pl->setname, pl->parameter_list, input_set->setname, raxSize(input_set->keyset));
+            raxShow(input_set->keyset);
+            ERROR("Incorrect parameters for AddProperty, must be [<a>, <v>]...");
+        }
     }
 }
 END_SJIBOLETH_HANDLER(executeGremlinAddProperty)
