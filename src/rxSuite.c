@@ -12,6 +12,8 @@ extern "C"
 
 #define rxUNUSED(x) (void)(x)
 
+typedef const char *rxRedisModuleString;
+
 void *rxMercatorShared = NULL;
 
 void *initRxSuite()
@@ -100,20 +102,19 @@ void SetIndex_info(void *indexer)
 
 extern const char*rxGetContainedString(void *o);
     
-static void extractArgs(RedisModuleString **oargv, int j, redisNodeInfo *node)
+static void extractArgs(rxRedisModuleString **oargv, int j, redisNodeInfo *node)
 {
-    RedisModuleString **argv = (RedisModuleString **)oargv;
-    const char *s = rxGetContainedString(argv[j]);
+    const char *s = (const char *)rxGetContainedString(oargv[j]);
     node->host = sdsnew(s);
-    s = rxGetContainedString(argv[j + 1]);
+    s = rxGetContainedString(oargv[j + 1]);
     node->port = atoi(s);
-    s = rxGetContainedString(argv[j + 2]);
+    s = rxGetContainedString(oargv[j + 2]);
     node->database_id = atoi(s);
 }
 
 void rxRegisterConfig(void **oargv, int argc)
 {
-    RedisModuleString **argv = (RedisModuleString **)oargv;
+    rxRedisModuleString **argv = (rxRedisModuleString **)oargv;
     rxSuiteShared *config = initRxSuite();
     for (int j = 0; j < argc; ++j)
     {
