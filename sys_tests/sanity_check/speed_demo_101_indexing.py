@@ -1,71 +1,17 @@
-from __future__ import print_function
 import redis
-import json
-import pdb
-global redis_path
-def column(matrix, i):
-    return [row[i] for row in matrix]
+from match import Matcher
 
 def SD_101_Non_Intrusive_Indexing_And_Full_Text_Queries(cluster_id, controller, data, index):
-    print(data.execute_command("g.wget", "https://roxoft.dev/assets/dataset1.txt"))
-    print(data.execute_command("load.text", "CRLF", "TAB_SEPARATED", "FROM", "dataset1.txt", "as_hash"))
-    RMA = data.hgetall("RMA")
-    print(RMA)
-    try:
-        assert RMA[b'identity'] == b'Rijksmuseum'
-        assert RMA[b'country'] == b'Netherlands'
-        assert RMA[b'Year_Founded'] == b'1798'
-        assert RMA[b'categories'] == b'museum,art,rembrandt,paintings'
-    except Exception as e:
-        print(e)
-        pass
-    data.execute_command("rxIndex wait")
-    
-    query1 = data.execute_command("rxget", "science", "nature", "ranked")
-    query1_keys = column(query1,1)
-    try:
-        assert len(query1_keys) == 7
-        assert b'RMB' in query1_keys
-        assert b'SI' in query1_keys
-        assert b'BBJ' in query1_keys
-        assert b'BNJ' in query1_keys
-        assert b'CPJ' in query1_keys
-        assert b'DWGNJ' in query1_keys
-        assert b'PNJ' in query1_keys
-    except Exception as e:
-        print(e)
-        pass
-    
-    query2 = data.execute_command("rxget", "science", "&", "nature", "ranked")
-    query2_keys = column(query2,1)
-    try:
-        assert len(query2_keys) == 2
-        assert b'RMB' in query2_keys
-        assert b'SI' in query2_keys
-    except Exception as e:
-        print(e)
-        pass
-    
-    query3 = data.execute_command("rxget", "year_founded", "<", "1900")
-    query3_keys = column(query3,1)
+    matcher = Matcher("SD_101_Non_Intrusive_Indexing_And_Full_Text_Queries")
+    matcher.by_strings("get test data", data.execute_command("g.wget", "https://roxoft.dev/assets/dataset1.txt"), b'dataset1.txt')
 
-    try:
-        assert len(query3_keys) == 7
-        assert b'APAZNO' in query3_keys
-        assert b'BM' in query3_keys
-        assert b'CTY' in query3_keys
-        assert b'FCNO' in query3_keys
-        assert b'HSPR' in query3_keys
-        assert b'LP' in query3_keys
-        assert b'MBAO' in query3_keys
-        assert b'RMA' in query3_keys
-        assert b'RSNO' in query3_keys
-        assert b'SBNNO' in query3_keys
-        assert b'SI' in query3_keys
-        assert b'SY' in query3_keys
-        assert b'TG' in query3_keys
-        assert b'VCMNJ' in query3_keys
-    except Exception as e:
-        print(e)
-        pass
+    matcher.by_strings("load test data", data.execute_command("load.text", "CRLF", "TAB_SEPARATED", "FROM", "dataset1.txt", "as_hash"), b'OK')
+    matcher.by_strings("check RMS ", data.hgetall("RMA"), {b'city': b'Amsterdam', b'image': b"%3cimg src='https://external-content.duckduckgo.com/iu/?u=https%3A%2F%2Fi.pinimg.com%2Foriginals%2F5e%2Fcc%2Ff2%2F5eccf24b7022983b2720c775024a9ecf.jpg&f=1&nofb=1&ipt=507f7a6205ea437709b67b294c570649002891ece616d1b59fc6200d799268b5&ipo=images' style='max-width: 60px%26'/%3e", b'country': b'Netherlands', b'identity': b'Rijksmuseum', b'Year_Founded': b'1798', b'state': b'NH', b'categories': b'museum,art,rembrandt,vermeer,asselijn,cuyp,breitner,coorte,venne,borch,jans,versprong,ruisdael,fabritius,avercamp,gilliszleyster,claesz,hals,paintings'})
 
+    matcher.by_strings("wait indexing completed", data.execute_command("rxIndex wait"), b'OK')
+
+    matcher.by_hashed("verify science or nature query", data.execute_command("Q", "science", "nature", "ranked"), [[b'key', b'RMB', b'score', b'2.000000', b'value', [b'city', b'Leiden', b'image', b"%3cimg src='https://external-content.duckduckgo.com/iu/?u=https%3A%2F%2Ftse4.mm.bing.net%2Fth%3Fid%3DOIP.Lv9_mPRli6a1L7dagFzrvAHaFj%26pid%3DApi&f=1&ipt=081ccd221acb484b7f3a6f6ad6bfa4be0759b8b2a23a31160a664352833708c6&ipo=images' style='max-width: 60px%26'/%3e", b'country', b'Netherlands', b'identity', b'Boerhave Museum', b'Year_Founded', b'1931', b'state', b'ZH', b'categories', b'museum,science,art,nature']], [b'key', b'SI', b'score', b'2.000000', b'value', [b'city', b'Washington', b'image', b"%3cimg src='https://external-content.duckduckgo.com/iu/?u=https%3A%2F%2Ftse1.mm.bing.net%2Fth%3Fid%3DOIP.IQ3jR9DHnZd5l26wtAIhHgHaE7%26pid%3DApi&f=1&ipt=c976c1afdbef655da0b3276aee033fe1a113709fac6d78cc7be321a21d10eb24&ipo=images' style='max-width: 60px%26'/%3e", b'country', b'USA', b'identity', b'Smithsonian', b'Year_Founded', b'1846', b'state', b'DC', b'categories', b'museum,science,nature']], [b'key', b'BBJ', b'score', b'1.000000', b'value', [b'identity', b'Bouley Bay', b'city', b'Jersey', b'categories', b'landmark,recreation,nature', b'country', b'United Kingdom', b'image', b"%3cimg src='https://www.responsibletravel.com/ImagesClient/dtg-cr5732-jersey-bouley-bay.jpg' style='max-width: 60px%26'/%3e"]], [b'key', b'BNJ', b'score', b'1.000000', b'value', [b'country', b'USA', b'city', b'New Jersey', b'image', b"%3cimg src='https://www.planetware.com/wpimages/2022/03/new-jersey-top-attractions-new-jersey-beaches-wildwood-crest-beach.jpg' style='max-width: 60px%26'/%3e", b'identity', b'New Jersey Beaches', b'state', b'NJ', b'categories', b'landmark,beach,nature,recreation']], [b'key', b'CPJ', b'score', b'1.000000', b'value', [b'identity', b'Corbiere Point', b'city', b'Jersey', b'categories', b'landmark,recreation,nature', b'country', b'United Kingdom', b'image', b"%3cimg src='https://www.responsibletravel.com/ImagesClient/dtg-cr5732-jersey-corbiere-point.jpg' style='max-width: 60px%26'/%3e"]], [b'key', b'DWGNJ', b'score', b'1.000000', b'value', [b'country', b'USA', b'city', b'New Jersey', b'image', b"%3cimg src='https://www.planetware.com/photos-large/USNJ/us-new-jersey-delaware-water-gap-national-recreation-area.jpg' style='max-width: 60px%26'/%3e", b'identity', b'Delaware Water Gap National Recreation Area', b'state', b'NJ', b'categories', b'landmark,nature,recreation']], [b'key', b'PNJ', b'score', b'0.500000', b'value', [b'country', b'USA', b'city', b'New Jersey', b'image', b"%3cimg src='https://www.planetware.com/wpimages/2022/03/new-jersey-top-attractions-princeton-battlefield-state-park-institute.jpg' style='max-width: 60px%26'/%3e", b'identity', b'Princeton Battlefield State Park & Institute for Advanced Study', b'state', b'NJ', b'categories', b'science,science,research,einstein,park']]])
+    matcher.by_hashed("verify science and nature query", data.execute_command("RXQUERY", "science", "&", "nature", "ranked"), [[b'key', b'RMB', b'type', b'H', b'score', b'2.000000'], [b'key', b'SI', b'type', b'H', b'score', b'2.000000']])
+    matcher.by_hashed("verify older museums query", data.execute_command("RXQUERY", "year_founded", "<", "1900", "ranked"), [[b'key', b'BM', b'type', b'H', b'score', b'1.000000'], [b'key', b'CTY', b'type', b'H', b'score', b'1.000000'], [b'key', b'FCNO', b'type', b'H', b'score', b'1.000000'], [b'key', b'HSPR', b'type', b'H', b'score', b'1.000000'], [b'key', b'MBAO', b'type', b'H', b'score', b'1.000000'], [b'key', b'LP', b'type', b'H', b'score', b'1.000000'], [b'key', b'MH', b'type', b'H', b'score', b'1.000000'], [b'key', b'RMA', b'type', b'H', b'score', b'1.000000'], [b'key', b'RSNO', b'type', b'H', b'score', b'1.000000'], [b'key', b'SI', b'type', b'H', b'score', b'1.000000'], [b'key', b'SY', b'type', b'H', b'score', b'1.000000'], [b'key', b'TG', b'type', b'H', b'score', b'1.000000'], [b'key', b'APAZNO', b'type', b'H', b'score', b'1.000000'], [b'key', b'SBNNO', b'type', b'H', b'score', b'1.000000'], [b'key', b'VCMNJ', b'type', b'H', b'score', b'1.000000']])
+    
+    matcher.finalize()

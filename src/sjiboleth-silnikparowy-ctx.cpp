@@ -141,7 +141,7 @@ void SilNikParowy_Kontekst::DumpStack()
     int n = 0;
     while ((kd = this->Next()) != NULL)
     {
-        rxServerLog(rxLL_NOTICE, "%2d\t%p temp=%d type=%d size=%d %s", n++, kd, kd->is_temp, kd->value_type, kd->size, kd->setname);
+        rxServerLog(rxLL_DEBUG, "%2d\t%p temp=%d type=%d size=%d %s", n++, kd, kd->is_temp, kd->value_type, kd->size, kd->setname);
         if (kd->IsParameterList())
         {
             GraphStack<FaBlok> *pl = kd->parameter_list;
@@ -150,7 +150,7 @@ void SilNikParowy_Kontekst::DumpStack()
             int pn = 0;
             while ((p = pl->Next()) != NULL)
             {
-                rxServerLog(rxLL_NOTICE, ".%2d\t%p temp=%d type=%d size=%d %s", pn++, p, p->is_temp, p->value_type, p->size, p->setname);
+                rxServerLog(rxLL_DEBUG, ".%2d\t%p temp=%d type=%d size=%d %s", pn++, p, p->is_temp, p->value_type, p->size, p->setname);
             }
         }
     }

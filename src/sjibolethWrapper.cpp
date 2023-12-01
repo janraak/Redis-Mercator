@@ -258,11 +258,14 @@ std::vector<rxIndexEntry *> FilterAndSortResults(rax *result, bool ranked, doubl
         else
         {
             ro = rxIndexEntry::New((const char *)resultsIterator.key, resultsIterator.key_len);
-            ro->key_type = rxGetObjectType(o); // type_chars[rxGetObjectType(o)];
-            ro->key_type = rxGetObjectType(o);
+            if(resultsIterator.data){
+                ro->key_type = rxGetObjectType(o); // type_chars[rxGetObjectType(o)];
+                ro->obj = resultsIterator.data;
+            }
+            else
+                ro->obj = NULL;
             ranked = false; // Traversal objects are not sorted!
         }
-        if(ro != NULL)
         if(ro != NULL)
             vec.push_back(ro);
     }
@@ -273,6 +276,48 @@ std::vector<rxIndexEntry *> FilterAndSortResults(rax *result, bool ranked, doubl
         sort(vec.begin(), vec.end(), loHi ? &score_comparator_lo_hi : &score_comparator);
     }
     return vec;
+}
+
+void WriteHasField(const char *f, const char *v, void *parm)
+{
+    RedisModuleCtx *ctx = (RedisModuleCtx *)parm;
+    RedisModule_ReplyWithStringBuffer(ctx, f, strlen(f));
+    if(!v)
+        v = "";
+    RedisModule_ReplyWithStringBuffer(ctx, v, strlen(v));
+}
+
+unsigned long  rxWriteHash(rxIndexEntry *hash, RedisModuleCtx *ctx, CGraphStack *fieldSelector)
+{
+
+    RedisModule_ReplyWithArray(ctx, 6);
+    RedisModule_ReplyWithSimpleString(ctx, "key");
+    RedisModule_ReplyWithSimpleString(ctx, hash->key);
+    RedisModule_ReplyWithSimpleString(ctx, "score");
+    RedisModule_ReplyWithLongDouble(ctx, hash->key_score);
+    RedisModule_ReplyWithSimpleString(ctx, "value");
+    unsigned long tally = 0;
+    if (fieldSelector)
+    {
+        auto *fields = (GraphStack<const char> *)fieldSelector;
+        RedisModule_ReplyWithArray(ctx, fields->Size() * 2);
+        fields->StartHead();
+        const char *f;
+        while ((f = fields->Next()))
+        {
+            auto *v = rxGetHashField(hash->obj, f);
+            WriteHasField(f, v, ctx);
+            tally++;
+        }
+    }
+    else
+    {
+        RedisModule_ReplyWithArray(ctx, 2 * rxHashTypeLength(hash->obj));
+        tally = rxHashTraverse(hash->obj, WriteHasField, ctx);
+    }
+    // delete object once emitted
+    // rxFreeObject(hash); // TODO: Don't know if the hash is dynamic or from database
+    return tally;
 }
 
 int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *, bool ranked, double ranked_lower_bound, double ranked_upper_bound, CGraphStack *fieldSelector, CGraphStack * /*sortSelector*/)
@@ -296,6 +341,9 @@ int WriteResults(rax *result, RedisModuleCtx *ctx, int fetch_rows, const char *,
         if (r->obj != NULL)
             // Traversal objects do not need fetching
             switch(r->key_type){
+                case rxOBJ_HASH:
+                    rxWriteHash(r, ctx, fieldSelector);
+                    break;
                 case rxOBJ_TRIPLET:
                     ((Graph_Triplet *)r->obj)->Write(ctx);
                     break;

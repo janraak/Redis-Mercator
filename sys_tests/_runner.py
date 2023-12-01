@@ -141,7 +141,7 @@ def prepare_controller():
             "MODULE LOAD {}/extensions/src/rxMercator.so".format(redis_path))
         print("rxMercator loaded")
         r = redis_client.execute_command(
-            "mercator.add.server localhost {} 6GB BASE 6381 200".format(ip))
+            "mercator.add.server localhost {} 6GB BASE 6381 2".format(ip))
         print("rxMercator server added")
     return redis_client
 
@@ -196,7 +196,10 @@ def run_test(scenario, cluster_id, controller, data_node, index_node, flushall =
     except Exception as ex:
         if("{}".format(ex) == 'Reconnect'):
             raise
+        print(Fore.RED + Back.WHITE)
+        traceback.print_exc() 
         print(" failed, error: {}".format(ex))
+        print(Fore.RESET + Back.RESET)
 
 def my_import(name):    
     components = name.split('.')
@@ -249,6 +252,9 @@ def main(argv):
                             index_node = connect_to_redis(cluster_info["index"])
                             print((Style.RESET_ALL+Fore.WHITE + Back.RED + "AFTER reconnect data:{} index:{}"+Style.RESET_ALL).format(scenario[0],data_node,index_node))
                             pass
+                        else:
+                            traceback.print_exc() 
+
 
     index_node.close()
     data_node.close()

@@ -146,6 +146,12 @@ extern "C"
     int rxGetRefcount(void *o);
     rax *rxSetToRax(void *obj);
 
+    void *rxFused(const char *key, const char *fuse_key, const char *barKey, void *fuse_subject, void *fuse_object, void *fuse_predicate);
+
+    typedef void (*rxTraversedHashField)(const char *f, const char *v, void *prm);
+    unsigned long rxHashTypeLength(void *o);
+    unsigned long rxHashTraverse(void *hash, rxTraversedHashField handler, void *prm);
+
     long long rxCreateTimeEvent(long long milliseconds,
                                 aeTimeProc *proc, void *clientData,
                                 aeEventFinalizerProc *finalizerProc);
@@ -176,7 +182,6 @@ extern "C"
     // rxMercator overrides for embededded rax object
     void rxRaxFreeWithCallback(rax *rax, void (*free_callback)(void *));
     void rxRaxFree(rax *rax);
-
     typedef struct rxClientInfo
     {
         // Memory Info

@@ -227,3 +227,33 @@ extern "C" void    ExecuteOnFake(const char *commandName, int argc, void **argv)
         rxServerLog(rxLL_WARNING, "Unknown command %s,  arg count: %d", commandName, argc);
     RedisClientPool<struct client>::Release(c, "ExecuteRedisCommand");
 }
+
+char *extractStringFromRedisReply(redisReply *r, const char *field)
+{
+    if (r->type == REDIS_REPLY_ARRAY)
+    {
+        for (size_t n = 0; n < r->elements; n += 2)
+        {
+            if (rxStringMatch(field, (const char *)r->element[n]->str, 1))
+            {
+                return r->element[n + 1]->str;
+            }
+        }
+    }
+    return NULL;
+}
+
+redisReply *extractGroupFromRedisReply(redisReply *r, const char *field)
+{
+    if (r->type == REDIS_REPLY_ARRAY)
+    {
+        for (size_t n = 0; n < r->elements; n += 2)
+        {
+            if (rxStringMatch(field, (const char *)r->element[n]->str, 1))
+            {
+                return r->element[n + 1];
+            }
+        }
+    }
+    return NULL;
+}

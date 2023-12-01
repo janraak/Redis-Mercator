@@ -986,7 +986,7 @@ public:
                     char origin_node[24];
                     snprintf(origin_node, sizeof(origin_node), "%s:%d", address, port);
 
-                    cmd = rxStringFormat("rxget \"g:v(instance).has(owner, '%s').has(role,%s).has(shard,%s).has(order,%s).select(address,port)\"",
+                    cmd = rxStringFormat("G \"v('%s').out(has_instance).has(role,%s).eq(shard,%s).eq(order,%s).select(address,port)\"",
                                          this->shadow, role, shard, order);
                     redisReply *replica = ExecuteLocal(cmd, LOCAL_FREE_CMD);
                     if (replica->type == REDIS_REPLY_ARRAY && replica->elements > 0)
@@ -1056,7 +1056,7 @@ public:
                             auto start = mstime();
                             while (!isNodeInRole(redis_node, "*role:slave*") && !isNodeInRole(shadow_node, "*role:master*"))
                             {
-                                if (mstime() - start > 60 * 1000 /* 1 minute*/)
+                                if (mstime() - start > (guard->no_of_keys / 100 )) // Assume 100 writes per sec
                                     break;
                                 sched_yield();
                             }
@@ -1118,11 +1118,9 @@ public:
                                       this->clusterId, temp_sha1,
                                       this->shadow, this->clusterId,
                                       temp_sha1, this->shadow);
-        rxServerLog(rxLL_NOTICE, "%s", cmd);
         ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
         rxServerLog(rxLL_NOTICE, "Swap cluster redisversion between %s %s and %s %s", this->clusterId, this->org_redisVersion, this->shadow, this->redisVersion);
         cmd = rxStringFormat("RXQUERY \"G:V('%s').property('redis','%s').V('%s').property('redis','%s')\"", this->clusterId, this->redisVersion, this->shadow, this->org_redisVersion);
-        rxServerLog(rxLL_NOTICE, "%s", cmd);
         ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
         cmd = rxStringFormat("MERCATOR.STOP.CLUSTER %s", this->shadow);
         redisReply *rcc = ExecuteLocal(cmd, LOCAL_FREE_CMD);

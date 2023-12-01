@@ -49,4 +49,8 @@ public:
     static void Release(T *client, const char */*caller*/);
 };
 
+    char *extractStringFromRedisReply(redisReply *r, const char *field);
+
+    redisReply *extractGroupFromRedisReply(redisReply *r, const char *field);
+
 #endif

@@ -16,6 +16,10 @@ extern "C"
     extern struct client *createAOFClient(void);
     void raxRecursiveFree(rax *rax, raxNode *n, void (*free_callback)(void *));
     unsigned long getClusterConnectionsCount(void);
+    robj *hashTypeDup(robj *o);
+    int hashTypeSet(robj *o, sds field, sds value, int flags);
+    unsigned long hashTypeLength(const robj *o);
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -53,12 +57,12 @@ void installInterceptors(interceptRule *commandTable, int no_of_commands, timePr
         struct redisCommand *cmd = lookupCommandByCString(commandTable[j].name);
         if (cmd)
         {
-            #if REDIS_VERSION_NUM > 0x00060000
+#if REDIS_VERSION_NUM > 0x00060000
                 commandTable[j].id = cmd->id;
-            #endif
-            #if REDIS_VERSION_NUM > 0x00060000
+#endif
+#if REDIS_VERSION_NUM > 0x00060000
                 commandTable[j].id = cmd->id;
-            #endif
+#endif
             commandTable[j].redis_proc = (interceptorProc *)cmd->proc;
             cmd->proc = (redisCommandProc *)commandTable[j].proc;
             commandTable[j].no_of_intercepts = 0;
@@ -1330,3 +1334,46 @@ int raxTryInsert(rax *rax, unsigned char *s, size_t len, void *data, void **old)
     return 0;
 }
 #endif
+
+void *rxFused(const char *key, const char *fuse_key, const char *barKey, void *fuse_subject, void *fuse_object, void *fuse_predicate)
+{
+    robj *fused = hashTypeDup(fuse_subject);
+    hashTypeSet(fused, "subject", key, HASH_SET_COPY);
+    hashTypeSet(fused, "object", barKey, HASH_SET_COPY);
+    hashTypeSet(fused, "predicate", fuse_key + 1, HASH_SET_COPY);
+
+    void **inputs[2] = {fuse_object, fuse_predicate};
+
+    for (int n = 0; n < 2; ++n)
+    {
+        hashTypeIterator *hi = hashTypeInitIterator(inputs[n]);
+        while (hashTypeNext(hi) != C_ERR)
+        {
+            rxString f = hashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_KEY);
+            rxString v = hashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_VALUE);
+            hashTypeSet(fused, f, v, HASH_SET_COPY);
+        }
+        hashTypeReleaseIterator(hi);
+    }
+
+    return fused;
+}
+
+unsigned long rxHashTypeLength(void *o){
+    return hashTypeLength(o);
+}
+
+unsigned long rxHashTraverse(void *hash, rxTraversedHashField handler, void *prm)
+{
+    unsigned long tally = 0;
+    hashTypeIterator *hi = hashTypeInitIterator(hash);
+    while (hashTypeNext(hi) != C_ERR)
+    {
+        rxString f = hashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_KEY);
+        rxString v = hashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_VALUE);
+        handler(f, v, prm);
+        ++tally;
+    }
+    hashTypeReleaseIterator(hi);
+    return tally;
+}

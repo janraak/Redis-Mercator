@@ -27,6 +27,7 @@ extern void FreeStash(void *stash);
 #define TRAVERSE_FINAL_VERTEX 0
 #define TRAVERSE_FINAL_EDGE 1
 #define TRAVERSE_FINAL_TRIPLET 2
+#define TRAVERSE_FINAL_FUSED 3
 
 static FaBlok *getAllKeysByRegex(int dbNo, const char *regex, int on_matched, const char *set_name);
 static FaBlok *getAllKeysByType(int dbNo, const char *regex, int on_matched, rxString type_name);
@@ -1323,7 +1324,7 @@ static SJIBOLETH_HANDLER(executeGremlinHas)
 
     short must_match = t->Is("HAS") || t->Is("EQ") ? MATCH_IS_TRUE : MATCH_IS_FALSE;
     if(!must_match){
-        rxServerLogRaw(rxLL_NOTICE, "NOT");
+        rxServerLogRaw(rxLL_DEBUG, "NOT");
     }
     /* 1) Use top of stack = dict of keys/values.
        2) Filter all keys matching kvp
@@ -2046,6 +2047,38 @@ SJIBOLETH_HANDLER(executeGremlinInOut)
     return executeGremlinTraverse(stack, parms);
 }
 END_SJIBOLETH_HANDLER_X(executeGremlinInOut)
+
+SJIBOLETH_HANDLER(executeGremlinFuseOut)
+{
+
+    rxUNUSED(t);
+    STACK_CHECK(1);
+    auto *parms = MatchParameters::SetOutputType(stack, GRAPH_TRAVERSE_OUT, TRAVERSE_GETDATA, TRAVERSE_FINAL_FUSED);
+    return executeGremlinTraverse(stack, parms);
+}
+END_SJIBOLETH_HANDLER_X(executeGremlinFuseOut)
+
+// Do a breadth first for any vertex or edge of type <out>
+SJIBOLETH_HANDLER(executeGremlinFuseIn)
+{
+
+    rxUNUSED(t);
+    STACK_CHECK(1);
+    auto *parms = MatchParameters::SetOutputType(stack, GRAPH_TRAVERSE_IN, TRAVERSE_GETDATA, TRAVERSE_FINAL_FUSED);
+    return executeGremlinTraverse(stack, parms);
+}
+END_SJIBOLETH_HANDLER_X(executeGremlinFuseIn)
+
+// Do a breadth first for any vertex or edge of type <out>
+SJIBOLETH_HANDLER(executeGremlinFuseInOut)
+{
+
+    rxUNUSED(t);
+    STACK_CHECK(1);
+    auto *parms = MatchParameters::SetOutputType(stack, GRAPH_TRAVERSE_INOUT, TRAVERSE_GETDATA, TRAVERSE_FINAL_FUSED);
+    return executeGremlinTraverse(stack, parms);
+}
+END_SJIBOLETH_HANDLER_X(executeGremlinFuseInOut)
 
 // Do a breadth first for any vertex or edge of type <out>
 SJIBOLETH_HANDLER(executeGremlinOutTriplet)
@@ -3008,7 +3041,7 @@ END_SJIBOLETH_HANDLER(executeResetStack)
  */
 SJIBOLETH_HANDLER(executePushDupStack)
 {
-    rxServerLog(rxLL_NOTICE, "executePushDupStack 0000");
+    rxServerLog(rxLL_DEBUG, "executePushDupStack 0000");
     if (stack->HasEntries())
     {
         FaBlok *input_set = stack->Pop();
@@ -3016,7 +3049,7 @@ SJIBOLETH_HANDLER(executePushDupStack)
         PushResult(input_set, stack);
         stack->DumpStack();
     }
-    rxServerLog(rxLL_NOTICE, "executePushDupStack 9999");
+    rxServerLog(rxLL_DEBUG, "executePushDupStack 9999");
 }
 END_SJIBOLETH_HANDLER(executePushDupStack)
 
@@ -3027,14 +3060,14 @@ END_SJIBOLETH_HANDLER(executePushDupStack)
  */
 SJIBOLETH_HANDLER(executePopStack)
 {
-    rxServerLog(rxLL_NOTICE, "executePopStack 0000");
+    rxServerLog(rxLL_DEBUG, "executePopStack 0000");
     if (stack->HasEntries())
     {
         FaBlok *input_set = stack->Pop();
         FaBlok::Delete(input_set);
     }
     stack->DumpStack();
-    rxServerLog(rxLL_NOTICE, "executePopStack 9999");
+    rxServerLog(rxLL_DEBUG, "executePopStack 9999");
 }
 END_SJIBOLETH_HANDLER(executePopStack)
 
@@ -3191,6 +3224,12 @@ bool GremlinDialect::RegisterDefaultSyntax()
     this->RegisterSyntax("pop", 50, -1, -1, &executePopStack);
     this->RegisterSyntax("break", 50, -1, -1, &debugBreak);
     this->RegisterSyntax("note", 50, -1, -1, &executeComment);
+    //
+    // Fuse subject (predicate) object to single vertex (hash)
+    //
+   this->RegisterSyntax("fuseOut", 500, 2, 1, &executeGremlinFuseOut);
+    this->RegisterSyntax("fuseIn", 500, 2, 1, &executeGremlinFuseIn);
+    this->RegisterSyntax("fuseInOut", 500, 2, 1, &executeGremlinFuseInOut);
     return true;
 }
 
@@ -3405,7 +3444,9 @@ int AddMemberToKeysetForMatch(int db, unsigned char *vstr, size_t vlen, FaBlok *
                 mobj = Graph_Triplet::New(db, terminal, mparts[1], rxStringTrim(parts[1], "^"), parms->optimization);
             }
             Graph_Triplet::Link(mobj, kd);
-            if (parms->final_vertex_or_edge == TRAVERSE_FINAL_VERTEX)
+            switch (parms->final_vertex_or_edge)
+            {
+            case TRAVERSE_FINAL_VERTEX:
             {
                 rxString mkey = rxStringTrim(mparts[1], "^");
                 // assert(rxGetObjectType(rxFindKey(0, mkey)) == rxOBJ_TRIPLET);
@@ -3413,9 +3454,22 @@ int AddMemberToKeysetForMatch(int db, unsigned char *vstr, size_t vlen, FaBlok *
                 rxStringFree(mkey);
                 // ((Graph_Triplet *)mobj)->Show();
             }
-            else
+            break;
+            case TRAVERSE_FINAL_FUSED:
+            {
+                rxString mkey = rxStringTrim(mparts[1], "^");
+                // assert(rxGetObjectType(rxFindKey(0, mkey)) == rxOBJ_TRIPLET);
+                kd->AddKey(mkey /*terminal->key*/, rxFindKey(0, mkey));
+                rxStringFree(mkey);
+                // ((Graph_Triplet *)mobj)->Show();
+            }
+            break;
+
+            default:
             {
                 kd->AddKey(link /*terminal->key*/, mobj);
+            }
+            break;
             }
         }
         rxFreeSetmembers(mob);
@@ -3680,8 +3734,15 @@ int traverseAdjacent(FaBlok *leaders, FaBlok *kd, MatchParameters *parms)
     raxSeek(&leadersIterator, "^", NULL, 0);
     while (raxNext(&leadersIterator))
     {
+        const char *fuse_key = NULL;
+        void *fuse_subject = NULL;
+        void *fuse_object = NULL;
+        void *fuse_predicate = NULL;
+
         rxString key = rxStringNewLen((const char *)leadersIterator.key, leadersIterator.key_len);
         rxString edge = rxStringFormat("^%s", key);
+        if(parms->final_vertex_or_edge == TRAVERSE_FINAL_FUSED)
+            fuse_subject = rxFindHashKey(0, key);
         //
         // Get edge halfes from/to vertex
         void *zobj = rxFindSetKey(0, edge);
@@ -3698,7 +3759,7 @@ int traverseAdjacent(FaBlok *leaders, FaBlok *kd, MatchParameters *parms)
         {
             char *elesds = *p;
             ++p;
-            rxServerLog(rxLL_NOTICE, "traverseAdjacent for %s : %ld: %s", key, n, elesds);
+            rxServerLog(rxLL_DEBUG, "traverseAdjacent for %s : %ld: %s", key, n, elesds);
             char *colon[8];
             breakupPointer(elesds, '|', colon, 8);
             int doesMatchOneOfThePatterns = 0;
@@ -3726,6 +3787,9 @@ int traverseAdjacent(FaBlok *leaders, FaBlok *kd, MatchParameters *parms)
                     rxStringFree(pointer);
                     continue;
                 }
+                fuse_key = pointer;
+                if (parms->final_vertex_or_edge == TRAVERSE_FINAL_FUSED)
+                    fuse_predicate = rxFindHashKey(0, pointer + 1);
 
                 auto pointers = rxHarvestSetmembers(edge);
                 char **q = (char **)&pointers->members;
@@ -3733,7 +3797,7 @@ int traverseAdjacent(FaBlok *leaders, FaBlok *kd, MatchParameters *parms)
                 {
                     char *elesds = *q;
                     ++q;
-                    rxServerLog(rxLL_NOTICE, "traverseAdjacent target for %s : %ld: %s", key, n, elesds);
+                    rxServerLog(rxLL_DEBUG, "traverseAdjacent target for %s : %ld: %s", key, n, elesds);
                     char *bars[8];
                     breakupPointer(elesds, '|', bars, 8);
                     switch (parms->traverse_direction)
@@ -3759,12 +3823,24 @@ int traverseAdjacent(FaBlok *leaders, FaBlok *kd, MatchParameters *parms)
                     }
                     rxString barKey = rxStringNewLen(bars[1] + 2, bars[2] - bars[1] - 2);
                     numkeys++;
-                    if (parms->final_vertex_or_edge == TRAVERSE_FINAL_VERTEX)
+                    if(parms->final_vertex_or_edge == TRAVERSE_FINAL_FUSED)
+                        fuse_object = rxFindHashKey(0, barKey);
+                    switch (parms->final_vertex_or_edge)
+                    {
+                    case TRAVERSE_FINAL_VERTEX:
                         kd->InsertKey(barKey, rxFindKey(0, barKey));
-                    else
+                        break;
+
+                    case TRAVERSE_FINAL_FUSED:
+                        kd->InsertKey(generate_uuid().c_str(), rxFused(key, fuse_key, barKey, fuse_subject, fuse_object, fuse_predicate));
+                        break;
+
+                    default:
                     {
                         Graph_Leg *leg = Graph_Leg::New(key, 1.0);
                         AddMemberToKeysetForMatch(0, (unsigned char *)elesds, strlen(elesds), kd, leg, (UCHAR *)key, parms);
+                    }
+                    break;
                     }
                 }
                 rxFreeSetmembers(pointers);
