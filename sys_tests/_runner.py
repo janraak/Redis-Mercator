@@ -31,7 +31,7 @@ def parse_arguments(argv):
     folder = "scenarios"
     includes = []
     excludes = []
-    runs = 1000
+    runs = 10
     if len(argv) > 1:
         #[testset %folder] [include %filename, ...] [exclude %filename, ...]
         while n < len(argv):
@@ -151,7 +151,7 @@ def prepare_controller():
                 print("rxMercator server added")
             return redis_client
         except Exception as ex:
-            os.system("~/__reset.sh")
+            # os.system("~/__reset.sh")
             cwd = os.path.dirname(os.getcwd())
             left = cwd.index('-')
             version = cwd[left+1:] 
@@ -231,7 +231,7 @@ def main(argv):
     # scenarios = [method_name for method_name in globals()
     #               if "scenario" in method_name]
 
-    controller = prepare_controller(argv)
+    controller = prepare_controller()
     cluster_info = create_cluster(controller)
     #pdb.set_trace()
     data_node = connect_to_redis(cluster_info["data"])
