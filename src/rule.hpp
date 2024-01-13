@@ -199,9 +199,9 @@ public:
             rxString ruleName = rxStringNewLen((const char *)ri.key, ri.key_len);
             BusinessRule *br = (BusinessRule *)ri.data;
 
-            rxServerLogRaw(rxLL_WARNING, rxStringFormat("Applying rules: %s to: %s\n", ruleName, key));
+            rxServerLogRaw(rxLL_DEBUG, rxStringFormat("Applying rules: %s to: %s\n", ruleName, key));
             bool result = br->Apply(key);
-            rxServerLogRaw(rxLL_WARNING, rxStringFormat("Applied rules: %s to: %s -> %d\n", ruleName, key, result));
+            rxServerLogRaw(rxLL_DEBUG, rxStringFormat("Applied rules: %s to: %s -> %d\n", ruleName, key, result));
             response = rxStringFormat("%s%s -> %d\r", response, ruleName, result);
         }
         raxStop(&ri);
@@ -242,9 +242,9 @@ public:
         : BusinessRule()
     {
         this->setName = rxStringNew(setName);
-        rxServerLogRaw(rxLL_WARNING, rxStringFormat("Rule (1): %s as: %s\n", this->setName, query));
+        rxServerLogRaw(rxLL_DEBUG, rxStringFormat("Rule (1): %s as: %s\n", this->setName, query));
         this->rule = this->RuleParser->Parse(query);
-        rxServerLogRaw(rxLL_WARNING, rxStringFormat("Rule (2): %s as: %s\n", this->setName, this->rule->ToString()));
+        rxServerLogRaw(rxLL_DEBUG, rxStringFormat("Rule (2): %s as: %s\n", this->setName, this->rule->ToString()));
     };
 
     ~BusinessRule()

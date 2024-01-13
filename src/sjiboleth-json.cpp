@@ -147,10 +147,10 @@ bool JsonDialect::RegisterDefaultSyntax()
     this->DeregisterSyntax("NOT");
     this->DeregisterSyntax("!");
 	// Sjiboleth::RegisterDefaultSyntax();
-    this->RegisterSyntax(",", 15, 0, 0, executeJsonParameters, JsonCommaScopeCheck);
-    this->RegisterSyntax("!!!,", priBreak, 0, 0, IndexJson);
-    this->RegisterSyntax("{{{,", 5, 0, 0, IndexJson);
-    this->RegisterSyntax(":", 10, 0, 0, IndexJson);
+    this->RegisterSyntax(",", 15, 0, 0, Q_READONLY, executeJsonParameters, JsonCommaScopeCheck);
+    this->RegisterSyntax("!!!,", priBreak, 0, 0, Q_READONLY, IndexJson);
+    this->RegisterSyntax("{{{,", 5, 0, 0, Q_READONLY, IndexJson);
+    this->RegisterSyntax(":", 10, 0, 0, Q_READONLY, IndexJson);
     return true;
 }
 

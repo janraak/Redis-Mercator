@@ -147,7 +147,7 @@ def prepare_controller():
                     "MODULE LOAD {}/extensions/src/rxMercator.so".format(redis_path))
                 print("rxMercator loaded")
                 r = redis_client.execute_command(
-                    "mercator.add.server localhost {} 6GB BASE 6381 2".format(ip))
+                    "mercator.add.server localhost {} 6GB BASE 6381 4".format(ip))
                 print("rxMercator server added")
             return redis_client
         except Exception as ex:
@@ -171,7 +171,7 @@ def connect_to_redis(node):
 
 
 def create_cluster(redis_client):
-    cluster_id = redis_client.execute_command("mercator.create.cluster", "SANITY_TESTS", "REDIS", "6.0.19")
+    cluster_id = redis_client.execute_command("mercator.create.cluster", "SANITY_TESTS", "REDIS", "6.0.19", "REPLICATED")
     redis_client.execute_command("mercator.start.cluster", cluster_id)
     cluster_info = json.loads(redis_client.execute_command(
         "mercator.info.cluster", cluster_id).decode('utf-8'))
@@ -278,6 +278,7 @@ def main(argv):
     if controller_started:
         index_node.shutdown()
         data_node.shutdown()
+        controller.execute_command("mercator.kill.cluster", cluster_id)
         controller.shutdown()
 
     index_node.close()

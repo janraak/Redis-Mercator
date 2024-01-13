@@ -209,12 +209,7 @@ void freeSha1(rxString sha1)
     rxStringFree(sha1);
 }
 #include <arpa/inet.h>
-#include <arpa/inet.h>
 #include <ifaddrs.h>
-#include <netinet/in.h>
-#include <stdio.h>
-#include <string.h>
-#include <sys/types.h>
 #include <netinet/in.h>
 #include <stdio.h>
 #include <string.h>
@@ -414,7 +409,7 @@ class ServerInstallationStatus
 protected:
     eInstalationStatus FromLabel(const char *status)
     {
-        if(status)
+        if (status)
             for (int l = 0; l < 5; ++l)
             {
                 if (rxStringMatch(status, eInstalationStatusLabels[l], true))
@@ -472,12 +467,12 @@ public:
         strncpy(v, version, vl);
         v[vl] = 0x00;
         char *z = v + vl + 1;
-        
-        if(scope)
-            strncpy(z, scope, zl);        
+
+        if (scope)
+            strncpy(z, scope, zl);
         z[zl] = 0x00;
         char *a = z + zl + 1;
-        if(address)
+        if (address)
             strncpy(a, address, al);
         a[al] = 0x00;
         return ((ServerInstallationStatus *)sis)->Init(v, z, a);
@@ -672,9 +667,9 @@ public:
             {
                 redisReply *row = extractGroupFromRedisReplyByIndex(rcc, n);
                 redisReply *hash = extractGroupFromRedisReply(row, "value");
-                const char *ip = extractStringFromRedisReply(hash,"address");
-                const char *port = extractStringFromRedisReply(hash,"port");
-                const char *zone = extractStringFromRedisReply(hash,"zone");
+                const char *ip = extractStringFromRedisReply(hash, "address");
+                const char *port = extractStringFromRedisReply(hash, "port");
+                const char *zone = extractStringFromRedisReply(hash, "zone");
                 cmd = rxStringAppend(cmd, "SCOPE", ' ');
                 cmd = rxStringAppend(cmd, zone, ' ');
                 cmd = rxStringAppend(cmd, "ADDRESS", ' ');
@@ -724,7 +719,7 @@ public:
     }
 };
 
-redisReply *FindInstanceGroup(const char *sha1, const char *fields = NULL);
+redisReply *FindInstanceGroup(const char *sha1, const char *fields = NULL, bool primariesOnly = false);
 void LoanInstancesToController(redisContext *sub_controller, int no_of_instances);
 void *PropagateCommandToAllSubordinateControllers(CreateClusterAsync *multiplexer, bool async = false);
 
@@ -784,7 +779,8 @@ public:
     GraphStack<ReplicationGuard> guards;
     tUpgradeStatus upgrade_status;
 
-    int AsNumber(const char *version){
+    int AsNumber(const char *version)
+    {
         char *dots[4];
         breakupPointer((char *)version, '.', dots, sizeof(dots) / sizeof(char *));
         char n[16];
@@ -793,7 +789,7 @@ public:
         int number = atoi(n);
         strncpy(n, dots[1] + 1, dots[2] - dots[1] - 1);
         n[dots[2] - dots[1] - 1] = 0x00;
-        number = (number << 8) +atoi(n);
+        number = (number << 8) + atoi(n);
         return number;
     }
 
@@ -801,7 +797,8 @@ public:
         : CreateClusterAsync(ctx, argv, argc)
     {
         size_t arg_len;
-        if(argc != 3){
+        if (argc != 3)
+        {
             this->result_text = "Invalid command, syntax: mercator.upgrade.cluster %CLUSTERID% %REDISVERSION%";
             this->StopThread();
             return;
@@ -875,7 +872,7 @@ public:
 
     size_t Parse_KeySpace(redisReply *rcc)
     {
-        if(!rcc)
+        if (!rcc)
             return 0;
         char *lines[20];
         int max_lines = sizeof(lines) / sizeof(char *);
@@ -930,7 +927,7 @@ public:
                     if (rxStringMatch(connected_slaves, lines[n] + adjustment, MATCH_IGNORE_CASE))
                     {
                         guard->no_of_replicas = atoi(lines[n] + strlen(connected_slaves) - 1);
-                        if(guard->no_of_replicas == 0)
+                        if (guard->no_of_replicas == 0)
                             guard->no_of_replicas = 1;
                     }
                 }
@@ -957,8 +954,9 @@ public:
         rxString cmd = rxStringFormat("RXGET \"G:V('%s').select('redis')\"", this->clusterId);
         redisReply *org_redisVersion = ExecuteLocal(cmd, LOCAL_FREE_CMD);
         if (org_redisVersion)
-        {   auto row = extractGroupFromRedisReply(extractGroupFromRedisReplyByIndex(org_redisVersion,0), "value");
-            this->org_redisVersion = rxStringDup((const char*)extractStringFromRedisReply(row,"redis"));
+        {
+            auto row = extractGroupFromRedisReply(extractGroupFromRedisReplyByIndex(org_redisVersion, 0), "value");
+            this->org_redisVersion = rxStringDup((const char *)extractStringFromRedisReply(row, "redis"));
             this->org_redisVersion_num = this->AsNumber(this->org_redisVersion);
 
             freeReplyObject(org_redisVersion);
@@ -975,7 +973,7 @@ public:
 
             cmd = rxStringFormat("mercator.start.cluster %s", this->shadow);
             ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
-            redisReply *origin = FindInstanceGroup(this->clusterId, "address,port,role,shard,order");
+            redisReply *origin = FindInstanceGroup(this->clusterId, "address,port,role,shard,order", false);
             if (origin->type == REDIS_REPLY_ARRAY)
             {
                 // Attach shadow as replica to the origin
@@ -984,11 +982,11 @@ public:
                     redisReply *row = extractGroupFromRedisReplyByIndex(origin, rowNo);
 
                     redisReply *rowFields = extractGroupFromRedisReply(row, "value");
-                    auto address = extractStringFromRedisReply(rowFields,"address");
-                    auto port = atoi(extractStringFromRedisReply(rowFields,"port"));
-                    auto role = extractStringFromRedisReply(rowFields,"role");
-                    auto shard = extractStringFromRedisReply(rowFields,"shard");
-                    auto order = extractStringFromRedisReply(rowFields,"order");
+                    auto address = extractStringFromRedisReply(rowFields, "address");
+                    auto port = atoi(extractStringFromRedisReply(rowFields, "port"));
+                    auto role = extractStringFromRedisReply(rowFields, "role");
+                    auto shard = extractStringFromRedisReply(rowFields, "shard");
+                    auto order = extractStringFromRedisReply(rowFields, "order");
                     char origin_node[24];
                     snprintf(origin_node, sizeof(origin_node), "%s:%d", address, port);
 
@@ -1000,8 +998,8 @@ public:
                         // Attach shadow as replica to the origin
                         redisReply *row = extractGroupFromRedisReplyByIndex(replica, 0);
                         redisReply *rowFields = extractGroupFromRedisReply(row, "value");
-                        char *r_address = extractStringFromRedisReply(rowFields,"address");
-                        int r_port = atoi(extractStringFromRedisReply(rowFields,"port"));
+                        char *r_address = extractStringFromRedisReply(rowFields, "address");
+                        int r_port = atoi(extractStringFromRedisReply(rowFields, "port"));
 
                         char node[24];
                         snprintf(node, sizeof(node), "%s:%d", r_address, r_port);
@@ -1062,7 +1060,7 @@ public:
                             auto start = mstime();
                             while (!isNodeInRole(redis_node, "*role:slave*") && !isNodeInRole(shadow_node, "*role:master*"))
                             {
-                                if (mstime() - start > (long long int)(guard->no_of_keys / 100 )) // Assume 100 writes per sec
+                                if (mstime() - start > (long long int)(guard->no_of_keys / 100)) // Assume 100 writes per sec
                                     break;
                                 sched_yield();
                             }
@@ -1112,7 +1110,6 @@ public:
             RedisClientPool<redisContext>::Release(redis_node, "EXEC_ORIGIN");
         }
 
-
         return -1;
     }
 
@@ -1126,8 +1123,8 @@ public:
         // rxString temp_sha1 = getSha1("ss", this->clusterId, this->shadow);
         // rxString cmd = rxStringFormat("RXQUERY \"G:V(instance).has(owner,'%s').property(owner,'%s').V(instance).has(owner,'%s').property(owner,'%s').V(instance).has(owner,'%s').property(owner,'%s')\"",
         cmd = rxStringFormat("RXQUERY \"G:V('%s').out(has_instance).property(owner,'%s').V('%s').out(has_instance).property(owner,'%s')\"",
-                                      this->clusterId, this->clusterId,
-                                      this->shadow, this->shadow);
+                             this->clusterId, this->clusterId,
+                             this->shadow, this->shadow);
         ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
         cmd = rxStringFormat("MERCATOR.STOP.CLUSTER %s", this->shadow);
         redisReply *rcc = ExecuteLocal(cmd, LOCAL_FREE_CMD);
@@ -1164,10 +1161,14 @@ redisReply *ExecuteLocal(const char *cmd, int options)
         if ((options & LOCAL_NO_RESPONSE) == LOCAL_NO_RESPONSE)
         {
             freeReplyObject(rcc);
+            RedisClientPool<redisContext>::Release(redis_node, "EXEC_LOCAL");
             return NULL;
         }
+        else
+            RedisClientPool<redisContext>::Release(redis_node, "EXEC_LOCAL");
         return rcc;
     }
+
     return NULL;
 }
 
@@ -1205,7 +1206,7 @@ rxString TryCreateClusterNode(rxString cluster_key, rxString sha1, const char *r
     }
     rxString port = rxRandomSetMember(free_ports);
 
-    rxString key = rxStringFormat("%s",generate_uuid().c_str() /*"__MERCATOR__INSTANCE__%s_%s_%s", sha1, server, port*/);
+    rxString key = rxStringFormat("%s", generate_uuid().c_str() /*"__MERCATOR__INSTANCE__%s_%s_%s", sha1, server, port*/);
     auto *cmd = rxStringFormat("RXQUERY \"g:"
                                "addV('%s',instance)"
                                ".property(owner,'%s')"
@@ -1302,7 +1303,6 @@ void LoanInstancesToController(redisContext *sub_controller, int no_of_instances
     freeReplyObject(rcc);
 }
 
-
 void *CreateClusterAsync_Go(void *privData)
 {
     char buffer[64];
@@ -1320,7 +1320,14 @@ void *CreateClusterAsync_Go(void *privData)
     {
         auto q = multiplexer->GetArgument(j);
         that_cmd = rxStringAppend(that_cmd, q, ' ');
-        if (rxStringMatch(REPLICATION_ARG, q, MATCH_IGNORE_CASE) && strlen(q) == strlen(REPLICATION_ARG))
+        if (rxStringMatch(/* The above code is a comment in C++ programming language. It is not doing
+        anything, but it is used to provide information or explanations about the
+        code to other programmers. */
+                          /* The above code is a comment in C++ programming language. It is not doing
+                          anything, but it is used to provide information or explanations about the
+                          code to other programmers. */
+                          REPLICATION_ARG, q, MATCH_IGNORE_CASE) &&
+            strlen(q) == strlen(REPLICATION_ARG))
             replication_requested = 1;
         else if (rxStringMatch(CLUSTERING_ARG, q, MATCH_IGNORE_CASE) && strlen(q) == strlen(CLUSTERING_ARG))
             clustering_requested = 2;
@@ -1367,10 +1374,10 @@ void *CreateClusterAsync_Go(void *privData)
                                      ".PROPERTY('redis','%s')"
                                      ".PROPERTY('reference','%s')"
                                      ".pushdup()"
-                                    ".predicate(has_status,status_of)"
-                                    ".object('%s__HEALTH')"
-                                    ".subject('%s')"
-                                    ".pop()"
+                                     ".predicate(has_status,status_of)"
+                                     ".object('%s__HEALTH')"
+                                     ".subject('%s')"
+                                     ".pop()"
                                      "\"",
                                      controller_path, redis_version, c_ip,
                                      controller_path,
@@ -1454,7 +1461,7 @@ void *CreateClusterAsync_Go(void *privData)
         return multiplexer->StopThread();
     }
 
-    redisReply *nodes = FindInstanceGroup(sha1);
+    redisReply *nodes = FindInstanceGroup(sha1, NULL, false);
     if (nodes)
     {
         multiplexer->result_text = sha1;
@@ -1476,12 +1483,13 @@ void *CreateClusterAsync_Go(void *privData)
     };
 
     cmd = rxStringFormat("RXQUERY \"g:addv('%s','cluster').PROPERTY('redis','%s').PROPERTY('reference','%s')"
-                                    ".pushdup()"
-                                    ".predicate(has_status,status_of)"
-                                    ".object('%s__HEALTH')"
-                                    ".subject('%s')"
-                                    ".pop()"
-                                    "\"", sha1, redis_version, c_ip, sha1, sha1);
+                         ".pushdup()"
+                         ".predicate(has_status,status_of)"
+                         ".object('%s__HEALTH')"
+                         ".subject('%s')"
+                         ".pop()"
+                         "\"",
+                         sha1, redis_version, c_ip, sha1, sha1);
     r = ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
     rxString cluster_key = sha1;
 
@@ -1495,8 +1503,8 @@ void *CreateClusterAsync_Go(void *privData)
         index = CreateClusterNode(cluster_key, sha1, INDEX_FIELD, "1", "1", multiplexer->ctx);
         if (data != NULL && index != NULL)
         {
-            ExecuteLocal(rxStringFormat("RXQUERY \"g:addv('%s',instance).property(index,'%s')\"", data, index), LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
-            ExecuteLocal(rxStringFormat("RXQUERY \"g:addv('%s',instance).property(data,'%s')\"", index, data), LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
+            ExecuteLocal(rxStringFormat("RXQUERY \"g:addv('%s',instance).property(index,'%s').property(primary,primary_of).subject('%s').object('%s')\"", data, index, sha1, data), LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
+            ExecuteLocal(rxStringFormat("RXQUERY \"g:addv('%s',instance).property(data,'%s').property(primary,primary_of).subject('%s').object('%s')\"", index, data, sha1, data), LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
         }
         else
         {
@@ -1507,13 +1515,16 @@ void *CreateClusterAsync_Go(void *privData)
     case 1: // Replicated, Not Clustered
         data = CreateClusterNode(cluster_key, sha1, DATA_ROLE_VALUE, "1", "1", multiplexer->ctx);
         index = CreateClusterNode(cluster_key, sha1, INDEX_FIELD, "1", "1", multiplexer->ctx);
-        if (data != NULL && index != NULL)
+        data2 = CreateClusterNode(cluster_key, sha1, DATA_ROLE_VALUE, "2", "1", multiplexer->ctx);
+        if (data != NULL && data2 != NULL && index != NULL)
         {
-            RedisModule_FreeCallReply(
-                RedisModule_Call(multiplexer->ctx, "HSET", "ccc", data, INDEX_FIELD, index));
-            data2 = CreateClusterNode(cluster_key, sha1, DATA_ROLE_VALUE, "2", "1", multiplexer->ctx);
-            RedisModule_FreeCallReply(
-                RedisModule_Call(multiplexer->ctx, "HSET", "ccccc", data2, INDEX_FIELD, index, PRIMARY_FIELD, data));
+            ExecuteLocal(rxStringFormat("G \"addv('%s',instance).property(index,'%s').predicate(primary,primary_of).subject('%s').object('%s')\"", data, index, sha1, data), LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
+            ExecuteLocal(rxStringFormat("G \"addv('%s',instance).property(data,'%s').predicate(primary,primary_of).subject('%s').object('%s')\"", index, data, sha1, data), LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
+
+            ExecuteLocal(rxStringFormat("G \"addv('%s',instance).property(index,'%s')"
+                                        ".predicate( has_secondary, secondary_of).subject('%s').object('%s')\"",
+                                        data2, index, data, data2),
+                         LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
         }
         break;
     case 2: // Not Replicated, Clustered
@@ -1644,7 +1655,7 @@ void *AttachControllerAsync_Go(void *privData)
     const char *port = RedisModule_StringPtrLen(multiplexer->argv[3], &arg_len);
     rxString sha1 = getSha1("sii", c_ip, replication_requested, clustering_requested);
 
-    redisReply *nodes = FindInstanceGroup(c_ip);
+    redisReply *nodes = FindInstanceGroup(c_ip, NULL, false);
     if (nodes)
     {
         multiplexer->result_text = sha1;
@@ -1693,7 +1704,7 @@ void *DestroyControllerAsync_Go(void *privData)
 
     auto *sha1 = multiplexer->GetArgument(1);
 
-    redisReply *nodes = FindInstanceGroup(sha1, "port,server");
+    redisReply *nodes = FindInstanceGroup(sha1, "port,server", false);
     if (!nodes)
     {
         PropagateCommandToAllSubordinateControllers(multiplexer);
@@ -1709,8 +1720,8 @@ void *DestroyControllerAsync_Go(void *privData)
         redisReply *row = extractGroupFromRedisReplyByIndex(nodes, n);
         char *node = extractStringFromRedisReply(row, "key");
         redisReply *values = extractGroupFromRedisReply(row, "value");
-        char *port = extractStringFromRedisReply(values,"port");
-        char *server = extractStringFromRedisReply(values,"server");
+        char *port = extractStringFromRedisReply(values, "port");
+        char *server = extractStringFromRedisReply(values, "server");
 
         rxString cmd = rxStringFormat("SADD %s %s", server, port);
         ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
@@ -1807,14 +1818,14 @@ int start_cluster(RedisModuleCtx *ctx, char *osha1)
     redisReply *cluster_info = ExecuteLocal(cmd, LOCAL_FREE_CMD);
     if (cluster_info && cluster_info->type == REDIS_REPLY_ARRAY && cluster_info->elements == 1)
     {
-        redisReply *values = extractGroupFromRedisReply(extractGroupFromRedisReplyByIndex(cluster_info,0), "value");
-        if (strcmp(extractStringFromRedisReply(values,"redis"), "(null)") != 0)
-            redis_version = extractStringFromRedisReply(values,"redis");
+        redisReply *values = extractGroupFromRedisReply(extractGroupFromRedisReplyByIndex(cluster_info, 0), "value");
+        if (strcmp(extractStringFromRedisReply(values, "redis"), "(null)") != 0)
+            redis_version = extractStringFromRedisReply(values, "redis");
     }
     if (!redis_version)
         redis_version = (char *)REDIS_VERSION;
 
-    redisReply *nodes = FindInstanceGroup(sha1, "address,port,role,order,index,primary");
+    redisReply *nodes = FindInstanceGroup(sha1, "address,port,role,order,index,primary", false);
     if (!nodes)
     {
         return RedisModule_ReplyWithSimpleString(ctx, "cluster not found");
@@ -1828,11 +1839,11 @@ int start_cluster(RedisModuleCtx *ctx, char *osha1)
         redisReply *row = extractGroupFromRedisReplyByIndex(nodes, n);
         char *node = extractStringFromRedisReply(row, "key");
         redisReply *values = extractGroupFromRedisReply(row, "value");
-        char *address = extractStringFromRedisReply(values,"address");
-        char *port = extractStringFromRedisReply(values,"port");
-        char *role = extractStringFromRedisReply(values,"role");
+        char *address = extractStringFromRedisReply(values, "address");
+        char *port = extractStringFromRedisReply(values, "port");
+        char *role = extractStringFromRedisReply(values, "role");
         // char *shard = extractStringFromRedisReply(values,"shard");
-        char *index_name = extractStringFromRedisReply(values,"index");
+        char *index_name = extractStringFromRedisReply(values, "index");
         char *index_address = NULL;
         char *index_port = NULL;
         if (index_name && strlen(index_name))
@@ -1887,19 +1898,38 @@ int start_cluster(RedisModuleCtx *ctx, char *osha1)
                 start_redis(startup_command, address);
             }
 
-            if (primary_name && strcmp(primary_name, rxStringEmpty()) != 0)
-            {
-                // TODO: Replace with local lookup
-                void *primary_node_info = rxFindHashKey(0, primary_name);
-                rxString primary_address = rxGetHashField2(primary_node_info, ADDRESS_FIELD);
-                rxString primary_port = rxGetHashField2(primary_node_info, PORT_FIELD);
+            // Attach Replicas
+            rxString cmd = rxStringFormat("G \"v('%s').out(primary).fuseout(has_secondary).select(S_address,S_port,S_order,O_address,O_port,O_order)\"", sha1);
+            redisReply *replica_info = ExecuteLocal(cmd, LOCAL_FREE_CMD);
 
-                // TODO: via hiredis!
-                startup_command = rxStringFormat("%s/src/redis-cli -h %s -p %s REPLICAOF %s %s", cwd, address, port, primary_address, primary_port);
-                string out = exec(startup_command, (char *)address);
-                rxStringFree(startup_command);
-                rxStringFree(primary_address);
-                rxStringFree(primary_port);
+            size_t rn = 0;
+            while (rn < replica_info->elements)
+            {
+                redisReply *row = extractGroupFromRedisReplyByIndex(replica_info, rn);
+                redisReply *values = extractGroupFromRedisReply(row, "value");
+                char *S_address = extractStringFromRedisReply(values, "S_address");
+                char *S_port = extractStringFromRedisReply(values, "S_port");
+                int S_order = atoi(extractStringFromRedisReply(values, "S_order"));
+
+                char *O_address = extractStringFromRedisReply(values, "O_address");
+                char *O_port = extractStringFromRedisReply(values, "O_port");
+                int O_order = atoi(extractStringFromRedisReply(values, "O_order"));
+
+                ++rn;
+                if (S_order == O_order)
+                    continue;
+
+                char controller[24];
+                snprintf(controller, sizeof(controller), "%s:%s", O_address, O_port);
+                auto *redis_node = RedisClientPool<redisContext>::Acquire(controller, "_CLIENT", "AttachReplica");
+                if (redis_node != NULL)
+                {
+                    redisReply *rcc = (redisReply *)redisCommand(redis_node, "%s %s %s", "AUTH", "admin", "admin");
+                    freeReplyObject(rcc);
+                    rcc = (redisReply *)redisCommand(redis_node, "%s %s %s", "REPLICAOF", S_address, S_port);
+                    freeReplyObject(rcc);
+                    RedisClientPool<redisContext>::Release(redis_node, "AttachReplica");
+                }
             }
 
             PostCommand(rxStringFormat(UPDATE_INSTANCE_START, node, GetCurrentDateTimeAsString(buffer)));
@@ -1921,7 +1951,7 @@ void *ClusterStartAsync_Go(void *privData)
 
     auto *sha1 = multiplexer->GetArgument(1);
 
-    redisReply *nodes = FindInstanceGroup(sha1);
+    redisReply *nodes = FindInstanceGroup(sha1, NULL, false);
     if (!nodes)
     {
         PropagateCommandToAllSubordinateControllers(multiplexer);
@@ -1987,12 +2017,12 @@ int clusterFlushOperationProc(RedisModuleCtx *, redisContext *redis_node, const 
     return C_OK;
 }
 
-redisReply *FindInstanceGroup(const char *sha1, const char *fields)
+redisReply *FindInstanceGroup(const char *sha1, const char *fields, bool primariesOnly)
 {
     if (fields == NULL)
         fields = "address,port,STATUS";
     // rxString cmd = cmd = rxStringFormat("rxget \"g:v(cluster).inout(has_instance,instance_of).select(%s).has(owner,'%s')\"", fields, sha1);
-    rxString cmd = rxStringFormat("rxget \"g:v(instance).select(%s).has(owner,'%s')\"", fields, sha1);
+    rxString cmd = rxStringFormat("G \"v('%s').out(%s).select(%s)\"", sha1, primariesOnly ? "primary" : "has_instance", fields);
     redisReply *nodes = ExecuteLocal(cmd, LOCAL_FREE_CMD);
     if (nodes->type != REDIS_REPLY_ARRAY || nodes->elements == 0)
     {
@@ -2007,13 +2037,13 @@ redisReply *recover_cluster(RedisModuleCtx *, const char *sha1, char *fields = N
 {
     rxString cmd = rxStringFormat("rxget \"g:v(instance).has(owner,'%s'}.hasnot('STATUS','DESTROYED').adde(instance_of,has_instance).to('%s')\"", sha1, sha1);
     ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
-    return FindInstanceGroup(sha1, fields);
+    return FindInstanceGroup(sha1, fields, false);
 }
 
 int clusterOperation(RedisModuleCtx *ctx, const char *sha1, const char *state, clusterOperationProc *operation, void *data, clusterOperationProc *summary_operation)
 {
     char buffer[64];
-    redisReply *nodes = FindInstanceGroup(sha1);
+    redisReply *nodes = FindInstanceGroup(sha1, NULL, false);
     if (nodes == NULL)
     {
         nodes = recover_cluster(ctx, sha1);
@@ -2033,10 +2063,10 @@ int clusterOperation(RedisModuleCtx *ctx, const char *sha1, const char *state, c
         char *node = extractStringFromRedisReply(row, "key");
         redisReply *values = extractGroupFromRedisReply(row, "value");
 
-        char *address = extractStringFromRedisReply(values,"address");
-        char *port = extractStringFromRedisReply(values,"port");
-        char *status = extractStringFromRedisReply(values,"status");
-        if(rxStringMatch("DESTROYED", status, MATCH_IGNORE_CASE) || rxStringMatch("KILLED", status, MATCH_IGNORE_CASE))
+        char *address = extractStringFromRedisReply(values, "address");
+        char *port = extractStringFromRedisReply(values, "port");
+        char *status = extractStringFromRedisReply(values, "status");
+        if (rxStringMatch("DESTROYED", status, MATCH_IGNORE_CASE) || rxStringMatch("KILLED", status, MATCH_IGNORE_CASE))
             continue;
 
         char controller[24];
@@ -2192,9 +2222,9 @@ void *PropagateCommandToAllSubordinateControllers(CreateClusterAsync *multiplexe
         {
             redisReply *row = extractGroupFromRedisReplyByIndex(rcc, n);
             redisReply *hash = extractGroupFromRedisReply(row, "value");
-            const char *ip = extractStringFromRedisReply(hash,"address");
-            const char *port = extractStringFromRedisReply(hash,"port");
-            const char *zone = extractStringFromRedisReply(hash,"zone");
+            const char *ip = extractStringFromRedisReply(hash, "address");
+            const char *port = extractStringFromRedisReply(hash, "port");
+            const char *zone = extractStringFromRedisReply(hash, "zone");
 
             char sub_controller[24];
             snprintf(sub_controller, sizeof(sub_controller), "%s:%s", ip, port);
@@ -2284,7 +2314,7 @@ void *GetClusterInfoAsync_Go(void *privData)
 
     rxString info = rxStringFormat("{ \"id\":\"%s\", \"nodes\":[", sha1);
 
-    redisReply *nodes = FindInstanceGroup(sha1, "address,port,role,order,index,primary,STATUS");
+    redisReply *nodes = FindInstanceGroup(sha1, "address,port,role,order,index,primary,STATUS", true);
     if (!nodes)
     {
         PropagateCommandToAllSubordinateControllers(multiplexer);
@@ -2300,7 +2330,7 @@ void *GetClusterInfoAsync_Go(void *privData)
         redisReply *row = extractGroupFromRedisReplyByIndex(nodes, n);
         char *node = extractStringFromRedisReply(row, "key");
         redisReply *values = extractGroupFromRedisReply(row, "value");
-        char *address = extractStringFromRedisReply(values,"address");
+        char *address = extractStringFromRedisReply(values, "address");
         char *port = extractStringFromRedisReply(values, "port");
         char *role = extractStringFromRedisReply(values, "role");
         char *shard = extractStringFromRedisReply(values, "shard");
@@ -2474,7 +2504,7 @@ void *UpgradeClusterAync_Go(void *privData)
     }
     redisReply *row0 = extractGroupFromRedisReplyByIndex(nodes, 0);
     redisReply *vertex0 = extractGroupFromRedisReply(row0, "value");
-    if (rxStringMatch(multiplexer->redisVersion, extractStringFromRedisReply(vertex0,"redis"), 1))
+    if (rxStringMatch(multiplexer->redisVersion, extractStringFromRedisReply(vertex0, "redis"), 1))
     {
         auto cmd = rxStringFormat("MERCATOR.INFO.CLUSTER %s", multiplexer->clusterId);
         redisReply *rcc = ExecuteLocal(cmd, LOCAL_FREE_CMD);

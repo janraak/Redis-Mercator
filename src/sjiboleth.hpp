@@ -21,6 +21,10 @@ class SilNikParowy;
 
 #define PARSER_OPTION_NONE 0
 #define PARSER_OPTION_DELAY_OBJECT_EXPRESSION 1
+
+#define Q_READONLY 0
+#define Q_WRITE 1
+
 class ParserToken
 {
 protected:
@@ -44,25 +48,35 @@ protected:
     int options;
 
 public:
+    // Is the token modifying data?
+    short read_or_write;
+
     ParserToken();
     static ParserToken *New(eTokenType token_type,
                             const char *op,
-                            int op_len, int options);
+                            int op_len, 
+                            int options);
     static ParserToken *New(const char *op,
                             eTokenType token_type,
                             short token_priority,
                             short no_of_stack_entries_consumed,
-                            short no_of_stack_entries_produced, int options);
+                            short no_of_stack_entries_produced, 
+                            int options, 
+                            short read_or_write);
     static ParserToken *New(const char *op,
                             eTokenType token_type,
                             short token_priority,
                             short no_of_stack_entries_consumed,
                             short no_of_stack_entries_produced,
-                            operationProc *opf, int options);
+                            operationProc *opf, 
+                            int options, 
+                            short read_or_write);
     void ObjectExpression(ParsedExpression *objectExpression);
     ParsedExpression *ObjectExpression();
-    static ParserToken *New(const char *op, short token_priority, operationProc *opf, int options);
-    ParserToken *Init(eTokenType token_type, const char *op, int op_len, int options);
+    static ParserToken *New(const char *op, short token_priority, operationProc *opf, int options, 
+                            short read_or_write);
+    ParserToken *Init(eTokenType token_type, const char *op, int op_len, int options, 
+                            short read_or_write);
     static ParserToken *Copy(ParserToken *base, long reference);
     ~ParserToken();
     static void Purge(ParserToken *token);
@@ -155,10 +169,10 @@ public:
 
     ParsedExpression *Parse(const char *query);
 
-    bool RegisterSyntax(const char *op, short token_priority, int inE, int outE, operationProc *opf);
-    bool RegisterSyntax(const char *op, short token_priority, int inE, int outE, operationProc *opf, parserContextProc *pcf);
-    bool RegisterSyntax(const char *op, short token_priority, int inE, int outE, operationProc *opf, int options);
-    bool RegisterSyntax(const char *op, short token_priority, int inE, int outE, operationProc *opf, parserContextProc *pcf, int options);
+    bool RegisterSyntax(const char *op, short token_priority, int inE, int outE, short read_or_write, operationProc *opf);
+    bool RegisterSyntax(const char *op, short token_priority, int inE, int outE, short read_or_write, operationProc *opf, parserContextProc *pcf);
+    bool RegisterSyntax(const char *op, short token_priority, int inE, int outE, short read_or_write, operationProc *opf, int options);
+    bool RegisterSyntax(const char *op, short token_priority, int inE, int outE, short read_or_write, operationProc *opf, parserContextProc *pcf, int options);
 
     bool DeregisterSyntax(const char *op);
 
@@ -234,6 +248,7 @@ protected:
     ParsedExpression *next;
 
 public:
+    short read_or_write;
     UCHAR final_result_value_type;
     ParserToken *lastInstruction();
     friend class SilNikParowy;

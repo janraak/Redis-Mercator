@@ -195,7 +195,7 @@ const char *HELP_STRING = "RX Query Commands:\n"
 //     return json;
 // }
 
-void executeQueryCommand(Sjiboleth *parser, const char *cmd, int fetch_rows, RedisModuleCtx *ctx, list *errors, bool ranked, double ranked_lower_bound, double ranked_upper_bound)
+short executeQueryCommand(Sjiboleth *parser, const char *cmd, int fetch_rows, RedisModuleCtx *ctx, list *errors, bool ranked, double ranked_lower_bound, double ranked_upper_bound)
 {
     rxUNUSED(errors);
     rxUNUSED(fetch_rows);
@@ -203,11 +203,13 @@ void executeQueryCommand(Sjiboleth *parser, const char *cmd, int fetch_rows, Red
     redisNodeInfo *index_config = rxIndexNode();
     redisNodeInfo *data_config = rxDataNode();
     auto *t = parser->Parse(cmd);
+    short read_or_write = t->read_or_write;
+    
     // t->show(NULL);
     if (parsedWithErrors(t))
     {
         writeParsedErrors(t, ctx);
-        return;
+        return read_or_write;
     }
     auto *e = (SilNikParowy_Kontekst *)data_config->executor;
     if (e)
@@ -240,6 +242,7 @@ void executeQueryCommand(Sjiboleth *parser, const char *cmd, int fetch_rows, Red
         RedisModule_ReplyWithSimpleString(ctx, "No results!");
     e->Reset();
     releaseQuery(t);
+    return read_or_write;
 }
 
 int executeParseCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
@@ -397,7 +400,10 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
             parser = QueryDialect::Get("QueryDialect");
         }
         list *errors = listCreate();
-        executeQueryCommand(parser, (const char *)query + dialect_skippy, fetch_rows, ctx, errors, ranked, ranked_lower_bound, ranked_upper_bound);
+        short read_or_write = executeQueryCommand(parser, (const char *)query + dialect_skippy, fetch_rows, ctx, errors, ranked, ranked_lower_bound, ranked_upper_bound);
+        // Propage WRITE queries to replicas
+        if(read_or_write != Q_READONLY)
+            rxAlsoPropagate(0, argv, argc, -1);
         listRelease(errors);
         releaseParser(parser);
         rxStringFree(sv_query);
@@ -462,6 +468,7 @@ int addTypeTree(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     }
     RedisModule_ReplyWithSimpleString(ctx, typetree);
     rxStringFree((typetree));
+    rxAlsoPropagate(0, argv, argc, -1);
     return REDISMODULE_OK;
 }
 
@@ -556,6 +563,8 @@ int executeLoadScriptCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int 
 
     rxMemFree(script_text);
 
+    rxAlsoPropagate(0, argv, argc, -1);
+
     return REDIS_OK;
 }
 
@@ -590,17 +599,17 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     rxRegisterConfig((void **)argv, argc);
 
     if (RedisModule_CreateCommand(ctx, RX_QUERY,
-                                  executeQueryCommand, "readonly write", 0, 0, 0) == REDISMODULE_ERR)
+                                  executeQueryCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     if (RedisModule_CreateCommand(ctx, RX_GET,
-                                  executeQueryCommand, "readonly write", 0, 0, 0) == REDISMODULE_ERR)
+                                  executeQueryCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "Q",
-                                  executeQueryCommand, "readonly write", 0, 0, 0) == REDISMODULE_ERR)
+                                  executeQueryCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "G",
-                                  executeQueryCommand, "readonly write", 0, 0, 0) == REDISMODULE_ERR)
+                                  executeQueryCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     if (RedisModule_CreateCommand(ctx, RXCACHE,

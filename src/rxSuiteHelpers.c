@@ -1377,15 +1377,21 @@ void *rxFused(const char *key, const char *fuse_key, const char *barKey, void *f
     sdsfree(cPredicate);
 
     void **inputs[] = {fuse_subject, fuse_object, fuse_predicate};
+    char *prefixes[] = {"S_", "O_", "P_"};
+    char prefixed_field[1024];
 
     for (int n = 0; n < 3; ++n)
     {
+        char *pfx = prefixes[n];
         hashTypeIterator *hi = hashTypeInitIterator(inputs[n]);
         while (hashTypeNext(hi) != C_ERR)
         {
             sds f = hashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_KEY);
+            strcpy(prefixed_field, pfx);
+            strcat(prefixed_field, f);
+            sds pfx_fld = sdsnew(&prefixed_field);
             sds v = hashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_VALUE);
-            hashTypeSet(fused, f, v, HASH_SET_COPY);
+            hashTypeSet(fused, pfx_fld, v, HASH_SET_COPY);
             sdsfree(f);
             sdsfree(v);
         }
@@ -1420,4 +1426,9 @@ rxSetMembers *rxHarvestSetmembersForKey(int , const char *key)
     if (o)
         return rxHarvestSetmembers(o);
     return NULL;
+}
+
+void rxAlsoPropagate(int dbid, void **argv, int argc, int target)
+{
+    alsoPropagate(dbid, (robj **)argv, argc, target);
 }

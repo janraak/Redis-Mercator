@@ -431,6 +431,7 @@ void ParsedExpression::emitFinal(ParserToken *token)
 {
     if (/*token->TokenType() == _operator && */ token->Priority() == priIgnore)
         return;
+    this->read_or_write += token->read_or_write;
     this->expression->Add(token);
 }
 void ParsedExpression::park(ParserToken *token)
@@ -786,6 +787,7 @@ ParsedExpression::ParsedExpression(Sjiboleth *dialect)
     this->errors = listCreate();
     this->next = NULL;
     this->bracket = NULL;
+    this->read_or_write = 0;
 };
 
 ParsedExpression::ParsedExpression(Sjiboleth *dialect, ParsedExpression *bracket)

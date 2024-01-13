@@ -68,6 +68,7 @@ int text_load_async(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     auto *multiplexer = new RxTextLoadMultiplexer(argv, argc);
     multiplexer->Start(ctx);
+    rxAlsoPropagate(0, argv, argc, -1);
     return REDISMODULE_OK;
 };
 
@@ -75,6 +76,7 @@ int g_wget(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     auto *multiplexer = new RxWgetMultiplexer(argv, argc);
     multiplexer->Start(ctx);
+    rxAlsoPropagate(0, argv, argc, -1);
     return REDISMODULE_OK;
 };
 
@@ -82,6 +84,7 @@ int g_set_async(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     auto *multiplexer = new RxGraphLoadMultiplexer(argv, argc);
     multiplexer->Start(ctx);
+    rxAlsoPropagate(0, argv, argc, -1);
     return REDISMODULE_OK;
 };
 

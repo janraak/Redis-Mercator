@@ -44,6 +44,10 @@ static FaBlok *getAllKeysByField(int dbNo, const char *regex, int on_matched, rx
 #define GRAPH_TRAVERSE_IN 2
 #define GRAPH_TRAVERSE_INOUT 3
 
+#define GRAPH_TRAVERSE_MISSING_OUT 201
+#define GRAPH_TRAVERSE_MISSING_IN 202
+#define GRAPH_TRAVERSE_MISSING_INOUT 203
+
 #define MATCH_MINIMIZE_PATH_LENGTH 1
 #define MATCH_MAXIMIZE_PATH_LENGTH -1
 
@@ -3474,121 +3478,121 @@ END_SJIBOLETH_PARSER_CONTEXT_CHECKER(GremlinScopeCheck)
 bool GremlinDialect::RegisterDefaultSyntax()
 {
     Sjiboleth::RegisterDefaultSyntax();
-    // this->RegisterSyntax("g", 500, 2, 1, &executeGremlin);
-    this->RegisterSyntax("v", pri500, 1, 1, &executeAllVertices);
-    this->RegisterSyntax("V", pri500, 1, 1, &executeAllVertices);
-    this->RegisterSyntax("e", 500, 2, 1, &executeAllEdges);
-    this->RegisterSyntax("E", 500, 2, 1, &executeAllEdges);
-    this->RegisterSyntax(".", 0, 0, priIgnore, NULL);
-    this->RegisterSyntax(",", pri200, 2, 1, &executeGremlinParameters);
+    // this->RegisterSyntax("g", 500, 2, 1, Q_READONLY, &executeGremlin);
+    this->RegisterSyntax("v", pri500, 1, 1, Q_READONLY, &executeAllVertices);
+    this->RegisterSyntax("V", pri500, 1, 1, Q_READONLY, &executeAllVertices);
+    this->RegisterSyntax("e", 500, 2, 1, Q_READONLY, &executeAllEdges);
+    this->RegisterSyntax("E", 500, 2, 1, Q_READONLY, &executeAllEdges);
+    this->RegisterSyntax(".", 0, 0, priIgnore, Q_READONLY, NULL);
+    this->RegisterSyntax(",", pri200, 2, 1, Q_READONLY, &executeGremlinParameters);
     // Pattern matching
-    this->RegisterSyntax("match", pri500, 1, 1, &executeMatch);
-    this->RegisterSyntax("nomatch", 500, 2, 1, &executeNomatch);
-    this->RegisterSyntax("incl", 500, 2, 1, &executeGremlinMatchInExclude);
-    this->RegisterSyntax("include", 500, 2, 1, &executeGremlinMatchInExclude);
-    this->RegisterSyntax("excl", 500, 2, 1, &executeGremlinMatchInExclude);
-    this->RegisterSyntax("exclude", 500, 2, 1, &executeGremlinMatchInExclude);
-    this->RegisterSyntax("minimize", 500, 2, 1, &executeGremlinMatchMinimize, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
-    this->RegisterSyntax("maximize", 500, 2, 1, &executeGremlinMatchMaximize, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
+    this->RegisterSyntax("match", pri500, 1, 1, Q_READONLY, &executeMatch);
+    this->RegisterSyntax("nomatch", 500, 2, 1, Q_READONLY, &executeNomatch);
+    this->RegisterSyntax("incl", 500, 2, 1, Q_READONLY, &executeGremlinMatchInExclude);
+    this->RegisterSyntax("include", 500, 2, 1, Q_READONLY, &executeGremlinMatchInExclude);
+    this->RegisterSyntax("excl", 500, 2, 1, Q_READONLY, &executeGremlinMatchInExclude);
+    this->RegisterSyntax("exclude", 500, 2, 1, Q_READONLY, &executeGremlinMatchInExclude);
+    this->RegisterSyntax("minimize", 500, 2, 1, Q_READONLY, &executeGremlinMatchMinimize, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
+    this->RegisterSyntax("maximize", 500, 2, 1, Q_READONLY, &executeGremlinMatchMaximize, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
     //
-    this->RegisterSyntax("as", 500, 2, 1, &executeGremlinAs);
-    this->RegisterSyntax("use", 500, 2, 1, &executeGremlinUse);
+    this->RegisterSyntax("as", 500, 2, 1, Q_READONLY, &executeGremlinAs);
+    this->RegisterSyntax("use", 500, 2, 1, Q_READONLY, &executeGremlinUse);
     //
-    this->RegisterSyntax("has", 500, 2, 1, &executeGremlinHas);
-    this->RegisterSyntax("hasNot", 500, 2, 1, &executeGremlinHas);
-    this->RegisterSyntax("hasToken", 500, 2, 1, &executeGremlinHas);
-    this->RegisterSyntax("missingToken", 500, 2, 1, &executeGremlinHas);
-    this->RegisterSyntax("missing", 500, 2, 1, &executeGremlinHas);
-    this->RegisterSyntax("hasLabel", 500, 2, 1, &executeGremlinHasLabel);
-    this->RegisterSyntax("missingLabel", 500, 2, 1, &executeGremlinHasLabel);
+    this->RegisterSyntax("has", 500, 2, 1, Q_READONLY, &executeGremlinHas);
+    this->RegisterSyntax("hasNot", 500, 2, 1, Q_READONLY, &executeGremlinHas);
+    this->RegisterSyntax("hasToken", 500, 2, 1, Q_READONLY, &executeGremlinHas);
+    this->RegisterSyntax("missingToken", 500, 2, 1, Q_READONLY, &executeGremlinHas);
+    this->RegisterSyntax("missing", 500, 2, 1, Q_READONLY, &executeGremlinHas);
+    this->RegisterSyntax("hasLabel", 500, 2, 1, Q_READONLY, &executeGremlinHasLabel);
+    this->RegisterSyntax("missingLabel", 500, 2, 1, Q_READONLY, &executeGremlinHasLabel);
     //
-    this->RegisterSyntax("by", 500, 2, 1, &executeGremlinGroupby);
+    this->RegisterSyntax("by", 500, 2, 1, Q_READONLY, &executeGremlinGroupby);
     //
-    this->RegisterSyntax("subjects", 500, 2, 1, &executeGremlinIn);
-    this->RegisterSyntax("subjectTriplets", 500, 2, 1, &executeGremlinInTriplet);
-    this->RegisterSyntax("out", 500, 2, 1, &executeGremlinOut);
+    this->RegisterSyntax("subjects", 500, 2, 1, Q_READONLY, &executeGremlinIn);
+    this->RegisterSyntax("subjectTriplets", 500, 2, 1, Q_READONLY, &executeGremlinInTriplet);
+    this->RegisterSyntax("out", 500, 2, 1, Q_READONLY, &executeGremlinOut);
 
-    this->RegisterSyntax("objects", 500, 2, 1, &executeGremlinOut);
-    this->RegisterSyntax("objectTriplets", 500, 2, 1, &executeGremlinOutTriplet);
-    this->RegisterSyntax("in", 500, 2, 1, &executeGremlinIn);
-    this->RegisterSyntax("inout", 500, 2, 1, &executeGremlinInOut);
-    this->RegisterSyntax("outT", 500, 2, 1, &executeGremlinInOutTriplet);
+    this->RegisterSyntax("objects", 500, 2, 1, Q_READONLY, &executeGremlinOut);
+    this->RegisterSyntax("objectTriplets", 500, 2, 1, Q_READONLY, &executeGremlinOutTriplet);
+    this->RegisterSyntax("in", 500, 2, 1, Q_READONLY, &executeGremlinIn);
+    this->RegisterSyntax("inout", 500, 2, 1, Q_READONLY, &executeGremlinInOut);
+    this->RegisterSyntax("outT", 500, 2, 1, Q_READONLY, &executeGremlinInOutTriplet);
 
-    this->RegisterSyntax("inT", 500, 2, 1, &executeGremlinInOutTriplet);
-    this->RegisterSyntax("inoutT", 500, 2, 1, &executeGremlinInOutTriplet);
-    this->RegisterSyntax("outTriplet", 500, 2, 1, &executeGremlinInOutTriplet);
-    this->RegisterSyntax("inTriplet", 500, 2, 1, &executeGremlinInOutTriplet);
-    this->RegisterSyntax("inoutTriplet", 500, 2, 1, &executeGremlinInOutTriplet);
-    this->RegisterSyntax("outEdge", 500, 2, 1, &executeGremlinOutEdge);
-    this->RegisterSyntax("inEdge", 500, 2, 1, &executeGremlinInEdge);
-    this->RegisterSyntax("inoutEdge", 500, 2, 1, &executeGremlinInOutEdge);
-    this->RegisterSyntax("outE", 500, 2, 1, &executeGremlinOutEdge);
-    this->RegisterSyntax("inE", 500, 2, 1, &executeGremlinInEdge);
-    this->RegisterSyntax("inoutE", 500, 2, 1, &executeGremlinInOutEdge);
-    this->RegisterSyntax("isSubject", 500, 2, 1, &executeGremlinHasOut);
-    this->RegisterSyntax("hasOut", 500, 2, 1, &executeGremlinHasOut);
-    this->RegisterSyntax("isObject", 500, 2, 1, &executeGremlinHasIn);
-    this->RegisterSyntax("hasIn", 500, 2, 1, &executeGremlinHasIn);
-    this->RegisterSyntax("hasInout", 500, 2, 1, &executeGremlinHasInOut);
-    this->RegisterSyntax("addEdge", 500, 2, 1, &executeGremlinAddEdge);
-    this->RegisterSyntax("addE", 500, 2, 1, &executeGremlinAddEdge);
-    this->RegisterSyntax("predicate", 500, 2, 1, &executeGremlinAddEdge);
-    this->RegisterSyntax("triplet", 500, 2, 1, &executeGremlinAddTriplet);
-    this->RegisterSyntax("property", 500, 2, 1, &executeGremlinAddProperty, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
-    this->RegisterSyntax("addVertex", 500, 2, 1, &executeGremlinAddVertex);
-    this->RegisterSyntax("addV", 500, 2, 1, &executeGremlinAddVertex);
-    this->RegisterSyntax("to", 500, 2, 1, &executeGremlinLinkVertex);
-    this->RegisterSyntax("object", 500, 2, 1, &executeGremlinLinkVertex, &GremlinScopeCheck);
-    this->RegisterSyntax("from", 500, 2, 1, &executeGremlinLinkVertex);
-    this->RegisterSyntax("subject", 500, 2, 1, &executeGremlinLinkVertex, &GremlinScopeCheck);
-    this->RegisterSyntax("drop", 500, 2, 1, &executeGremlinDropVertexOrEdge);
-    this->RegisterSyntax("join", 500, 2, 1, &Sjiboleth::executeOr);
-    this->RegisterSyntax("merge", 500, 2, 1, &Sjiboleth::executeAnd);
-    this->RegisterSyntax("where", 500, 2, 1, &executeWhereExpression, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
-    this->RegisterSyntax("eq", 500, 2, 1, &executeGremlinComparePropertyToValue, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
-    this->RegisterSyntax("ne", 500, 2, 1, &executeGremlinComparePropertyToValue, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
-    this->RegisterSyntax("gt", 500, 2, 1, &executeGremlinComparePropertyToValue, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
-    this->RegisterSyntax("ge", 500, 2, 1, &executeGremlinComparePropertyToValue, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
-    this->RegisterSyntax("lt", 500, 2, 1, &executeGremlinComparePropertyToValue, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
-    this->RegisterSyntax("LT", 500, 2, 1, &executeGremlinComparePropertyToValue, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
-    this->RegisterSyntax("le", 500, 2, 1, &executeGremlinComparePropertyToValue, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
+    this->RegisterSyntax("inT", 500, 2, 1, Q_READONLY, &executeGremlinInOutTriplet);
+    this->RegisterSyntax("inoutT", 500, 2, 1, Q_READONLY, &executeGremlinInOutTriplet);
+    this->RegisterSyntax("outTriplet", 500, 2, 1, Q_READONLY, &executeGremlinInOutTriplet);
+    this->RegisterSyntax("inTriplet", 500, 2, 1, Q_READONLY, &executeGremlinInOutTriplet);
+    this->RegisterSyntax("inoutTriplet", 500, 2, 1, Q_READONLY, &executeGremlinInOutTriplet);
+    this->RegisterSyntax("outEdge", 500, 2, 1, Q_READONLY, &executeGremlinOutEdge);
+    this->RegisterSyntax("inEdge", 500, 2, 1, Q_READONLY, &executeGremlinInEdge);
+    this->RegisterSyntax("inoutEdge", 500, 2, 1, Q_READONLY, &executeGremlinInOutEdge);
+    this->RegisterSyntax("outE", 500, 2, 1, Q_READONLY, &executeGremlinOutEdge);
+    this->RegisterSyntax("inE", 500, 2, 1, Q_READONLY, &executeGremlinInEdge);
+    this->RegisterSyntax("inoutE", 500, 2, 1, Q_READONLY, &executeGremlinInOutEdge);
+    this->RegisterSyntax("isSubject", 500, 2, 1, Q_READONLY, &executeGremlinHasOut);
+    this->RegisterSyntax("hasOut", 500, 2, 1, Q_READONLY, &executeGremlinHasOut);
+    this->RegisterSyntax("isObject", 500, 2, 1, Q_READONLY, &executeGremlinHasIn);
+    this->RegisterSyntax("hasIn", 500, 2, 1, Q_READONLY, &executeGremlinHasIn);
+    this->RegisterSyntax("hasInout", 500, 2, 1, Q_READONLY, &executeGremlinHasInOut);
+    this->RegisterSyntax("addEdge", 500, 2, 1, Q_WRITE, &executeGremlinAddEdge);
+    this->RegisterSyntax("addE", 500, 2, 1, Q_WRITE, &executeGremlinAddEdge);
+    this->RegisterSyntax("predicate", 500, 2, 1, Q_WRITE, &executeGremlinAddEdge);
+    this->RegisterSyntax("triplet", 500, 2, 1, Q_WRITE, &executeGremlinAddTriplet);
+    this->RegisterSyntax("property", 500, 2, 1, Q_WRITE, &executeGremlinAddProperty, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
+    this->RegisterSyntax("addVertex", 500, 2, 1, Q_WRITE, &executeGremlinAddVertex);
+    this->RegisterSyntax("addV", 500, 2, 1, Q_WRITE, &executeGremlinAddVertex);
+    this->RegisterSyntax("to", 500, 2, 1, Q_WRITE, &executeGremlinLinkVertex);
+    this->RegisterSyntax("object", 500, 2, 1, Q_WRITE, &executeGremlinLinkVertex, &GremlinScopeCheck);
+    this->RegisterSyntax("from", 500, 2, 1, Q_WRITE, &executeGremlinLinkVertex);
+    this->RegisterSyntax("subject", 500, 2, 1, Q_WRITE, &executeGremlinLinkVertex, &GremlinScopeCheck);
+    this->RegisterSyntax("drop", 500, 2, 1, Q_WRITE, &executeGremlinDropVertexOrEdge);
+    this->RegisterSyntax("join", 500, 2, 1, Q_READONLY, &Sjiboleth::executeOr);
+    this->RegisterSyntax("merge", 500, 2, 1, Q_READONLY, &Sjiboleth::executeAnd);
+    this->RegisterSyntax("where", 500, 2, 1, Q_READONLY, &executeWhereExpression, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
+    this->RegisterSyntax("eq", 500, 2, 1, Q_READONLY, &executeGremlinComparePropertyToValue, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
+    this->RegisterSyntax("ne", 500, 2, 1, Q_READONLY, &executeGremlinComparePropertyToValue, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
+    this->RegisterSyntax("gt", 500, 2, 1, Q_READONLY, &executeGremlinComparePropertyToValue, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
+    this->RegisterSyntax("ge", 500, 2, 1, Q_READONLY, &executeGremlinComparePropertyToValue, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
+    this->RegisterSyntax("lt", 500, 2, 1, Q_READONLY, &executeGremlinComparePropertyToValue, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
+    this->RegisterSyntax("LT", 500, 2, 1, Q_READONLY, &executeGremlinComparePropertyToValue, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
+    this->RegisterSyntax("le", 500, 2, 1, Q_READONLY, &executeGremlinComparePropertyToValue, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
 
-    this->RegisterSyntax("-", 29, 2, 1, &executeGremlinComputeOnPropertyValue);
-    this->RegisterSyntax("+", 29, 2, 1, &executeGremlinComputeOnPropertyValue);
-    this->RegisterSyntax("/", 30, 2, 1, &executeGremlinComputeOnPropertyValue);
-    this->RegisterSyntax("*", 30, 2, 1, &executeGremlinComputeOnPropertyValue);
-    this->RegisterSyntax("==", 20, 2, 1, &executeGremlinComparePropertyToValue);
-    this->RegisterSyntax(">=", 20, 2, 1, &executeGremlinComparePropertyToValue);
-    this->RegisterSyntax("<=", 20, 2, 1, &executeGremlinComparePropertyToValue);
-    this->RegisterSyntax("<", 20, 2, 1, &executeGremlinComparePropertyToValue);
-    this->RegisterSyntax(">", 20, 2, 1, &executeGremlinComparePropertyToValue);
-    this->RegisterSyntax("!=", 20, 2, 1, &executeGremlinComparePropertyToValue);
+    this->RegisterSyntax("-", 29, 2, 1, Q_READONLY, &executeGremlinComputeOnPropertyValue);
+    this->RegisterSyntax("+", 29, 2, 1, Q_READONLY, &executeGremlinComputeOnPropertyValue);
+    this->RegisterSyntax("/", 30, 2, 1, Q_READONLY, &executeGremlinComputeOnPropertyValue);
+    this->RegisterSyntax("*", 30, 2, 1, Q_READONLY, &executeGremlinComputeOnPropertyValue);
+    this->RegisterSyntax("==", 20, 2, 1, Q_READONLY, &executeGremlinComparePropertyToValue);
+    this->RegisterSyntax(">=", 20, 2, 1, Q_READONLY, &executeGremlinComparePropertyToValue);
+    this->RegisterSyntax("<=", 20, 2, 1, Q_READONLY, &executeGremlinComparePropertyToValue);
+    this->RegisterSyntax("<", 20, 2, 1, Q_READONLY, &executeGremlinComparePropertyToValue);
+    this->RegisterSyntax(">", 20, 2, 1, Q_READONLY, &executeGremlinComparePropertyToValue);
+    this->RegisterSyntax("!=", 20, 2, 1, Q_READONLY, &executeGremlinComparePropertyToValue);
 
-    this->RegisterSyntax("sqrt", 30, 2, 1, &executeGremlinComputeOnSinglePropertyValue);
-    this->RegisterSyntax("pow", 30, 2, 1, &executeGremlinComputeOnPropertyValue);
-    this->RegisterSyntax("trend_slope", 30, 2, 1, &calculateTrendSlope, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
-    // this->RegisterSyntax("trend_base", 30, 2, 1, &calculateTrendBase, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
-    // this->RegisterSyntax("trend", 30, 2, 1, &calculateTrend, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
+    this->RegisterSyntax("sqrt", 30, 2, 1, Q_READONLY, &executeGremlinComputeOnSinglePropertyValue);
+    this->RegisterSyntax("pow", 30, 2, 1, Q_READONLY, &executeGremlinComputeOnPropertyValue);
+    this->RegisterSyntax("trend_slope", 30, 2, 1, Q_READONLY, &calculateTrendSlope, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
+    // this->RegisterSyntax("trend_base", 30, 2, 1, Q_READONLY, &calculateTrendBase, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
+    // this->RegisterSyntax("trend", 30, 2, 1, Q_READONLY, &calculateTrend, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
 
-    this->RegisterSyntax("between", 500, 2, 1, &executeGremlinComparePropertyToRangeValue);
-    this->RegisterSyntax("contains", 500, 2, 1, &executeGremlinComparePropertyToValue);
-    this->RegisterSyntax("redis", 500, 2, 1, &executeGremlinRedisCommand);
-    this->RegisterSyntax("{", 50, -1, -1, NULL);
-    this->RegisterSyntax("}", 50, -1, -1, &executeObjectExpression);
-    this->RegisterSyntax("reset", 50, -1, -1, &executeResetStack);
-    this->RegisterSyntax("pushdup", 50, -1, -1, &executePushDupStack);
-    this->RegisterSyntax("pop", 50, -1, -1, &executePopStack);
-    this->RegisterSyntax("break", 50, -1, -1, &debugBreak);
-    this->RegisterSyntax("note", 50, -1, -1, &executeComment);
+    this->RegisterSyntax("between", 500, 2, 1, Q_READONLY, &executeGremlinComparePropertyToRangeValue);
+    this->RegisterSyntax("contains", 500, 2, 1, Q_READONLY, &executeGremlinComparePropertyToValue);
+    this->RegisterSyntax("redis", 500, 2, 1, Q_WRITE, &executeGremlinRedisCommand);
+    this->RegisterSyntax("{", 50, -1, -1, Q_READONLY, NULL);
+    this->RegisterSyntax("}", 50, -1, -1, Q_WRITE, &executeObjectExpression);
+    this->RegisterSyntax("reset", 50, -1, -1, Q_READONLY, &executeResetStack);
+    this->RegisterSyntax("pushdup", 50, -1, -1, Q_READONLY, &executePushDupStack);
+    this->RegisterSyntax("pop", 50, -1, -1, Q_READONLY, &executePopStack);
+    this->RegisterSyntax("break", 50, -1, -1, Q_READONLY, &debugBreak);
+    this->RegisterSyntax("note", 50, -1, -1, Q_READONLY, &executeComment);
     //
     // Fuse subject (predicate) object to single vertex (hash)
     //
-    this->RegisterSyntax("fuseOut", 500, 2, 1, &executeGremlinFuseOut);
-    this->RegisterSyntax("fuseIn", 500, 2, 1, &executeGremlinFuseIn);
-    this->RegisterSyntax("fuseInOut", 500, 2, 1, &executeGremlinFuseInOut);
+    this->RegisterSyntax("fuseOut", 500, 2, 1, Q_READONLY, &executeGremlinFuseOut);
+    this->RegisterSyntax("fuseIn", 500, 2, 1, Q_READONLY, &executeGremlinFuseIn);
+    this->RegisterSyntax("fuseInOut", 500, 2, 1, Q_READONLY, &executeGremlinFuseInOut);
     //
-    this->RegisterSyntax("renameKeys", 20, 0, 0, &executeGremlinRenameVertexOrEdge);
-    this->RegisterSyntax("swapKeys", 20, 0, 0, &executeGremlinSwapVertexOrEdge);
+    this->RegisterSyntax("renameKeys", 20, 0, 0, Q_WRITE, &executeGremlinRenameVertexOrEdge);
+    this->RegisterSyntax("swapKeys", 20, 0, 0, Q_WRITE, &executeGremlinSwapVertexOrEdge);
 
     return true;
 }

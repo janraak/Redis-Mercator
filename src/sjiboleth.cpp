@@ -19,13 +19,14 @@ extern "C"
 
 ParserToken::ParserToken()
 {
-    this->Init(eTokenType::_immediate_operator, NULL, 0, 0);
+    this->Init(eTokenType::_immediate_operator, NULL, 0, 0, Q_READONLY);
 }
 
 ParserToken *ParserToken::Init(eTokenType token_type,
                                const char *op,
                                int op_len,
-                               int options)
+                               int options, 
+                            short read_or_write)
 {
     this->op = NULL;
     this->op_len = 0;
@@ -43,19 +44,20 @@ ParserToken *ParserToken::Init(eTokenType token_type,
     this->objectExpression = NULL;
     this->bracketResult = NULL;
     this->options = options;
+    this->read_or_write = read_or_write;
     return this;
 }
 
 ParserToken *ParserToken::New(eTokenType token_type,
-                              const char *op,
-                              int op_len,
-                               int options)
+                            const char *op,
+                            int op_len, 
+                            int options)
 {
     auto *token = (ParserToken *)rxMemAlloc(sizeof(ParserToken) + op_len + 1);
     char *s = (char *)token + sizeof(ParserToken);
     strncpy(s, op, op_len);
     s[op_len] = 0x00;
-    token->Init(token_type, s, op_len, options);
+    token->Init(token_type, s, op_len, options, Q_READONLY);
     return token;
 }
 
@@ -64,19 +66,21 @@ ParserToken *ParserToken::New(const char *aOp,
                               short aToken_priority,
                               short aNo_of_stack_entries_consumed,
                               short aNo_of_stack_entries_produced,
-                               int options)
+                               int options, 
+                            short read_or_write)
 {
     auto *token = ParserToken::New(aToken_type, aOp, strlen(aOp), options);
     rxStringToUpper(token->op);
     token->token_priority = aToken_priority;
     token->no_of_stack_entries_consumed = aNo_of_stack_entries_consumed;
     token->no_of_stack_entries_produced = aNo_of_stack_entries_produced;
+    token->read_or_write = read_or_write;
     return token;
 }
 
 ParserToken *ParserToken::Copy(ParserToken *base, long reference)
 {
-    auto *token = ParserToken::New(base->token_type, base->op, base->op_len, base-> options);
+    auto *token = ParserToken::New(base->token_type, base->op, base->op_len, base->options);
     token->token_priority = base->token_priority;
     token->no_of_stack_entries_consumed = base->no_of_stack_entries_consumed;
     token->no_of_stack_entries_produced = base->no_of_stack_entries_produced;
@@ -87,6 +91,7 @@ ParserToken *ParserToken::Copy(ParserToken *base, long reference)
     token->crlftab_as_operator = base->crlftab_as_operator;
     token->copy_of = base;
     token->reference = reference;
+    token->read_or_write = base->read_or_write;
     return token;
 }
 
@@ -112,7 +117,7 @@ void ParserToken::BracketResult(ParserToken *t)
 
 ParserToken *ParserToken::Copy(long reference)
 {
-    ParserToken *out = ParserToken::New(this->Token(), this->TokenType(), this->Priority(), this->no_of_stack_entries_consumed, this->no_of_stack_entries_produced, this-> options);
+    ParserToken *out = ParserToken::New(this->Token(), this->TokenType(), this->Priority(), this->no_of_stack_entries_consumed, this->no_of_stack_entries_produced, this->read_or_write, this-> options);
 
     out->opf = this->opf;
     out->pcf = this->pcf;
@@ -127,9 +132,10 @@ ParserToken *ParserToken::New(const char *op,
                               short no_of_stack_entries_consumed,
                               short no_of_stack_entries_produced,
                               operationProc *opf,
-                               int options)
+                               int options, 
+                            short read_or_write)
 {
-    auto *token = ParserToken::New(op, token_type, token_priority, no_of_stack_entries_consumed, no_of_stack_entries_produced, options);
+    auto *token = ParserToken::New(op, token_type, token_priority, no_of_stack_entries_consumed, no_of_stack_entries_produced, options, read_or_write);
     token->opf = opf;
     return token;
 }
@@ -370,9 +376,9 @@ bool Sjiboleth::ResetSyntax()
     return false;
 }
 
-bool Sjiboleth::RegisterSyntax(const char *op, short token_priority, int inE, int outE, operationProc *opf, int options)
+bool Sjiboleth::RegisterSyntax(const char *op, short token_priority, int inE, int outE, short read_or_write, operationProc *opf, int options)
 {
-    auto *t = ParserToken::New(op, _operator, token_priority, inE, outE, opf, options);
+    auto *t = ParserToken::New(op, _operator, token_priority, inE, outE, opf, options, read_or_write);
     void *old = NULL;
     raxRemove(this->registry, t->Operation(), t->OperationLength(), &old);
     raxInsert(this->registry, t->Operation(), t->OperationLength(), t, NULL);
@@ -382,9 +388,9 @@ bool Sjiboleth::RegisterSyntax(const char *op, short token_priority, int inE, in
     return true;
 }
 
-bool Sjiboleth::RegisterSyntax(const char *op, short token_priority, int inE, int outE, operationProc *opf, parserContextProc *pcf, int options)
+bool Sjiboleth::RegisterSyntax(const char *op, short token_priority, int inE, int outE, short read_or_write, operationProc *opf, parserContextProc *pcf, int options)
 {
-    auto *t = ParserToken::New(op, _operator, token_priority, inE, outE, opf, options);
+    auto *t = ParserToken::New(op, _operator, token_priority, inE, outE, opf, options, read_or_write);
     void *old = NULL;
     raxRemove(this->registry, t->Operation(), t->OperationLength(), &old);
     t->ParserContextProc(pcf);
@@ -394,15 +400,15 @@ bool Sjiboleth::RegisterSyntax(const char *op, short token_priority, int inE, in
     return true;
 }
 
-bool Sjiboleth::RegisterSyntax(const char *op, short token_priority, int inE, int outE, operationProc *opf)
+bool Sjiboleth::RegisterSyntax(const char *op, short token_priority, int inE, int outE, short read_or_write, operationProc *opf)
 {
-    return Sjiboleth::RegisterSyntax(op, token_priority, inE, outE, opf, 0);
+    return Sjiboleth::RegisterSyntax(op, token_priority, inE, outE, read_or_write, opf, 0);
 }
 
-bool Sjiboleth::RegisterSyntax(const char *op, short token_priority, int inE, int outE, operationProc *opf, parserContextProc *pcf)
+bool Sjiboleth::RegisterSyntax(const char *op, short token_priority, int inE, int outE, short read_or_write, operationProc *opf, parserContextProc *pcf)
 {
     
-    return Sjiboleth::RegisterSyntax(op, token_priority, inE, outE, opf, pcf, 0);
+    return Sjiboleth::RegisterSyntax(op, token_priority, inE, outE, read_or_write, opf, pcf, 0);
 }
 
 bool Sjiboleth::DeregisterSyntax(const char *)

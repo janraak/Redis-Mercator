@@ -118,6 +118,8 @@ int rxRuleSet(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     }
     RedisModule_ReplyWithSimpleString(ctx, response);
     rxStringFree(response);
+    rxAlsoPropagate(0, argv, argc, -1);
+
     return REDISMODULE_OK;
 }
 
@@ -126,8 +128,9 @@ int rxRuleList(RedisModuleCtx *ctx, RedisModuleString **, int )
     return BusinessRule::WriteList(ctx);
 }
 
-int rxRuleResetCounters(RedisModuleCtx *ctx, RedisModuleString **, int )
+int rxRuleResetCounters(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
+    rxAlsoPropagate(0, argv, argc, -1);
     return BusinessRule::ResetCounters(ctx);
 }
 
@@ -150,6 +153,7 @@ int rxRuleDel(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
             BusinessRule::Forget(br);
         }
     }
+    rxAlsoPropagate(0, argv, argc, -1);
 
     RedisModule_ReplyWithSimpleString(ctx, "OK");
     return REDISMODULE_OK;

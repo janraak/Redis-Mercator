@@ -227,6 +227,7 @@ extern "C"
     rxSetMembers *rxFreeSetmembers(rxSetMembers *mob);
     const char *rxGetSetMember(rxSetMembers *mob);
 
+    void rxAlsoPropagate(int dbid, void **argv, int argc, int target);
 #ifdef __cplusplus
 }
 #endif

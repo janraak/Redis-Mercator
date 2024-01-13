@@ -68,8 +68,8 @@ public:
         this->DeregisterSyntax("!!!,");
         this->DeregisterSyntax(",");
         this->DeregisterSyntax(":");
-        this->RegisterSyntax(",", 5, 0, 0, NULL);
-        this->RegisterSyntax(":", 30, 0, 0, NULL);
+        this->RegisterSyntax(",", 5, 0, 0, Q_READONLY, NULL);
+        this->RegisterSyntax(":", 30, 0, 0, Q_READONLY, NULL);
         return true;
     }
 };
@@ -279,18 +279,16 @@ public:
         rxString arg = rxStringNew(argS);
         rxStringToUpper(arg);
         rxString keyword = rxStringNew("FILE");
-        rxServerLog(rxLL_NOTICE, "Load: %s", argS);
+        rxServerLog(rxLL_DEBUG, "Load: %s", argS);
         // TODO fixed bugs from use of stashes!!!!!!
         if (argc >= 3 && rxStringMatch(keyword, arg, 1))
         {
             auto *config = getRxSuite();
             const char *pathS = rxStringFormat( "%s/%s", config->wget_root, RedisModule_StringPtrLen(argv[2], &len));
-            rxServerLog(rxLL_NOTICE, "Load json graph from: %s", pathS);
-            printf("Load json graph from: %s\n", pathS);
+            rxServerLog(rxLL_DEBUG, "Load json graph from: %s", pathS);
             rxString path = rxStringNew(pathS);
             rxString graph = readFileIntoSds(path);
-            rxServerLog(rxLL_NOTICE, "Load json graph: %s", graph);
-            printf("Load json graph: %s\n", graph);
+            rxServerLog(rxLL_DEBUG, "Load json graph: %s", graph);
 
             rxStashCommand(this->request, "", 1, graph);
             rxStringFree(arg);
