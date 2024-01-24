@@ -71,12 +71,13 @@ extern "C"
 #include "rxSuiteHelpers.h"
 #include "sdsWrapper.h"
 
-#include "sha1.h"
-
     int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc);
 #ifdef __cplusplus
 }
 #endif
+
+#include "sha.hpp"
+
 #include <cstdarg>
 
 /*
@@ -123,7 +124,6 @@ const char *ORDER_FIELD = "order";
 const char *SHARD_FIELD = "shard";
 const char *INDEX_FIELD = "index";
 const char *PRIMARY_FIELD = "primary";
-
 const char *HELP_STRING = "Mercator Demo Cluster Manager Commands:\n"
                           "\n"
                           " mercator.create.cluster caller %c_ip% [ clustered ] [ replicated ] [start] [zone %tree%] [redis %version%]\n"
@@ -155,54 +155,6 @@ const char *HELP_STRING = "Mercator Demo Cluster Manager Commands:\n"
                             ".has(role,controller)"       \
                             ".select(address,port,owner)" \
                             ""
-
-rxString getSha1(const char *codes, ...)
-{
-    int argc = strlen(codes);
-    std::va_list args;
-    va_start(args, argc);
-
-    SHA1_CTX ctx;
-    unsigned char hash[20];
-    int i;
-
-    SHA1Init(&ctx);
-    for (; *codes; ++codes)
-    {
-        switch (*codes)
-        {
-        case 's':
-        {
-            rxString s = va_arg(args, rxString);
-            if (s)
-                SHA1Update(&ctx, (const unsigned char *)s, strlen(s));
-        }
-        break;
-        case 'i':
-        {
-            int i = va_arg(args, int);
-            SHA1Update(&ctx, (const unsigned char *)&i, sizeof(int));
-        }
-        break;
-        case 'f':
-        {
-            int f = va_arg(args, double);
-            SHA1Update(&ctx, (const unsigned char *)&f, sizeof(double));
-        }
-        break;
-        }
-    }
-    SHA1Final(hash, &ctx);
-
-    char *sha1 = (char *)rxMemAlloc(41);
-    char *filler = sha1;
-    for (i = 0; i < 20; i++, filler += 2)
-    {
-        sprintf(filler, "%02x", hash[i]);
-    }
-    *filler = 0x00;
-    return rxStringNew(sha1);
-}
 
 void freeSha1(rxString sha1)
 {
@@ -1865,7 +1817,6 @@ int start_cluster(RedisModuleCtx *ctx, char *osha1)
         auto *config = getRxSuite();
         if (Is_node_Online(address, port) != 0)
         {
-            char *primary_name = extractStringFromRedisReply(values, "primary");
             rxString startup_command = rxStringFormat(
                 "cd %s;python3 extensions/src/start_node.py %s %s %s %s %s %s %s %s %s %s >>%s/startup.log  2>>%s/startup.log ",
                 cwd,

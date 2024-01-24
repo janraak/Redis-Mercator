@@ -343,6 +343,12 @@ bool TextDialect::RegisterDefaultSyntax()
 	this->DeregisterSyntax("|&");
 	this->DeregisterSyntax("not");
 	this->DeregisterSyntax("NOT");
+	this->DeregisterSyntax("and");
+	this->DeregisterSyntax("AND");
+	this->DeregisterSyntax("or");
+	this->DeregisterSyntax("OR");
+	this->DeregisterSyntax("xor");
+	this->DeregisterSyntax("XOR");
 	this->DeregisterSyntax("!");
 	// Sjiboleth::RegisterDefaultSyntax();
 	this->RegisterSyntax("=", 10, 0, 0,  Q_READONLY, IndexText);

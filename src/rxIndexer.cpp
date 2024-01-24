@@ -184,6 +184,8 @@ while (j < argc)
     raxFree(collector);
     collector = NULL;
 
+    KeyTriggered(okey);
+
     rxStashCommand(index_info.index_update_request_queue, "RXTRIGGER", 1, okey);
 rxUNUSED(okey);
 
@@ -210,6 +212,7 @@ extern "C"
 #ifdef __cplusplus
 }
 #endif
+void freeCompletedRedisRequests();
 
 int client_health_interval = 100;
 long long client_health_cron = -1;
@@ -222,15 +225,20 @@ void *rxruleApply = NULL;
 int rxrule_timer_handler(struct aeEventLoop *, long long int, void *)
 {
     redisNodeInfo *index_config = rxIndexNode();
-
     if (must_stop == 1)
         return -1;
 
-    void *index_request = index_info.index_rxRuleApply_request_queue->Dequeue();
-    while (index_request != NULL)
+    long long start = ustime();
+    freeCompletedRedisRequests();
+    void *index_request = NULL;
+    while ((index_request = index_info.index_rxRuleApply_request_queue->Dequeue()) != NULL)
     {
         ExecuteRedisCommand(index_info.index_rxRuleApply_respone_queue, index_request, index_config->host_reference);
-        index_request = index_info.index_rxRuleApply_request_queue->Dequeue();
+        if (ustime() - start >= client_health_interval * 1000)
+        {
+            // Yield when slot time over
+            return client_health_interval;
+        }
     }
 
     return client_health_interval;
@@ -297,7 +305,7 @@ static int indexingHandler(int, void *stash, redisNodeInfo *index_config, SilNik
             auto *sub = parsed_text;
             while (sub)
             {
-                sub->Show(v);
+                sub->PrependExecutionMode();
                 SilNikParowy::Execute(sub, executor);
                 sub = sub->Next();
             }
@@ -311,7 +319,7 @@ static int indexingHandler(int, void *stash, redisNodeInfo *index_config, SilNik
     collector = NULL;
     // TODO: executor->Reset();
 
-    rxStashCommand(index_info.index_update_request_queue, "RXTRIGGER", 1, key);
+    // rxStashCommand(index_info.index_update_request_queue, "RXTRIGGER", 1, key);
     return C_OK;
 }
 
@@ -325,12 +333,12 @@ void freeCompletedRedisRequests()
     {
         GET_ARGUMENTS_FROM_STASH(index_request);
         rxUNUSED(argv);
-        if (argc > 1)
-        {
-            rxString key = (rxString)rxGetContainedObject(argv[1]);
-            BusinessRule::Touched(key);
-            // rxStashCommand(index_info.index_rxRuleApply_request_queue, "RULE.APPLY", 1, key);
-        }
+        // if (argc > 1)
+        // {
+        //     rxString key = (rxString)rxGetContainedObject(argv[1]);
+        //     BusinessRule::Touched(key);
+        //     // rxStashCommand(index_info.index_rxRuleApply_request_queue, "RULE.APPLY", 1, key);
+        // }
 
         FreeStash(index_request);
         index_request = index_info.index_update_respone_queue->Dequeue();
@@ -381,7 +389,7 @@ int indexerInfo(RedisModuleCtx *ctx, RedisModuleString **, int)
     // response = rxStringFormat("%sNumber of REDIS commands:                  %d, intercepts: %d\n", response, dictSize(server.commands), sizeof(interceptorCommandTable) / sizeof(struct redisCommand));
     response = rxStringFormat("%sNumber of Field index comm                 %d\n", response, index_info.field_index_tally);
 
-    return RedisModule_ReplyWithSimpleString(ctx, response);
+    return RedisModule_ReplyWithStringBuffer(ctx, response, strlen(response));
 }
 
 int rx_wait_indexing_complete(struct RedisModuleCtx *ctx)
@@ -533,6 +541,7 @@ int reindex_cron(struct aeEventLoop *, long long, void *clientData)
         raxFree(collector);
         engine->Forget("@@collector@@");
 
+        KeyTriggered(key);
         rxStashCommand(index_info.index_update_request_queue, "RXTRIGGER", 1, key);
         if (ustime() - start >= reindex_cron_slot_time * 1000)
         {

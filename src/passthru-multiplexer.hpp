@@ -37,7 +37,7 @@ public:
         PASSTHRU_RESPONDED,
         PASSTHRU_RELEASED,
         PASSTHRU_DONE
-    } state;
+    } pstate;
     const char *stash;
     int argc;
     pthread_t passthruThreadHandle;
@@ -50,7 +50,7 @@ public:
         redisNodeInfo *indexConfig = rxIndexNode();
         this->index_context = RedisClientPool<redisContext>::Acquire(indexConfig->host_reference, "_CLIENT", "RxDescribePassthruMultiplexer");
         this->reply = NULL;
-        this->state = PASSTHRU_WAITING;
+        this->pstate = PASSTHRU_WAITING;
         this->stash = rxStringBuildRedisCommand(argc, (rxRedisModuleString **)argv);
         if (pthread_create(&this->passthruThreadHandle, NULL, execPassthruThread, this))
         {
@@ -67,22 +67,22 @@ public:
 
     void Started()
     {
-        this->state = PASSTHRU_STARTED;
+        this->pstate = PASSTHRU_STARTED;
     }
 
     void Ready()
     {
-        this->state = PASSTHRU_READY;
+        this->pstate = PASSTHRU_READY;
     }
 
     bool IsResponseWritten()
     {
-        return this->state == PASSTHRU_RESPONDED;
+        return this->pstate == PASSTHRU_RESPONDED;
     }
 
     int Execute()
     {
-        if (this->state == PASSTHRU_READY)
+        if (this->pstate == PASSTHRU_READY)
         {
             return -1;
         }
@@ -97,12 +97,12 @@ public:
         }
         else
             RedisModule_ReplyWithSimpleString(ctx, this->index_context->errstr);
-        this->state = PASSTHRU_RESPONDED;
-        while (this->state != PASSTHRU_RELEASED)
+        this->pstate = PASSTHRU_RESPONDED;
+        while (this->pstate != PASSTHRU_RELEASED)
         {
             sched_yield();
         }
-        this->state = PASSTHRU_DONE;
+        this->pstate = PASSTHRU_DONE;
         return 1;
     }
 
@@ -112,12 +112,12 @@ public:
         {
             freeReplyObject(this->reply);
         }
-        return this->state = PASSTHRU_RELEASED;
+        return this->pstate = PASSTHRU_RELEASED;
     }
 
     int Done()
     {
-        return this->state == PASSTHRU_READY ? 1 : 0;
+        return this->pstate == PASSTHRU_READY ? 1 : 0;
     }
 };
 
@@ -127,9 +127,10 @@ static void *execPassthruThread(void *ptr)
     rxServerLog(rxLL_NOTICE, "PassThru async started");
     passthru_thread->Started();
 
+    rxString cmd = hi_sdsnewlen(passthru_thread->stash, strlen(passthru_thread->stash));
     passthru_thread->reply = (RedisModuleCallReply *)redisCommand(
         passthru_thread->index_context,
-        passthru_thread->stash,
+        cmd,
         NULL);
 
     passthru_thread->Ready();
@@ -140,6 +141,32 @@ static void *execPassthruThread(void *ptr)
     // Keep the response until written
     passthru_thread->ReleaseResponse();
     rxServerLog(rxLL_NOTICE, "PassThru async stopped");
+    return NULL;
+}
+
+void *PassthruAsync_Go(void *privData)
+{
+    auto *multiplexer = (PassthruMultiplexer *)privData;
+    multiplexer->state = Multiplexer::running;
+
+    char cmd[4096];
+    for (int n = 0; n < multiplexer->argc; ++n)
+    {
+        size_t len;
+        const char *argS = RedisModule_StringPtrLen(multiplexer->argv[n], &len);
+        strcat(cmd, argS);
+        strcat(cmd, " ");
+    }
+    auto index = rxIndexNode();
+    auto *index_node = RedisClientPool<redisContext>::Acquire(index->host_reference, "_CLIENT", "Invoke_IndexStore");
+
+    multiplexer->reply = (RedisModuleCallReply *)redisCommand(
+        index_node,
+        cmd,
+        NULL);
+    RedisClientPool<redisContext>::Release(index_node, "Invoke_IndexStore");
+
+    multiplexer->state = Multiplexer::done;
     return NULL;
 }
 

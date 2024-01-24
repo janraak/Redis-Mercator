@@ -888,6 +888,7 @@ ParserToken *ParsedExpression::Last()
 {
     return expression->Last();
 }
+
 ParserToken *ParsedExpression::Pop()
 {
     return expression->Pop();
@@ -895,4 +896,24 @@ ParserToken *ParsedExpression::Pop()
 ParserToken *ParsedExpression::Pop_Last()
 {
     return expression->Pop_Last();
+}
+
+ParserToken *ParsedExpression::Peek_First()
+{
+    return expression->Peek();
+}
+
+ParserToken *ParsedExpression::Peek_Last()
+{
+    return expression->Last();
+}
+
+ParserToken *ParsedExpression::PrependExecutionMode()
+{
+    auto first = expression->Peek();
+    if(first->TokenType() == _index_only_execution)
+        return first;
+    first = ParserToken::New(_index_only_execution, "", 0, 0);
+    expression->Push(first);
+    return first;
 }

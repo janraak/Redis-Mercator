@@ -15,6 +15,7 @@ extern "C"
 }
 #endif
 #include "tls.hpp"
+#include "rxSuiteHelpers.h"
 
 struct client;
 thread_local  rax *RedisClientPoolRegistry = NULL;
@@ -265,4 +266,23 @@ redisReply *extractGroupFromRedisReplyByIndex(redisReply *r, size_t index)
                 return r->element[index];
     }
     return NULL;
+}
+
+
+extern "C" void forwardTriggeredKey(void *key){
+    redisNodeInfo *data_config = rxDataNode();
+
+
+    auto *rule_node = RedisClientPool<struct client>::Acquire(data_config->host_reference, "_FWDR", "Trigger Rules");
+
+
+    void *argv[2] = {rxCreateStringObject("RXTRIGGER", 9), key};
+    auto *c = (struct client *)RedisClientPool<struct client>::Acquire(data_config->host_reference, "_FAKE", "ExecuteRedisCommand");
+    rxSetDatabase(c, 0);
+    rxAllocateClientArgs(c, argv, 2);
+    void *command_definition = rxLookupCommand("RXTRIGGER");
+    if (command_definition)
+        rxClientExecute(c, command_definition);
+    rxFreeStringObject(argv[0]);
+    RedisClientPool<struct client>::Release(rule_node, "Trigger Rules");
 }

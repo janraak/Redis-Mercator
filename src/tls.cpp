@@ -39,7 +39,7 @@ T tls_get(const char *key, allocatorProc *allocator, void *parms)
     {
         data = allocator(parms);
         raxInsert(TLS_Registry, (UCHAR *)&id, strlen(id), data, NULL);
-        raxShow(TLS_Registry);
+        // raxShow(TLS_Registry);
     }
     return (T)data;
 }

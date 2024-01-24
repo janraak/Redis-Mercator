@@ -62,14 +62,22 @@ public:
     const char *GetArgument(int n);
     Multiplexer();
     Multiplexer(RedisModuleString **argv, int argc);
+    Multiplexer(RedisModuleCtx *ctx, RedisModuleString **argv, int argc);
     virtual ~Multiplexer();
     virtual long long Timeout();
     int Start(RedisModuleCtx *ctx);
     int Async(RedisModuleCtx *ctx, runner handler);
     // static int Go(void *privData);
-    virtual int Execute() = 0;
-    virtual int Write(RedisModuleCtx *ctx) = 0;
-    virtual int Done() = 0;
+    virtual int Execute();
+    virtual int Write(RedisModuleCtx *ctx);
+    virtual int Done();
+    
+    void *StopThread()
+    {
+        this->state = Multiplexer::done;
+        return NULL;
+    }
+
 };
 
 #ifdef __cplusplus
@@ -178,6 +186,12 @@ Multiplexer::Multiplexer(RedisModuleString **argv, int argc)
     this->argc = argc;
 }
 
+Multiplexer::Multiplexer(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
+    : Multiplexer(argv, argc)
+{
+    this->ctx = ctx;
+}
+
 const char *Multiplexer::GetArgument(int n)
 {
     size_t arg_len;
@@ -196,7 +210,7 @@ Multiplexer::~Multiplexer(){};
 
 long long Multiplexer::Timeout()
 {
-    return 60000;
+    return 300000;
 }
 
 int Multiplexer::Start(RedisModuleCtx *ctx)

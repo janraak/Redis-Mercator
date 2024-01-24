@@ -12,7 +12,8 @@ enum eTokenType
     _close_bracket = 5,
     _key_set = 6,
     _immediate_operator = 7,
-    _expression = 8
+    _expression = 8,
+    _index_only_execution = 953
 };
 #define eTokenType_TYPE
 #endif

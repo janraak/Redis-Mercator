@@ -82,16 +82,31 @@ static char *rxStringLenMapCharsCopy(char *s, size_t len, const char *from, cons
 // TODO Assemble hdr array!
 static int getColumnCount(char *start, char *end, char *column_separator, char *key_column, int *key_column_no, char *type_column, int *type_column_no)
 {
+    *key_column_no = -1;
+    *type_column_no = -1;
     int column_count = 0;
+    short extra_front = 0;
+    short extra_length = 0;
+
     char *prev_tab = start;
     while (start < end)
     {
         char *tab = strstr(start, column_separator);
         if (tab && tab < end)
         {
-            if (key_column && rxStringMatchLen(key_column, strlen(key_column), prev_tab, tab - prev_tab, MATCH_IGNORE_CASE))
+            if (*prev_tab == '\"')
+            {
+                extra_front = 1;
+                extra_length = 2;
+            }
+            else
+            {
+                extra_front = 0;
+                extra_length = 0;
+            }
+            if (key_column && rxStringMatchLen(key_column, strlen(key_column), prev_tab + extra_front, tab - prev_tab - extra_length, MATCH_IGNORE_CASE))
                 *key_column_no = column_count;
-            if (type_column && rxStringMatchLen(type_column, strlen(type_column), prev_tab, tab - prev_tab, MATCH_IGNORE_CASE))
+            if (type_column && rxStringMatchLen(type_column, strlen(type_column), prev_tab + extra_front, tab - prev_tab - extra_length, MATCH_IGNORE_CASE))
                 *type_column_no = column_count;
             ++column_count;
             start = tab + 1;
@@ -103,7 +118,7 @@ static int getColumnCount(char *start, char *end, char *column_separator, char *
     return column_count;
 }
 
-typedef void *rowExtractionProc(SimpleQueue *req_q, char *row_start, char *row_end, char *hdr_start, char *hdr_end, char *column_separator);
+typedef void *rowExtractionProc(SimpleQueue *req_q, char *row_start, char *row_end, char *hdr_start, char *hdr_end, char *column_separator, int key_column_no, char *type_column, short type_column_no);
 
 static rxString extractRowForStringKey(char *row_start, char *row_end, char *hdr_start, char *hdr_end, char *column_separator, const char *format)
 {
@@ -161,8 +176,77 @@ static rxString extractRowForStringKey(char *row_start, char *row_end, char *hdr
     return value;
 }
 
-static void *extractRowAsJson(SimpleQueue *, char *row_start, char *row_end, char *hdr_start, char *hdr_end, char *column_separator)
+static rxString extractColumnFromRow(char *row_start, char *row_end, char *hdr_start, char *hdr_end, char *column_separator, const char *format, int column_no)
 {
+    rxString value = rxStringEmpty();
+    bool done = false;
+    char *f_tab = NULL;
+    char *v_tab = NULL;
+     short extra_front = 0;
+    short extra_length = 0;
+   while (done == false)
+   {
+       if (hdr_start != NULL)
+       {
+           f_tab = strstr(hdr_start, column_separator);
+           if (f_tab > hdr_end)
+           {
+               f_tab = hdr_end;
+               done = true;
+           }
+           else if (f_tab == NULL)
+           {
+               f_tab = strchr(hdr_start, 0x00);
+               done = true;
+           }
+       }
+       v_tab = strstr(row_start, column_separator);
+       if (v_tab > row_end)
+       {
+           v_tab = row_end;
+           done = true;
+       }
+       else if (v_tab == NULL)
+       {
+           v_tab = strchr(row_start, 0x00);
+           done = true;
+       }
+       if (column_no == 0)
+       {
+           int enclosure = 0;
+           if (*row_start == '"' && *(v_tab - 1) == '"')
+           {
+               enclosure = 1;
+           }
+           if (*row_start + enclosure == '\"')
+           {
+               extra_front = 1;
+               extra_length = 2;
+           }
+           else
+           {
+               extra_front = 0;
+               extra_length = 0;
+           }
+           rxString v = rxStringNewLen(row_start + enclosure + extra_front, (v_tab - enclosure) - (row_start + enclosure) - extra_length);
+
+           value = rxStringFormat(format, value, v);
+           return v;
+       }
+       if (hdr_start != NULL)
+           hdr_start = f_tab + strlen(column_separator);
+       row_start = v_tab + strlen(column_separator);
+       --column_no;
+   }
+    return NULL;
+}
+
+static void *extractRowAsJson(SimpleQueue *, char *row_start, char *row_end, char *hdr_start, char *hdr_end, char *column_separator, int key_column_no, char *type_column, short type_column_no)
+{
+    rxUNUSED(key_column_no);
+    rxUNUSED(type_column);
+    rxUNUSED(type_column_no);
+
     char *f_tab = strstr(hdr_start, column_separator);
     char *v_tab = strstr(row_start, column_separator);
     if (v_tab == NULL)
@@ -189,86 +273,156 @@ static void *extractRowAsJson(SimpleQueue *, char *row_start, char *row_end, cha
     rxStringFree(key);
     return NULL;
 }
-
-static void *extractRowAsHash(SimpleQueue *, char *row_start, char *row_end, char *hdr_start, char *hdr_end, char *column_separator)
+// FaBlok *createVertex(SilNikParowy_Kontekst *stack, FaBlok *v, const char *key, const char *vertex_type);
+static void *extractRowAsHash(SimpleQueue *, char *row_start, char *row_end, char *hdr_start, char *hdr_end, char *column_separator, int key_column_no, char *type_column, short type_column_no)
 {
 
     char *f_tab = strstr(hdr_start, column_separator);
     char *v_tab = strstr(row_start, column_separator);
     if (v_tab == NULL)
         return NULL;
-    rxString key = rxStringNewLen(row_start, v_tab - row_start);
-    if (strlen(key) == 0)
-        return NULL;
+    short extra_front = 0;
+    short extra_length = 0;
+    if (*row_start == '\"')
+    {
+        extra_front = 1;
+        extra_length = 2;
+    }
+    else
+    {
+        extra_front = 0;
+        extra_length = 0;
+    }
+    // TODO: implement explicit type column
+    // TODO: implement explicit key column
+    rxString key, vertex_type;
+    if (key_column_no >= 0)
+        key = extractColumnFromRow(row_start, row_end, hdr_start, hdr_end, column_separator, "", key_column_no);
+    else
+        key = rxStringNewLen(row_start + extra_front, v_tab - row_start - extra_length);
 
-    hdr_start = f_tab + strlen(column_separator);
-    row_start = v_tab + strlen(column_separator);
+    if (strlen(key) == 0){
+        rxStringFree(key);
+        return NULL;
+    }
+    if(type_column){
+        if(type_column_no >= 0)
+            vertex_type = extractColumnFromRow(row_start, row_end, hdr_start, hdr_end, column_separator, "", type_column_no);
+        else
+            vertex_type = rxStringDup(type_column);
+
+        redisNodeInfo *data_config = rxDataNode();
+        auto *client = RedisClientPool<redisContext>::Acquire(data_config->host_reference, "_CLIENT", "extractCreateVertex");
+        auto *rcc = (redisReply *)redisCommand(client, "HSET %s %s %s", key, "type", vertex_type);
+        if (rcc != NULL)
+            freeReplyObject(rcc);
+
+        auto tkey = rxStringFormat("`%s", vertex_type);
+        rcc = (redisReply *)redisCommand(client, "SADD %s %s", tkey, key);
+        if (rcc != NULL)
+            freeReplyObject(rcc);
+
+        RedisClientPool<redisContext>::Release(client, "extractCreateVertex");
+
+        rxStringFree(vertex_type);
+    }
+    if (key_column_no < 0)
+    {
+        hdr_start = f_tab + strlen(column_separator);
+        row_start = v_tab + strlen(column_separator);
+    }
+
+    short column_no = 0;
     bool done = false;
     while (done == false)
     {
-        f_tab = strstr(hdr_start, column_separator);
-        if (f_tab > hdr_end)
+        if (column_no != key_column_no && column_no != type_column_no)
         {
-            f_tab = hdr_end;
-            done = true;
-        }
-        else if (f_tab == NULL)
-        {
-            f_tab = strchr(hdr_start, 0x00);
-            done = true;
-        }
-        v_tab = strstr(row_start, column_separator);
-        if (v_tab > row_end)
-        {
-            v_tab = row_end;
-            done = true;
-        }
-        else if (v_tab == NULL)
-        {
-            v_tab = strchr(row_start, 0x00);
-            done = true;
-        }
-        rxString f = rxStringNewLen(hdr_start, f_tab - hdr_start);
-        int enclosure = 0;
-        if (*row_start == '"' && *(v_tab - 1) == '"')
-        {
-            enclosure = 1;
-        }
-        int tailing_spaces = 0;
-        char *tail = v_tab - 1;
-        while (*tail == ' ')
-        {
-            tail--;
-            tailing_spaces++;
-        }
-
-        rxString v = rxStringNewLen(row_start + enclosure, (v_tab - enclosure - tailing_spaces) - (row_start + enclosure));
-
-        if (strlen(f) == 0)
-            f = (char *)"any";
-
-        if (strlen(v) > 0)
-        {
-            redisNodeInfo *data_config = rxDataNode();
-            auto *client = RedisClientPool<redisContext>::Acquire(data_config->host_reference, "_CLIENT", "extractRowAsString");
-            auto *rcc = (redisReply *)redisCommand(client, "HSET %s %s %s", key, f, v);
-            if (rcc != NULL)
-                freeReplyObject(rcc);
-            if (rxStringMatch(TYPE_COLUMN, f, MATCH_IGNORE_CASE))
+            f_tab = strstr(hdr_start, column_separator);
+            if (f_tab > hdr_end)
             {
-                auto tkey = rxStringFormat("`%s", v);
-                rcc = (redisReply *)redisCommand(client, "SADD %s %s", tkey, key);
+                f_tab = hdr_end;
+                done = true;
+            }
+            else if (f_tab == NULL)
+            {
+                f_tab = strchr(hdr_start, 0x00);
+                done = true;
+            }
+            v_tab = strstr(row_start, column_separator);
+            if (v_tab > row_end)
+            {
+                v_tab = row_end;
+                done = true;
+            }
+            else if (v_tab == NULL)
+            {
+                v_tab = strchr(row_start, 0x00);
+                done = true;
+            }
+            if (*hdr_start == '\"')
+            {
+                extra_front = 1;
+                extra_length = 2;
+            }
+            else
+            {
+                extra_front = 0;
+                extra_length = 0;
+            }
+            rxString f = rxStringNewLen(hdr_start + extra_front, f_tab - hdr_start - extra_length);
+            int enclosure = 0;
+            if (*row_start == '"' && *(v_tab - 1) == '"')
+            {
+                enclosure = 1;
+            }
+            int tailing_spaces = 0;
+            char *tail = v_tab - 1;
+            while (*tail == ' ')
+            {
+                tail--;
+                tailing_spaces++;
+            }
+
+            if (*row_start + enclosure == '\"')
+            {
+                extra_front = 1;
+                extra_length = 2;
+            }
+            else
+            {
+                extra_front = 0;
+                extra_length = 0;
+            }
+            rxString v = rxStringNewLen(row_start + enclosure + extra_front, (v_tab - enclosure - tailing_spaces) - (row_start + enclosure) - extra_length);
+
+            if (strlen(f) == 0)
+                f = (char *)"any";
+
+            if (strlen(v) > 0)
+            {
+                redisNodeInfo *data_config = rxDataNode();
+                auto *client = RedisClientPool<redisContext>::Acquire(data_config->host_reference, "_CLIENT", "extractRowAsString");
+                auto *rcc = (redisReply *)redisCommand(client, "HSET %s %s %s", key, f, v);
                 if (rcc != NULL)
                     freeReplyObject(rcc);
+                if (rxStringMatch(TYPE_COLUMN, f, MATCH_IGNORE_CASE))
+                {
+                    auto tkey = rxStringFormat("`%s", v);
+                    rcc = (redisReply *)redisCommand(client, "SADD %s %s", tkey, key);
+                    if (rcc != NULL)
+                        freeReplyObject(rcc);
+                }
+                RedisClientPool<redisContext>::Release(client, "extractRowAsString");
             }
-            RedisClientPool<redisContext>::Release(client, "extractRowAsString");
-        }
 
-        if (f != (char *)"any")
-            rxStringFree(f);
-        rxStringFree(v);
+            if (f != (char *)"any")
+                rxStringFree(f);
+            rxStringFree(v);
+        }
         hdr_start = f_tab + strlen(column_separator);
         row_start = v_tab + strlen(column_separator);
+        ++column_no;
     }
     rxStringFree(key);
     return NULL;
@@ -278,8 +432,12 @@ static void *extractRowAsHash(SimpleQueue *, char *row_start, char *row_end, cha
     Use column 1 as key
     Join column 2...n as <field>:<value>;
 */
-static void *extractRowAsText(SimpleQueue *, char *row_start, char *row_end, char *hdr_start, char *hdr_end, char *column_separator)
+static void *extractRowAsText(SimpleQueue *, char *row_start, char *row_end, char *hdr_start, char *hdr_end, char *column_separator, int key_column_no, char *type_column, short type_column_no)
 {
+    rxUNUSED(key_column_no);
+    rxUNUSED(type_column);
+    rxUNUSED(type_column_no);
+
     char *f_tab = strstr(hdr_start, column_separator);
     char *v_tab = strstr(row_start, column_separator);
     if (v_tab == NULL)
@@ -304,8 +462,12 @@ static void *extractRowAsText(SimpleQueue *, char *row_start, char *row_end, cha
     return NULL;
 }
 
-static void *extractRowAsString(SimpleQueue *, char *row_start, char *row_end, char *hdr_start, char *hdr_end, char *column_separator)
+static void *extractRowAsString(SimpleQueue *, char *row_start, char *row_end, char *hdr_start, char *hdr_end, char *column_separator, int key_column_no, char *type_column, short type_column_no)
 {
+    rxUNUSED(key_column_no);
+    rxUNUSED(type_column);
+    rxUNUSED(type_column_no);
+
     char *f_tab = strstr(hdr_start, column_separator);
     char *v_tab = strstr(row_start, column_separator);
     if (v_tab == NULL)
@@ -445,7 +607,7 @@ static void *execTextLoadThread(void *ptr)
             char *row_end = strstr(tlob, row_separator);
             if (row_end == NULL)
                 row_end = strchr(tlob, 0x00);
-            (rowExtractor)(command_request_queue, tlob, row_end, hdr_start, hdr_end, column_separator);
+            (rowExtractor)(command_request_queue, tlob, row_end, hdr_start, hdr_end, column_separator, key_column_no, type_column, type_column_no);
             if (*row_end == 0x00)
                 break;
             tlob = row_end + strlen(row_separator);

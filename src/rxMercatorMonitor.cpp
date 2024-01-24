@@ -154,10 +154,10 @@ void *RXQUERY = rxCreateStringObject(RXQUERY_cmd, strlen(RXQUERY_cmd));
                            ".property{HEALTH_AVG_used_memory_peak_1=(HEALTH_AVG_used_memory_peak_0)}"                 \
                            ".property(HEALTH_AVG_used_memory_peak_0,0)"                                             \
                            ".property(HEALTH_AVG_maxmemory_0,0)"                                                    \
-                           ".property{'HEALTH_AVG_server_memory_available_4=('HEALTH_AVG_server_memory_available_3)}" \
-                           ".property{'HEALTH_AVG_server_memory_available_3=('HEALTH_AVG_server_memory_available_2)}" \
-                           ".property{'HEALTH_AVG_server_memory_available_2=('HEALTH_AVG_server_memory_available_1)}" \
-                           ".property{'HEALTH_AVG_server_memory_available_1=('HEALTH_AVG_server_memory_available_0)}" \
+                           ".property{HEALTH_AVG_server_memory_available_4=('HEALTH_AVG_server_memory_available_3)}" \
+                           ".property{HEALTH_AVG_server_memory_available_3=('HEALTH_AVG_server_memory_available_2)}" \
+                           ".property{HEALTH_AVG_server_memory_available_2=('HEALTH_AVG_server_memory_available_1)}" \
+                           ".property{HEALTH_AVG_server_memory_available_1=('HEALTH_AVG_server_memory_available_0)}" \
                            ".property(HEALTH_AVG_server_memory_available_0,0)"                                      \
                            ".property{HEALTH_AVG_connected_clients_4=(HEALTH_AVG_connected_clients_3)}"               \
                            ".property{HEALTH_AVG_connected_clients_3=(HEALTH_AVG_connected_clients_2)}"               \

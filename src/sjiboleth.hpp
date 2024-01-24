@@ -25,6 +25,9 @@ class SilNikParowy;
 #define Q_READONLY 0
 #define Q_WRITE 1
 
+#define EXEC_NORMAL 0
+#define EXEC_INDEXING 1
+
 class ParserToken
 {
 protected:
@@ -255,9 +258,12 @@ public:
     friend class SilNikParowy_Kontekst;
     ParserToken *tokenAt(list *list, int ix);
     ParserToken *peekParked();
+    ParserToken *PrependExecutionMode();
     ParserToken *Last();
     ParserToken *Pop();
     ParserToken *Pop_Last();
+    ParserToken *Peek_First();
+    ParserToken *Peek_Last();
     ParserToken *removeTokenAt(list *list, int ix);
     void stashToken(Sjiboleth *p, ParserToken *token, ParserToken *last_token);
     void emitFinal(ParserToken *token);

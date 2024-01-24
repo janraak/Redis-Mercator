@@ -76,6 +76,30 @@ const char *RX_LOADSCRIPT = "RXLOADSCRIPT";
 const char *RX_EVALSHA = "RXEVALSHA";
 const char *RX_HELP = "RXHELP";
 
+
+int rule_execution_duration = 100;
+int rule_execution_interval = 100;
+long long rule_execution_cron_id = -1;
+
+int rule_execution_cron(struct aeEventLoop *, long long int, void *)
+{
+    redisNodeInfo *index_config = rxIndexNode();
+
+    long long start = ustime();
+    const char *key = NULL;
+    while ((key = getTriggeredKey()) != NULL)
+    {
+        BusinessRule::ApplyAll(key);
+        if (ustime() - start >= rule_execution_duration * 1000)
+        {
+            // Yield when slot time over
+            return rule_execution_interval;
+        }
+    }
+
+    return rule_execution_interval;
+}
+
 /*
     Define an active business rule.
 
@@ -118,7 +142,7 @@ int rxRuleSet(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     }
     RedisModule_ReplyWithSimpleString(ctx, response);
     rxStringFree(response);
-    rxAlsoPropagate(0, argv, argc, -1);
+    rxAlsoPropagate(0, argv, (void**)argc, -1);
 
     return REDISMODULE_OK;
 }
@@ -130,7 +154,7 @@ int rxRuleList(RedisModuleCtx *ctx, RedisModuleString **, int )
 
 int rxRuleResetCounters(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
-    rxAlsoPropagate(0, argv, argc, -1);
+    rxAlsoPropagate(0, argv, (void**)argc, -1);
     return BusinessRule::ResetCounters(ctx);
 }
 
@@ -153,7 +177,7 @@ int rxRuleDel(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
             BusinessRule::Forget(br);
         }
     }
-    rxAlsoPropagate(0, argv, argc, -1);
+    rxAlsoPropagate(0, argv, (void**)argc, -1);
 
     RedisModule_ReplyWithSimpleString(ctx, "OK");
     return REDISMODULE_OK;
@@ -176,13 +200,8 @@ extern RedisModuleCtx *loadCtx;
 
 int rxApply(RedisModuleCtx *ctx, RedisModuleString **argv, int )
 {
-    loadCtx = ctx;
     rxString key = (char *)rxGetContainedObject(argv[1]);
-    rxServerLog(rxLL_DEBUG,"Applying all rules to: %s\n", key);
-    rxString response = BusinessRule::ApplyAll(key);
-    RedisModule_ReplyWithSimpleString(ctx, response);
-    rxServerLog(rxLL_DEBUG, "Applied all rules to: %s\n", key);
-    rxStringFree(response);
+    KeyTriggered(key);
     return REDISMODULE_OK;
 }
 
@@ -234,6 +253,10 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     if (RedisModule_CreateCommand(ctx, "RULE.WAIT",
                                   rxRuleWait, "admin readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
+
+
+    rule_execution_cron_id = rxCreateTimeEvent(1, (aeTimeProc *)rule_execution_cron, NULL, NULL);
+    int i = rule_execution_cron(NULL, 0, NULL);
 
     rxServerLog(rxLL_NOTICE, "OnLoad rxRule. Done!");
     return REDISMODULE_OK;

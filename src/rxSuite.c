@@ -13,18 +13,24 @@ extern "C"
 #define rxUNUSED(x) (void)(x)
 
 typedef const char *rxRedisModuleString;
+static rxSuiteShared rxMercatorConfig;
 
-void *rxMercatorShared = NULL;
+extern void *rxMercatorShared = NULL;
 
 void *initRxSuite()
 {
     if (!rxMercatorShared)
     {
-        rxSuiteShared *shared = zmalloc(sizeof(rxSuiteShared));
+        rxSuiteShared *shared = &rxMercatorConfig;
+        //zmalloc(sizeof(rxSuiteShared));
         memset(shared, 0x00, sizeof(rxSuiteShared));
         shared->parserClaimCount = 0;        
         shared->debugMessages = 0;        
-       rxMercatorShared = shared;
+        rxMercatorShared = shared;
+        shared->triggeredKeys = raxNew();
+        mtx_init(&shared->triggeredKeysLock, mtx_plain);
+        shared->indexableKeys = raxNew();
+        mtx_init(&shared->indexableKeysLock, mtx_plain);
 
         char default_address[48];
         snprintf(default_address, sizeof(default_address), "127.0.0.1:%d", server.port);
@@ -50,6 +56,7 @@ void *initRxSuite()
         shared->controllerNode.database_id = 0;
         shared->controllerNode.is_local = 0;
         shared->controllerNode.executor = NULL;
+        rxMercatorShared = shared;
     }
     return rxMercatorShared;
 }
@@ -231,4 +238,64 @@ void rxSetDataRoot(const char *s)
 {
     rxSuiteShared *config = initRxSuite();
     config->wget_root = sdsnew(s);
+}
+
+static int actionForKey(rax *pool, mtx_t *lock, const char *k)
+{
+    int nAdded = 0;
+    mtx_lock(lock);
+    {
+        void *memo = raxFind(pool, (UCHAR *)k, strlen(k));
+        if (memo == raxNotFound)
+        {
+            raxInsert(pool, (UCHAR *)k, strlen(k), NULL, NULL);
+            nAdded = 1;
+        }
+    }
+    mtx_unlock(lock);
+    return nAdded;
+}
+
+static const char *getActionKey(rax *pool, mtx_t *lock)
+{
+    const char *k = NULL;
+    mtx_lock(lock);
+    {
+        raxIterator ki;
+        raxStart(&ki, pool);
+        raxSeek(&ki, "^", NULL, 0);
+        if(raxNext(&ki))
+        {
+            k = rxStringNewLen(ki.key, ki.key_len);
+            raxRemove(pool, ki.key, ki.key_len, NULL);
+        }
+        raxStop(&ki);
+    }
+    mtx_unlock(lock);
+    return k;
+}
+
+int KeyTriggered(const char *k)
+{
+    rxSuiteShared *config = initRxSuite();
+    return actionForKey(config->triggeredKeys, &config->triggeredKeysLock, k);
+}
+
+int KeyTouched(const char *k)
+{
+    rxSuiteShared *config = initRxSuite();
+    return actionForKey(config->indexableKeys, &config->indexableKeysLock, k);
+}
+
+
+const char *getTriggeredKey()
+{
+    rxSuiteShared *config = initRxSuite();
+    return getActionKey(config->triggeredKeys, &config->triggeredKeysLock);
+}
+
+const char *getIndexableKey()
+{
+    rxSuiteShared *config = initRxSuite();
+    return getActionKey(config->indexableKeys, &config->indexableKeysLock);
 }

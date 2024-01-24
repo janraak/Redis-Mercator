@@ -192,147 +192,47 @@ int Execute_Command_Cron(struct aeEventLoop *, long long, void *clientData)
     return -1;
 }
 
-static void *execLoadThread(void *ptr)
-{
-    SimpleQueue *command_reponse_queue =  new SimpleQueue("GraphParserexecLoadThreadRESP");
-    SimpleQueue *command_request_queue =  new SimpleQueue("GraphParserexecLoadThreadREQ", command_reponse_queue);
-    execute_command_cron_id =  rxCreateTimeEvent(1, (aeTimeProc *)Execute_Command_Cron, command_request_queue, NULL);
-    SimpleQueue *loader_queue = (SimpleQueue *)ptr;
-    rxServerLog(rxLL_NOTICE, "rxGraphDb async loader started\n");
-    loader_queue->Started();
-
-    // long long start = ustime();
-    void *load_entry = loader_queue->Dequeue();
-    // start = ustime();
-    while (load_entry == NULL)
-    {
-        sched_yield();
-        load_entry = loader_queue->Dequeue();
-    }
-    if (load_entry != NULL)
-    {
-        // TODO
-        GET_ARGUMENTS_FROM_STASH(load_entry);
-        if(argc < 1){
-            rxServerLogHexDump(rxLL_NOTICE, load_entry, 128/*rxMemAllocSize(load_entry)*/, "GRAPHLOAD execLoadThread invalid no of args %d in %p", argc, load_entry);
-        }
-        auto *parser = new GraphParser();
-        auto *parsed_json = parser->Parse((rxString)rxGetContainedObject(argv[1]));
-        auto *sub = parsed_json;
-        while (sub != NULL)
-        {
-            Load(sub, command_request_queue);
-            sub = sub->Next();
-        }
-        delete parsed_json;
-        delete parser;
-
-    // free stashed redis command on same thread as allocated
-    void *stash = command_reponse_queue->Dequeue();
-    while (stash != NULL)
-    {
-        FreeStash(stash);
-        stash = command_reponse_queue->Dequeue();
-    }
-
-        // break;
-    }
-
-    // if (ustime() - start >= max_idle_seconds * 1000)
-    // {
-    //     // Yield when slot time over
-    //     break;
-    // }
-    loader_queue->Stopped();
-    rxServerLog(rxLL_NOTICE, "rxGraphDb async loader stopped\n");
-    while ((command_reponse_queue->QueueLength() + command_request_queue->QueueLength()) > 0)
-    {
-        // free stashed redis command on same thread as allocated
-        void *stash2 = command_reponse_queue->Dequeue();
-        while (stash2 != NULL)
-        {
-            FreeStash(stash2);
-            stash2 = command_reponse_queue->Dequeue();
-        }
-    }
-    rxDeleteTimeEvent(execute_command_cron_id);
-    loader_queue->response_queue->Enqueue(load_entry);
-    rxServerLog(rxLL_NOTICE, "rxGraphDb async redis commands stopped\n");
-    
-
-    return NULL;
-}
+void *LoadGraphLoadAsync_Go(void *privData);
 
 class RxGraphLoadMultiplexer : public Multiplexer
 {
 public:
-    SimpleQueue *request;
-    SimpleQueue *response;
+    rxString graph;
 
-    RxGraphLoadMultiplexer(RedisModuleString **argv, int argc)
-        : Multiplexer()
+    RxGraphLoadMultiplexer(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
+        : Multiplexer(ctx, argv, argc)
     {
-        this->response = new SimpleQueue("RxGraphLoadMultiplexerRESP");
-        this->request = new SimpleQueue("RxGraphLoadMultiplexerREQ", (void *)execLoadThread, 1, this->response);
         size_t len;
         const char *argS = RedisModule_StringPtrLen(argv[1], &len);
         rxString arg = rxStringNew(argS);
         rxStringToUpper(arg);
         rxString keyword = rxStringNew("FILE");
         rxServerLog(rxLL_DEBUG, "Load: %s", argS);
-        // TODO fixed bugs from use of stashes!!!!!!
         if (argc >= 3 && rxStringMatch(keyword, arg, 1))
         {
             auto *config = getRxSuite();
             const char *pathS = rxStringFormat( "%s/%s", config->wget_root, RedisModule_StringPtrLen(argv[2], &len));
             rxServerLog(rxLL_DEBUG, "Load json graph from: %s", pathS);
             rxString path = rxStringNew(pathS);
-            rxString graph = readFileIntoSds(path);
+            this->graph = readFileIntoSds(path);
             rxServerLog(rxLL_DEBUG, "Load json graph: %s", graph);
-
-            rxStashCommand(this->request, "", 1, graph);
-            rxStringFree(arg);
         }
         else
         {
-            rxStashCommand(this->request, "", 1, arg);
+            this->graph = rxStringDup(argS);
         }
     }
 
     ~RxGraphLoadMultiplexer()
     {
-        this->response->Release();
-        this->request->Release();
-
-        delete this->request;
-        delete this->response;
+        rxStringFree(this->graph);
     }
 
     long long Timeout()
     {
         return 0;
     }
-
-    int Execute()
-    {
-        void *response = this->response->Dequeue();
-        if (response != NULL)
-        {
-            FreeStash(response);
-            return -1;
-        }
-        return 1;
-    }
-
-    int Write(RedisModuleCtx *ctx)
-    {
-        RedisModule_ReplyWithSimpleString(ctx, "OK");
-        return 1;
-    }
-
-    int Done()
-    {
-        return 1;
-    }
+    
 };
+
 #endif

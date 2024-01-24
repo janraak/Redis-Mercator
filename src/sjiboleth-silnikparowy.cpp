@@ -126,8 +126,15 @@ rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, vo
     FaBlok *kd;
     // setjmp( SilNikParowy::env_buffer );
     // if(SilNikParowy::GetException() == NULL){
+    int index_only_execution = 0;
+
     while ((t = e->expression->Next()) != NULL)
     {
+        if (index_only_execution == _index_only_execution)
+        {
+            if (strcmp("~~~=~~~", (const char*)t->Operation()) != 0)
+                t->TokenType(_literal);
+        }
         if (t->IsObjectExpression())
         {
             t->TokenType(_operator);
@@ -135,6 +142,9 @@ rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, vo
 
         switch (t->TokenType())
         {
+        case _index_only_execution:
+            index_only_execution = _index_only_execution;
+            break;
         case _operand:
         case _literal:
             if (t->IsAllSpaces())

@@ -168,10 +168,15 @@ void freeCompletedRequests()
     }
 }
 
+extern void forwardTriggeredKey(void *key);
+// TODO: key dedup
 void enqueueWriteCommand(client *c)
 {
     if (!__interceptors_installed)
         return;
+    // rxString key = (rxString)rxGetContainedObject(c->argv[1]);
+
+    forwardTriggeredKey(c->argv[1]);
 
     rxStashCommand2(index_info.key_indexing_request_queue, NULL, 2, c->argc, (void **)c->argv);
     freeCompletedRequests();

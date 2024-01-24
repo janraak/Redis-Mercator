@@ -382,6 +382,7 @@ int rxHashTypeExists(void *o, const char *f)
 }
 
 extern const char *ValidateString(const char *s, size_t l){
+    return s;
     char *p = s;
     size_t pl = 0;
     while((*p >= 0x20 && *p <= 0x7f) || (*p >= 0xa0 && *p <= 0xff)){
@@ -1201,9 +1202,12 @@ void rxRaxFree(rax *rax)
 
 double rxGetMemoryUsedPercentage()
 {
-    if (server.maxmemory == 0)
+    // if (server.maxmemory == 0)
+    //     return 0.0;
+    // return zmalloc_used_memory() * 100.0 / server.maxmemory;
+    if (server.system_memory_size == 0)
         return 0.0;
-    return zmalloc_used_memory() * 100.0 / server.maxmemory;
+    return zmalloc_used_memory() * 100.0 / server.system_memory_size;
 }
 
 rxClientInfo rxGetClientInfoForHealthCheck()
@@ -1259,10 +1263,10 @@ extern client *moduleGetReplyClient(struct RedisModuleCtx *ctx);
 extern int RM_GetSelectedDb(struct RedisModuleCtx *ctx);
 void rxSetDatabase(void *c, void *orgC)
 {
-    if((long long int)orgC < 7){
-        serverLog(LL_NOTICE, "rxSetDatabase invalid RedisModuleCtx *ctx: %p", orgC);
-        return;
-    }
+    // if((long long int)orgC < 7){
+    //     serverLog(LL_NOTICE, "rxSetDatabase invalid RedisModuleCtx *ctx: %p", orgC);
+    //     return;
+    // }
 
     int dbNo = 0;
     // TODO: Find better way to get the correct database

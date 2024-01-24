@@ -68,7 +68,7 @@ int text_load_async(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     auto *multiplexer = new RxTextLoadMultiplexer(argv, argc);
     multiplexer->Start(ctx);
-    rxAlsoPropagate(0, argv, argc, -1);
+    rxAlsoPropagate(0, (void **)argv, argc, -1);
     return REDISMODULE_OK;
 };
 
@@ -76,15 +76,55 @@ int g_wget(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     auto *multiplexer = new RxWgetMultiplexer(argv, argc);
     multiplexer->Start(ctx);
-    rxAlsoPropagate(0, argv, argc, -1);
+    rxAlsoPropagate(0, (void **)argv, argc, -1);
     return REDISMODULE_OK;
 };
 
+void *LoadGraphLoadAsync_Go(void *privData)
+{
+    auto multiplexer = (RxGraphLoadMultiplexer *)privData;
+    pthread_setname_np(multiplexer->multiplexer_thread, "GLOAD");
+    multiplexer->state = Multiplexer::running;
+
+    SimpleQueue *command_reponse_queue =  new SimpleQueue("GraphParserexecLoadThreadRESP");
+    SimpleQueue *command_request_queue =  new SimpleQueue("GraphParserexecLoadThreadREQ", command_reponse_queue);
+    execute_command_cron_id =  rxCreateTimeEvent(1, (aeTimeProc *)Execute_Command_Cron, command_request_queue, NULL);
+
+    rxServerLog(rxLL_NOTICE, "rxGraphDb async loader started\n");
+
+    auto *parser = new GraphParser();
+    auto *parsed_json = parser->Parse(multiplexer->graph);
+    auto *sub = parsed_json;
+    while (sub != NULL)
+    {
+        Load(sub, command_request_queue);
+        sub = sub->Next();
+    }
+    delete parsed_json;
+    delete parser;
+
+    while ((command_reponse_queue->QueueLength() + command_request_queue->QueueLength()) > 0)
+    {
+        // free stashed redis command on same thread as allocated
+        void *stash2 = command_reponse_queue->Dequeue();
+        while (stash2 != NULL)
+        {
+            FreeStash(stash2);
+            stash2 = command_reponse_queue->Dequeue();
+        }
+    }
+    rxDeleteTimeEvent(execute_command_cron_id);
+
+    rxServerLog(rxLL_NOTICE, "rxGraphDb async redis commands stopped\n");
+    multiplexer->result_text = "OK";
+    return multiplexer->StopThread();
+}
+
 int g_set_async(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
-    auto *multiplexer = new RxGraphLoadMultiplexer(argv, argc);
-    multiplexer->Start(ctx);
-    rxAlsoPropagate(0, argv, argc, -1);
+    auto multiplexer = new RxGraphLoadMultiplexer(ctx, argv, argc);
+    multiplexer->Async(ctx, LoadGraphLoadAsync_Go);
+    rxAlsoPropagate(0, (void **)argv, argc, -1);
     return REDISMODULE_OK;
 };
 

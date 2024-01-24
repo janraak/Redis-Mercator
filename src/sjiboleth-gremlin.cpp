@@ -11,6 +11,8 @@
 #include "rxGraphdb.h"
 #include "sdsWrapper.h"
 
+#include "sha.hpp"
+
 #include <math.h>
 
 extern void *rxStashCommand(SimpleQueue *ctx, const char *command, int argc, ...);
@@ -295,7 +297,7 @@ public:
     }
 };
 
-FaBlok *persistTriplet(SilNikParowy_Kontekst *stack, FaBlok *edge_set, const char *subject, const char *fwd_predicate, const char *bwd_predicate, const char *object, double weight, redisNodeInfo *data_config);
+FaBlok *persistTriplet(SilNikParowy_Kontekst *stack, FaBlok *edge_set, const char *subject, const char *fwd_predicate, const char *bwd_predicate, const char *object, double weight, redisNodeInfo *data_config, GraphStack<const char> *fields_to_copy, void *originO);
 int breadthFirstSearch(FaBlok *leaders, FaBlok *kd, rax *terminators, MatchParameters *parms);
 
 static int redis_HSET(SilNikParowy_Kontekst *, const char *key, const char *field, const char *value, const char *host_reference)
@@ -314,26 +316,30 @@ static int redis_HDEL(SilNikParowy_Kontekst *, const char *key, const char *fiel
     return C_OK;
 }
 
-extern const char *ValidateString(const char *s, size_t l){
+extern const char *ValidateString(const char *s, size_t l)
+{
+    return s;
     unsigned char *p = (unsigned char *)s;
     size_t pl = 0;
-    while((*p >= 0x20 && *p <= 0x7f) || (*p >= 0xa0 && *p <= 0xff)){
+    while ((*p >= 0x20 && *p <= 0x7f) || (*p >= 0xa0 && ((short)*p) <= 0xff))
+    {
         ++p;
         ++pl;
     }
-    if(*p != 0x00){
+    if (*p != 0x00)
+    {
         rxServerLog(rxLL_WARNING, "Unexpected string: [%ld == %ld] %s", pl, l, s);
         p = (unsigned char *)rxMemAlloc(pl + 1);
         strncpy((char *)p, s, pl);
         p[pl] = 0x00;
         return (const char *)p;
     }
-    if(l != pl){
+    if (l != pl)
+    {
         printf("Unexpected string: [%ld == %ld] %s", pl, l, s);
     }
     return s;
 }
-
 
 static int redis_SREM(SilNikParowy_Kontekst *, const char *key, const char *member, const char *host_reference)
 {
@@ -975,7 +981,7 @@ SJIBOLETH_HANDLER(GremlinDialect::executeGremlinMatchInExclude)
         while (pl->parameter_list->HasEntries())
         {
             FaBlok *f = pl->parameter_list->Dequeue();
-            q.Push(f->setname);
+            q.Push(strdup(f->setname));
             FaBlok::Delete(f);
         }
     }
@@ -990,12 +996,10 @@ SJIBOLETH_HANDLER(GremlinDialect::executeGremlinMatchInExclude)
         const char *predicate = q.Pop();
         rxString metatype = rxStringFormat("~%s", predicate);
         auto *members = rxFindSetKey(0, metatype);
-        if (members != NULL)
+        auto mob = rxHarvestSetmembers(members);
+        if (mob->member_count)
         {
-            void *si = NULL;
-            rxString member;
-            int64_t l;
-            while (rxScanSetMembers(members, &si, (char **)&member, &l) != NULL)
+            while (auto member = (char *)rxGetSetMember(mob))
             {
                 if (member[0] == '`' || member[0] == '~')
                 {
@@ -1003,7 +1007,7 @@ SJIBOLETH_HANDLER(GremlinDialect::executeGremlinMatchInExclude)
                     rxStringFree(member);
                     continue;
                 }
-                rxStringFree(member);
+                raxInsert(filter, (UCHAR *)member, strlen(member), NULL, NULL);
                 // Skip nodes!
             }
         }
@@ -1055,21 +1059,14 @@ FaBlok *LoadKeySetFromMetaType(FaBlok *kd, rxString metaType)
         if (members == NULL)
             continue;
         auto mob = rxHarvestSetmembers(members);
-        if (mob)
+        while (auto member = (char *)rxGetSetMember(mob))
         {
-            char **p = (char **)&mob->members;
-            for (size_t n = 0; n < mob->member_count; ++n)
+            if (member[0] == '`' || member[0] == '~')
             {
-                char *member = *p;
-                ++p;
-                if (member[0] == '`' || member[0] == '~')
-                {
-                    q.Push(strdup(member));
-                    continue;
-                }
-                kd->InsertKey(member, rxFindKey(0, member));
+                q.Push(strdup(member));
+                continue;
             }
-            rxFreeSetmembers(mob);
+            kd->InsertKey(member, rxFindKey(0, member));
         }
         free((void *)a_type);
     }
@@ -1295,7 +1292,11 @@ END_SJIBOLETH_HANDLER(executeAllEdges)
 */
 SJIBOLETH_HANDLER(GremlinDialect::executeGremlinParameters)
 {
-    rxUNUSED(t);
+
+    if (t->Is("parm"))
+    {
+        return C_OK;
+    }
 
     STACK_CHECK(2);
 
@@ -2227,32 +2228,37 @@ SJIBOLETH_HANDLER(executeGremlinHasInOut)
 }
 END_SJIBOLETH_HANDLER_X(executeGremlinHasInOut)
 
+FaBlok *createVertex(SilNikParowy_Kontekst *stack, FaBlok *v, const char *key, const char *vertex_type)
+{
+    redisNodeInfo *data_config = rxDataNode();
+
+    void *o = rxFindKey(0, key);
+    if (o && v)
+    {
+        v->LoadKey(0, key);
+        return v;
+    }
+    redis_HSET(stack, key, Graph_vertex_or_edge_type, vertex_type, data_config->host_reference);
+    o = rxFindKey(0, key);
+    if (v)
+        v->AddKey(key, o);
+    rxString metatype = rxStringFormat("`%s", vertex_type);
+    redis_SADD(stack, metatype, key, data_config->host_reference);
+    rxStringFree(metatype);
+    return v;
+}
+
 FaBlok *createVertex(SilNikParowy_Kontekst *stack, FaBlok *pl)
 {
     if (!pl->IsParameterList() || pl->parameter_list->Size() < 2)
     {
         ERROR_RETURN_NULL("Incorrect parameters for AddV(ertex), must be <iri>, <type>");
     }
-    redisNodeInfo *data_config = rxDataNode();
-
     FaBlok *i = pl->parameter_list->Dequeue();
-    void *o = rxFindKey(0, i->setname);
-    if (o)
-    {
-        i->LoadKey(0, i->setname);
-        FaBlok::Delete(pl);
-        return i;
-    }
     FaBlok *t = pl->parameter_list->Dequeue();
-    redis_HSET(stack, i->setname, Graph_vertex_or_edge_type, t->setname, data_config->host_reference);
-    o = rxFindKey(0, i->setname);
-    FaBlok *v = FaBlok::Get(i->setname, KeysetDescriptor_TYPE_GREMLINSET);
-    v->AddKey(i->setname, o);
-    rxString metatype = rxStringFormat("`%s", t->setname);
-    redis_SADD(stack, metatype, i->setname, data_config->host_reference);
-    rxStringFree(metatype);
-    FaBlok::Delete(pl);
-    return v;
+    FaBlok *out = FaBlok::New(i->setname, KeysetDescriptor_TYPE_GREMLINSET);
+
+    return createVertex(stack, out, i->setname, t->setname);
 }
 
 SJIBOLETH_HANDLER(executeGremlinAddVertex)
@@ -2333,10 +2339,8 @@ SJIBOLETH_HANDLER(executeGremlinDropVertexOrEdge)
             if (set_drop_set)
             {
                 auto mob = rxHarvestSetmembers(set_drop_set);
-                char **p = (char **)&mob->members;
-                for (size_t n = 0; n < mob->member_count; ++n)
+                while (auto member = (char *)rxGetSetMember(mob))
                 {
-                    char *member = *p;
                     rxServerLog(rxLL_DEBUG, "--AD--> member to be purged: %s", member);
 
                     auto caret = strstr(member, "|^");
@@ -2407,12 +2411,12 @@ public:
             if (o && rxGetObjectType(o) == rxOBJ_HASH)
             {
                 object_type = rxGetHashField(o, "type");
-                if(strchr(object_type,0x80)||strchr(object_type,0x02))
+                if (strchr(object_type, 0x80) || strchr(object_type, 0x02))
                     rxServerLog(rxLL_DEBUG, "SADD %s", object_type);
             }
             meta_prefix = '`';
         }
-        size_t type_sz = object_type ?strlen(object_type) + 1 + 1 : 4;
+        size_t type_sz = object_type ? strlen(object_type) + 1 + 1 : 4;
 
         size_t blob_sz = 4 + sizeof(renamert) + 2 * old_sz + 2 * new_sz + type_sz;
         void *blob = rxMemAlloc(blob_sz);
@@ -2444,7 +2448,8 @@ public:
             key[0] = meta_prefix;
             strcpy(key + 1, object_type);
             key[type_sz + 1] = 0x00;
-            if(strchr(key,0x80)||strchr(key,0x02)){
+            if (strchr(key, 0x80) || strchr(key, 0x02))
+            {
                 printf("Problem?! %s\n", key);
             }
             r->marker = 2;
@@ -2454,7 +2459,7 @@ public:
             r->type = NULL;
 
         rxServerLog(rxLL_DEBUG, "renameT  from %s to %s and from %s to %s, meta: %s", r->old_key, r->new_key, r->old_link ? r->old_link : "", r->new_link ? r->new_link : "", r->type ? r->type : "");
-                
+
         return r;
     }
 
@@ -2583,7 +2588,7 @@ void rename_keys(const char *old_key, const char *new_key, SilNikParowy_Kontekst
         if (action->old_link)
         {
             rxSetMembers *mob = rxHarvestSetmembersForKey(0, action->old_link);
-            while (auto member = rxGetSetMember(mob))
+            while (auto member = (char *)rxGetSetMember(mob))
             {
                 rxServerLog(rxLL_DEBUG, "link: %s member: %s", action->old_link, member);
                 char *colons[8];
@@ -2613,7 +2618,7 @@ void rename_keys(const char *old_key, const char *new_key, SilNikParowy_Kontekst
                     {
                         // Reference key may be reverse edge!
                         rxSetMembers *mob = rxHarvestSetmembersForKey(0, buffer);
-                        while (auto member = rxGetSetMember(mob))
+                        while (auto member = (char *)rxGetSetMember(mob))
                         {
                             rxServerLog(rxLL_DEBUG, "link: %s member: %s", buffer, member);
                             char *colons[8];
@@ -2698,6 +2703,24 @@ SJIBOLETH_HANDLER(executeGremlinSwapVertexOrEdge)
 }
 END_SJIBOLETH_HANDLER(executeGremlinSwapVertexOrEdge)
 
+void CopyFieldToEdge(const char *k, GraphStack<const char> *fields_to_copy, void *originO, SilNikParowy_Kontekst *stack, redisNodeInfo *data_config)
+{
+    if (!fields_to_copy)
+        return;
+    fields_to_copy->StartHead();
+    const char *f;
+    while ((f = fields_to_copy->Next()))
+    {
+        if (originO)
+        {
+            auto value = rxGetHashField(originO, f);
+            if (value)
+            {
+                redis_HSET(stack, k, f, value, data_config->host_reference);
+            }
+        }
+    }
+}
 /*
 
              .-------------.             .-------------.             .-------------.
@@ -2710,7 +2733,7 @@ END_SJIBOLETH_HANDLER(executeGremlinSwapVertexOrEdge)
              |             |<-------------*   f        |             |             |
              .-------------.             .-------------.             .-------------.
 */
-FaBlok *persistTriplet(SilNikParowy_Kontekst *stack, FaBlok *edge_set, const char *subject, const char *fwd_predicate, const char *bwd_predicate, const char *object, double weight, redisNodeInfo *data_config)
+FaBlok *persistTriplet(SilNikParowy_Kontekst *stack, FaBlok *edge_set, const char *subject, const char *fwd_predicate, const char *bwd_predicate, const char *object, double weight, redisNodeInfo *data_config, GraphStack<const char> *fields_to_copy, void *originO)
 {
     // addE(dge)(<subject>, <type>, <object>)
     rxString backLink = rxStringEmpty();
@@ -2731,8 +2754,14 @@ FaBlok *persistTriplet(SilNikParowy_Kontekst *stack, FaBlok *edge_set, const cha
     for (int j = 0; j < 2; ++j)
     {
         redis_HSET_EDGE(stack, bridge_keys[j], Graph_vertex_or_edge_type, bridges[j], backLink, data_config->host_reference, true);
+        if (fields_to_copy)
+            CopyFieldToEdge(bridge_keys[j], fields_to_copy, originO, stack, data_config);
         if (strlen(backLink))
+        {
             redis_HSET_EDGE(stack, bridge_keys[j], "edge", backLink, edge_name, data_config->host_reference, false);
+            if (fields_to_copy)
+                CopyFieldToEdge(bridge_keys[j], fields_to_copy, originO, stack, data_config);
+        }
     }
 
     rxString keys[] = {fwd_predicate, subject, edge_link, object, bwd_predicate, object, inv_edge_link, subject};
@@ -2795,12 +2824,12 @@ void CommitEdge(SilNikParowy_Kontekst *stack, FaBlok *edge_set)
             if (strcmp(subject_key, object_key) == 0)
                 continue;
             if (strlen(predicates[1]) == 0 || strcmp(predicates[1], predicates[0]) == 0)
-                edge_set = persistTriplet(stack, edge_set, subject_key, predicates[0], strlen(predicates[1]) ? predicates[1] : predicates[0], object_key, 1.0, data_config);
+                edge_set = persistTriplet(stack, edge_set, subject_key, predicates[0], strlen(predicates[1]) ? predicates[1] : predicates[0], object_key, 1.0, data_config, NULL, NULL);
             else
             {
                 // two predicates are considered indepents facts
-                edge_set = persistTriplet(stack, edge_set, subject_key, predicates[0], predicates[1], object_key, 1.0, data_config);
-                edge_set = persistTriplet(stack, edge_set, object_key, predicates[1], predicates[0], subject_key, 1.0, data_config);
+                edge_set = persistTriplet(stack, edge_set, subject_key, predicates[0], predicates[1], object_key, 1.0, data_config, NULL, NULL);
+                edge_set = persistTriplet(stack, edge_set, object_key, predicates[1], predicates[0], subject_key, 1.0, data_config, NULL, NULL);
             }
             BusinessRule::Touched(object_key);
         }
@@ -3032,11 +3061,29 @@ void executeGremlinAddEdgeUsingProperty(SilNikParowy_Kontekst *stack, FaBlok *et
 void executeGremlinAddEdgeUsingSubjectEdgeNamesObject(SilNikParowy_Kontekst *stack, FaBlok *et, size_t no_vertex_parms, redisNodeInfo *data_config)
 {
     // addE(dge)(<subject>, <type>, <object>)
-    FaBlok *w = et->parameter_list->Last(); // Peek if last parameter is a float
+    FaBlok *w = et->parameter_list->Last(); // Peek if last parameter is a float or a copy list
+    GraphStack<const char> fields_to_copy;
+
+    if (w->IsParameterList())
+    {
+
+        FaBlok *field_to_copy;
+        while ((field_to_copy = w->parameter_list->Dequeue()))
+        {
+            fields_to_copy.Add(strdup(field_to_copy->setname));
+        }
+        FaBlok::Delete(w);
+        no_vertex_parms--;
+        w = et->parameter_list->Last();
+    }
+    else
+        et->parameter_list->Enqueue(w);
+
     double weight = atof(w->setname);
     if (weight == 0.0)
     {
         weight = 1.0;
+        et->parameter_list->Enqueue(w);
     }
     else
     {
@@ -3044,20 +3091,73 @@ void executeGremlinAddEdgeUsingSubjectEdgeNamesObject(SilNikParowy_Kontekst *sta
         no_vertex_parms--;
     }
 
-    FaBlok *input_set = et->parameter_list->Dequeue(); // iri of subject
-    FaBlok *pred = et->parameter_list->Dequeue();      // predicate(type)
+    FaBlok *subject_name = et->parameter_list->Dequeue(); // iri of subject
+    FaBlok *pred = et->parameter_list->Dequeue();         // predicate(type)
     FaBlok *inv_pred;
     if (no_vertex_parms >= 4)
         inv_pred = et->parameter_list->Dequeue();
     else
         inv_pred = pred;
-    FaBlok *o = /*stack->Pop(); //*/ et->parameter_list->Dequeue(); // iri of object
+    FaBlok *object_name = /*stack->Pop(); //*/ et->parameter_list->Dequeue(); // iri of object
 
-    FaBlok *e = persistTriplet(stack, NULL, input_set->setname, pred->setname, pred->setname, o->setname, weight, data_config);
-    if (strcmp(pred->setname, inv_pred->setname) != 0)
-        e = persistTriplet(stack, e, o->setname, inv_pred->setname, inv_pred->setname, input_set->setname, weight, data_config);
-    PushResult(e, stack);
+    if (*subject_name->setname == '@' || *object_name->setname == '@')
+    {
+        FaBlok *data = stack->Pop();
+        FaBlok *out = FaBlok::New("Dynamic Triplets", KeysetDescriptor_TYPE_GREMLIN_EDGE_SET);
+        raxIterator dynamicTripletIterator;
+        raxStart(&dynamicTripletIterator, data->keyset);
+        raxSeek(&dynamicTripletIterator, "^", NULL, 0);
+        while (raxNext(&dynamicTripletIterator))
+        {
+            rxString key = rxStringNewLen((const char *)dynamicTripletIterator.key, dynamicTripletIterator.key_len);
+            auto subjectKey = rxGetHashField(dynamicTripletIterator.data, subject_name->setname + 1);
+            void *subjectO = rxFindHashKey(0, subjectKey ? subjectKey : key);
+            if (!subjectO)
+            {
+                createVertex(stack, out, subjectKey, subject_name->setname + 1);
+            }
+            auto objectKey = rxGetHashField(dynamicTripletIterator.data, object_name->setname + 1);
+            void *objectO = rxFindHashKey(0, objectKey ? objectKey : key);
+            if (!objectO)
+            {
+                createVertex(stack, out, objectKey ? objectKey : key, object_name->setname + 1);
+            }
+            rxString fwd = NULL;
+            if (*pred->setname == '@')
+                fwd = rxGetHashField(dynamicTripletIterator.data, pred->setname + 1);
+            else
+                fwd = rxStringNew(pred->setname);
+
+            persistTriplet(stack, out, subjectKey ? subjectKey : key, fwd, fwd, objectKey ? objectKey : key, weight, data_config, &fields_to_copy, dynamicTripletIterator.data);
+            if (strcmp(pred->setname, inv_pred->setname) != 0)
+            {
+                rxString bwd = NULL;
+                if (*inv_pred->setname == '@')
+                    bwd = rxGetHashField(dynamicTripletIterator.data, inv_pred->setname + 1);
+                else
+                    bwd = rxStringNew(inv_pred->setname);
+                persistTriplet(stack, out, objectKey ? objectKey : key, bwd, fwd, subjectKey ? subjectKey : key, weight, data_config, &fields_to_copy, dynamicTripletIterator.data);
+            }
+        }
+        raxStop(&dynamicTripletIterator);
+        FaBlok::Delete(data);
+        PushResult(out, stack);
+    }
+    else
+    {
+        FaBlok *e = persistTriplet(stack, NULL, subject_name->setname, pred->setname, pred->setname, object_name->setname, weight, data_config, NULL, NULL);
+        if (strcmp(pred->setname, inv_pred->setname) != 0)
+            e = persistTriplet(stack, e, object_name->setname, inv_pred->setname, inv_pred->setname, subject_name->setname, weight, data_config, NULL, NULL);
+        PushResult(e, stack);
+    }
     FaBlok::Delete(et);
+    // delete copies
+    // fields_to_copy.StartHead();
+    // const char *f;
+    // while ((f = fields_to_copy.Next()))
+    // {
+    //     rxMemFree(f);
+    // }
 }
 
 void executeGremlinAddEdgePostponed(
@@ -3126,10 +3226,10 @@ SJIBOLETH_HANDLER(executeGremlinAddTriplet)
 {
     rxUNUSED(t);
 
-    // Get parameters g:addTriplet(<subject>, <predicate>, <object>)
-    // Get parameters g:addTriplet(<subject>, <predicate>, <object>, <weight>)
-    // Get parameters g:addTriplet(<subject>, <predicate>, <inverse predicate>, <object>)
-    // Get parameters g:addTriplet(<subject>, <predicate>, <inverse predicate>, <object>, <weight>)
+    // Get parameters g:addTriplet([@]<subject>, [@]<predicate>, [@]<object> [,( attribute0, ..., attribute_n ) ])
+    // Get parameters g:addTriplet([@]<subject>, [@]<predicate>, [@]<object>, <weight> [,( attribute0, ..., attribute_n ) ])
+    // Get parameters g:addTriplet([@]<subject>, [@]<predicate>, [@]<inverse predicate>, [@]<object> [,( attribute0, ..., attribute_n ) ])
+    // Get parameters g:addTriplet([@]<subject>, [@]<predicate>, [@]<inverse predicate>, [@]<object>, <weight> [,( attribute0, ..., attribute_n ) ])
     redisNodeInfo *data_config = rxDataNode();
 
     FaBlok *et = stack->Pop();
@@ -3142,6 +3242,116 @@ SJIBOLETH_HANDLER(executeGremlinAddTriplet)
         stack->AddError("Invalid function call. addTriplet(<subject>, [<predicate>,] <object>)");
 }
 END_SJIBOLETH_HANDLER(executeGremlinAddTriplet)
+
+SJIBOLETH_HANDLER(executeGremlinCloveTriplet)
+{
+    rxUNUSED(t);
+
+    // Get parameters g:cloveTriplet((<subject>), (<predicate>), (<object>), (<fields_to_move>))
+    // <subject> ::= ( @<subject field>, @<subject type field>) | @key
+    // <predicate> ::= ( <fwdLink> {, <bwdLink> {, @<weight field>})
+    // <object> ::= ( @<object field>, @<object type field>) | @key
+    // <fields_to_move> ::= ( <field>, ...)
+    //
+    // Example:
+    //
+    //         G V(town).cloveTriplet( (@admin_name, admin_region), (admin_for, town_of), @key, (country, iso2, iso3) )
+    //         G V(admin_region).cloveTriplet( (@country, land), (country_for, admin_in), @key, (iso2, iso3) )
+    // moves <field>... into a new vertext.
+    // creates a triplet between V and new V
+
+    double weight = 1.0;
+    redisNodeInfo *data_config = rxDataNode();
+    FaBlok *cloveParameters = stack->Pop();
+    FaBlok *subject_name = NULL;
+    FaBlok *subject_type = NULL;
+    FaBlok *fwd_link_name = NULL;
+    FaBlok *bwd_link_name = NULL;
+    FaBlok *object_name = NULL;
+    FaBlok *object_type = NULL;
+
+    subject_name = cloveParameters->parameter_list->Dequeue();
+    if (!rxStringMatch("@key", subject_name->setname, 1))
+        subject_type = cloveParameters->parameter_list->Dequeue();
+    object_name = cloveParameters->parameter_list->Dequeue();
+    if (!rxStringMatch("@key", object_name->setname, 1))
+        object_type = cloveParameters->parameter_list->Dequeue();
+    FaBlok *predicateRule = cloveParameters->parameter_list->Dequeue();
+    fwd_link_name = predicateRule->parameter_list->Dequeue();
+    bwd_link_name = predicateRule->parameter_list->Dequeue();
+
+    GraphStack<const char> movers;
+    FaBlok *aMover;
+    while ((aMover = cloveParameters->parameter_list->Dequeue()))
+    {
+        movers.Add(aMover->setname);
+    }
+    if (subject_type)
+        movers.Add(subject_name->setname + 1);
+    if (object_type)
+        movers.Add(object_name->setname + 1);
+
+    FaBlok *data = stack->Pop();
+    FaBlok *out = FaBlok::New("Dynamic Triplets", KeysetDescriptor_TYPE_GREMLIN_EDGE_SET);
+
+    raxIterator cloveObjectIterator;
+    raxStart(&cloveObjectIterator, data->keyset);
+    raxSeek(&cloveObjectIterator, "^", NULL, 0);
+    while (raxNext(&cloveObjectIterator) && out->size < 10000)
+    {
+        rxString key = rxStringNewLen((const char *)cloveObjectIterator.key, cloveObjectIterator.key_len);
+
+        auto subjectKey = rxGetHashField(cloveObjectIterator.data, subject_name->setname + 1);
+        rxString subjectRef = NULL;
+        rxString objectRef = NULL;
+        if (subject_type)
+        {
+            auto subjectType = rxGetHashField(cloveObjectIterator.data, subject_type->setname + 1);
+            subjectRef = getSha1("ss", subjectKey, subject_type->setname);
+            void *subjectO = rxFindHashKey(0, subjectKey ? subjectKey : key);
+            if (!subjectO)
+                createVertex(stack, out, subjectRef, subjectType ? subjectType : subject_type->setname);
+        }
+        else
+            subjectKey = key;
+        auto objectKey = rxGetHashField(cloveObjectIterator.data, object_name->setname + 1);
+        if (object_type)
+        {
+            auto objectType = rxGetHashField(cloveObjectIterator.data, object_type->setname + 1);
+            objectRef = getSha1("ss", objectKey, object_type->setname);
+            void *objectO = rxFindHashKey(0, objectKey ? objectKey : key);
+            if (!objectO)
+                createVertex(stack, out, objectRef ? objectRef : key, objectType ? objectType : object_name->setname);
+        }
+        else
+            objectKey = key;
+
+        if (!objectKey && !subjectKey)
+            printf("Something went wrong");
+        else
+        {
+            movers.StartHead();
+            const char *f;
+            while ((f = movers.Next()))
+            {
+                auto value = rxGetHashField(cloveObjectIterator.data, f);
+                if (value)
+                {
+                    redis_HSET(stack, subjectRef ? subjectRef : objectRef, f, value, data_config->host_reference);
+                    redis_HDEL(stack, key, f, data_config->host_reference);
+                }
+            }
+        }
+
+        persistTriplet(stack, out, subjectRef ? subjectRef : key, fwd_link_name->setname, fwd_link_name->setname, objectRef ? objectRef : key, weight, data_config, NULL, NULL);
+        if (strcmp(fwd_link_name->setname, bwd_link_name->setname) != 0)
+            persistTriplet(stack, out, objectRef ? objectRef : key, bwd_link_name->setname, bwd_link_name->setname, subjectRef ? subjectRef : key, weight, data_config, NULL, NULL);
+    }
+    raxStop(&cloveObjectIterator);
+    FaBlok::Delete(cloveParameters);
+    PushResult(out, stack);
+}
+END_SJIBOLETH_HANDLER(executeGremlinCloveTriplet)
 
 SJIBOLETH_HANDLER(executeGremlinAddProperty)
 {
@@ -3485,6 +3695,7 @@ bool GremlinDialect::RegisterDefaultSyntax()
     this->RegisterSyntax("E", 500, 2, 1, Q_READONLY, &executeAllEdges);
     this->RegisterSyntax(".", 0, 0, priIgnore, Q_READONLY, NULL);
     this->RegisterSyntax(",", pri200, 2, 1, Q_READONLY, &executeGremlinParameters);
+    this->RegisterSyntax("parm", pri200, 2, 1, Q_READONLY, &executeGremlinParameters);
     // Pattern matching
     this->RegisterSyntax("match", pri500, 1, 1, Q_READONLY, &executeMatch);
     this->RegisterSyntax("nomatch", 500, 2, 1, Q_READONLY, &executeNomatch);
@@ -3538,6 +3749,7 @@ bool GremlinDialect::RegisterDefaultSyntax()
     this->RegisterSyntax("addE", 500, 2, 1, Q_WRITE, &executeGremlinAddEdge);
     this->RegisterSyntax("predicate", 500, 2, 1, Q_WRITE, &executeGremlinAddEdge);
     this->RegisterSyntax("triplet", 500, 2, 1, Q_WRITE, &executeGremlinAddTriplet);
+    this->RegisterSyntax("cloveTriplet", 500, 2, 1, Q_WRITE, &executeGremlinCloveTriplet);
     this->RegisterSyntax("property", 500, 2, 1, Q_WRITE, &executeGremlinAddProperty, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
     this->RegisterSyntax("addVertex", 500, 2, 1, Q_WRITE, &executeGremlinAddVertex);
     this->RegisterSyntax("addV", 500, 2, 1, Q_WRITE, &executeGremlinAddVertex);
@@ -3789,12 +4001,9 @@ int AddMemberToKeysetForMatch(int db, unsigned char *vstr, size_t vlen, FaBlok *
     if (members != NULL)
     {
         auto mob = rxHarvestSetmembers(members);
-        char **p = (char **)&mob->members;
-        for (size_t n = 0; n < mob->member_count; ++n)
+        while (auto member = (char *)rxGetSetMember(mob))
         {
-            char *member = *p;
-            rxServerLog(rxLL_DEBUG, "AddMemberToKeysetForMatch for %s : %ld: %s", edge_key, n, *p);
-            ++p;
+            rxServerLog(rxLL_DEBUG, "AddMemberToKeysetForMatch for %s : %ld: %s", edge_key, mob->member_index, member);
             int msegments = 0;
             rxString *mparts = rxStringSplitLen(member, strlen(member), "|", 1, &msegments);
             if (!rxStringMatch(parts[0], mparts[0], MATCH_IGNORE_CASE))
@@ -3890,6 +4099,23 @@ static double ExecuteExpressionParameter(MatchParameters *parms, void *data)
     return 0.0;
 }
 
+bool IsKeyApplicable(const char *key, MatchParameters *parms)
+{
+    if (parms->includes)
+    {
+        if (raxFind(parms->includes, (UCHAR *)key, strlen(key)) != raxNotFound)
+            return true;
+    }
+    if (parms->excludes)
+    {
+        if (raxFind(parms->excludes, (UCHAR *)key, strlen(key)) == raxNotFound)
+            return true;
+    }
+    if (!parms->excludes && !parms->includes)
+        return true;
+    return false;
+}
+
 int matchEdges(int db, Graph_Leg *leg, FaBlok *kd, GraphStack<Graph_Leg> *bsf_q, rax *touches, rax *terminators, MatchParameters *parms)
 {
     if (terminators)
@@ -3910,11 +4136,9 @@ int matchEdges(int db, Graph_Leg *leg, FaBlok *kd, GraphStack<Graph_Leg> *bsf_q,
     int numkeys = 0;
 
     auto mob = rxHarvestSetmembers(zobj);
-    char **p = (char **)&mob->members;
-    for (size_t n = 0; n < mob->member_count; ++n)
+    while (auto elesds = (char *)rxGetSetMember(mob))
     {
-        char *elesds = *p;
-        rxServerLog(rxLL_DEBUG, "matchEdges for %s : %ld: %s", key, n, elesds);
+        rxServerLog(rxLL_DEBUG, "matchEdges for %s : %ld: %s", key, mob->member_index, elesds);
         int segments = 0;
         rxString *parts = rxStringSplitLen(elesds, strlen(elesds), "|", 1, &segments);
         double weight = segments > 3 ? atof(parts[3]) : 1.0;
@@ -3924,24 +4148,6 @@ int matchEdges(int db, Graph_Leg *leg, FaBlok *kd, GraphStack<Graph_Leg> *bsf_q,
         // Does the link match the  pattern?
         if (segments >= 3)
         {
-            if (parms->excludes != NULL)
-            {
-                void *excluded = raxFind(parms->excludes, (UCHAR *)parts[0], strlen(parts[0]));
-                if (excluded != raxNotFound)
-                {
-                    parts = rxStringFreeSplitRes(parts, segments);
-                    continue;
-                }
-            }
-            if (parms->includes != NULL)
-            {
-                void *included = raxFind(parms->includes, (UCHAR *)parts[0], strlen(parts[0]));
-                if (included == raxNotFound)
-                {
-                    parts = rxStringFreeSplitRes(parts, segments);
-                    continue;
-                }
-            }
             // Only traverse edges in the requested direction
             // Only traverse edges in the requested direction
             if (parms->traverse_direction != GRAPH_TRAVERSE_INOUT && getEdgeDirection(parts[2]) != parms->traverse_direction)
@@ -3953,9 +4159,6 @@ int matchEdges(int db, Graph_Leg *leg, FaBlok *kd, GraphStack<Graph_Leg> *bsf_q,
             }
         }
         int doesMatchOneOfThePatterns = 0;
-        // void *included = (parms->includes) ? raxFind(parms->includes, (UCHAR *)parts[0], strlen(parts[0])) : raxNotFound;
-        // if (included != raxNotFound)
-        //     doesMatchOneOfThePatterns = 1;
         if (doesMatchOneOfThePatterns == 0 && parms->patterns != NULL)
         {
             listIter *li = listGetIterator(parms->patterns, 0);
@@ -3993,7 +4196,7 @@ int matchEdges(int db, Graph_Leg *leg, FaBlok *kd, GraphStack<Graph_Leg> *bsf_q,
                     rxString optimiseFieldValue = rxGetHashField(next_obj, parms->length_field);
                     if (optimiseFieldValue && strlen(optimiseFieldValue) > 0)
                     {
-                        double value = atof(optimiseFieldValue);
+                        double value = atof(optimiseFieldValue) * 2; // Will be halfed later
                         if (value != 0)
                             weight = value;
                     }
@@ -4001,9 +4204,11 @@ int matchEdges(int db, Graph_Leg *leg, FaBlok *kd, GraphStack<Graph_Leg> *bsf_q,
             }
             rxString half = rxGetHashField(next_obj, "half");
             rxString edge = rxGetHashField(next_obj, "edge");
-
-            Graph_Leg *next = Graph_Leg::Add(link, weight * parms->optimization, leg, bsf_q, touches, 1, (half && edge) ? ((strcmp(half, link) == 0) ? edge : half) : NULL);
-
+            Graph_Leg *next = NULL;
+            if (IsKeyApplicable(link, parms))
+            {
+                next = Graph_Leg::Add(link, weight * parms->optimization, leg, bsf_q, touches, 1, (half && edge) ? ((strcmp(half, link) == 0) ? edge : half) : NULL);
+            }
             if (next)
             {
                 next->obj = next_obj;
@@ -4012,7 +4217,6 @@ int matchEdges(int db, Graph_Leg *leg, FaBlok *kd, GraphStack<Graph_Leg> *bsf_q,
         rxStringFreeSplitRes(parts, segments);
         rxStringFreeSplitRes(link_parts, link_segments);
         rxStringFree(link);
-        ++p;
     }
     rxFreeSetmembers(mob);
     rxStringFree(key);
@@ -4038,10 +4242,13 @@ int breadthFirstSearch(FaBlok *leaders, FaBlok *kd, rax *terminators, MatchParam
         while (raxNext(&leadersIterator))
         {
             rxString key = rxStringNewLen((const char *)leadersIterator.key, leadersIterator.key_len);
-            Graph_Leg *leg = Graph_Leg::Add(key, 0.0, &bsf_q, parms->optimization);
-            leg->start = leg;
-            leg->obj = leadersIterator.data;
-            raxInsert(touches, (UCHAR *)leg->key, strlen(leg->key), leg, NULL);
+            if (IsKeyApplicable(key, parms))
+            {
+                Graph_Leg *leg = Graph_Leg::Add(key, 0.0, &bsf_q, parms->optimization);
+                leg->start = leg;
+                leg->obj = leadersIterator.data;
+                raxInsert(touches, (UCHAR *)leg->key, strlen(leg->key), leg, NULL);
+            }
         }
         raxStop(&leadersIterator);
 
@@ -4118,14 +4325,11 @@ int traverseAdjacent(FaBlok *leaders, FaBlok *kd, MatchParameters *parms)
         int numkeys = 0;
 
         auto mob = rxHarvestSetmembers(zobj);
-        char **p = (char **)&mob->members;
-        for (size_t n = 0; n < mob->member_count; ++n)
+        while (auto elesds = (char *)rxGetSetMember(mob))
         {
-            char *elesds = *p;
-            ++p;
-            rxServerLog(rxLL_DEBUG, "traverseAdjacent for %s : %ld: %s", key, n, elesds);
+            rxServerLog(rxLL_DEBUG, "traverseAdjacent for %s : %ld: %s", key, mob->member_index, elesds);
             char *colon[8];
-            breakupPointer(elesds, '|', colon, 8);
+            breakupPointer((char *)elesds, '|', colon, 8);
             int doesMatchOneOfThePatterns = 0;
             // void *included = (parms->includes) ? raxFind(parms->includes, (UCHAR *)parts[0], strlen(parts[0])) : raxNotFound;
             // if (included != raxNotFound)
@@ -4156,12 +4360,9 @@ int traverseAdjacent(FaBlok *leaders, FaBlok *kd, MatchParameters *parms)
                     fuse_predicate = rxFindHashKey(0, pointer + 1);
 
                 auto pointers = rxHarvestSetmembers(edge);
-                char **q = (char **)&pointers->members;
-                for (size_t n = 0; n < pointers->member_count; ++n)
+                while (auto elesds = (char *)rxGetSetMember(pointers))
                 {
-                    char *elesds = *q;
-                    ++q;
-                    rxServerLog(rxLL_DEBUG, "traverseAdjacent target for %s : %ld: %s", key, n, elesds);
+                    rxServerLog(rxLL_DEBUG, "traverseAdjacent target for %s : %ld: %s", key, mob->member_index, elesds);
                     char *bars[8];
                     breakupPointer(elesds, '|', bars, 8);
                     switch (parms->traverse_direction)

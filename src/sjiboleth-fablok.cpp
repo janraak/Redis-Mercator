@@ -375,7 +375,7 @@ rxString FaBlok::AsSds()
 int FaBlok::FetchKeySet(redisNodeInfo *serviceConfig, const char *rh)
 {
     int rc = C_ERR;
-    if(serviceConfig->is_local == -1000)
+    if(serviceConfig->is_local != 0)
         return rc;
     redisContext *index_context = RedisClientPool<redisContext>::Acquire(serviceConfig->host_reference, "_CLIENT", "FaBlok::FetchKeySet");
     if (!index_context)
@@ -415,7 +415,7 @@ int FaBlok::FetchKeySet(redisNodeInfo *serviceConfig, const char *rh)
 
 int FaBlok::FetchKeySet(redisNodeInfo *serviceConfig, const char *lh, const char *rh, rxString cmp)
 {
-    if(serviceConfig->is_local == -1000)
+    if(serviceConfig->is_local != 0)
         return C_ERR;
     auto *index_context = RedisClientPool<redisContext>::Acquire(serviceConfig->host_reference, "_CLIENT", "FaBlok::FetchKeySet2");
     if (index_context == NULL)

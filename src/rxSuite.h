@@ -2,6 +2,7 @@
 #ifndef __RXSUITE_H__
 #define __RXSUITE_H__
 #include <stddef.h>
+#include <threads.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -66,6 +67,10 @@ typedef struct
     const char *ssh_identity;
     const char *wget_root;
     CSimpleQueue *cron_command_request_queue;
+    rax *triggeredKeys;
+    mtx_t triggeredKeysLock;
+    rax *indexableKeys;
+    mtx_t indexableKeysLock;
 } rxSuiteShared;
 
     void *initRxSuite();
@@ -84,6 +89,11 @@ typedef struct
     void rxRegisterConfig(void **argv, int argc);
     void rxRegisterCronCommandQueue(CSimpleQueue *queue);
     CSimpleQueue *rxGetCronCommandQueue();
+
+    int KeyTriggered(const char *k);
+    const char *getTriggeredKey();
+    int KeyTouched(const char *k);
+    const char *getIndexableKey();
 
     char *rxGetExecutable();
     void finalizeRxSuite();
