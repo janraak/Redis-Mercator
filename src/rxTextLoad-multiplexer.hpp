@@ -518,6 +518,7 @@ static void *execTextLoadThread(void *ptr)
         sched_yield();
         load_entry = loader_queue->Dequeue();
     }
+    size_t row_tally = 0;
     if (load_entry != NULL)
     {
         GET_ARGUMENTS_FROM_STASH(load_entry);
@@ -611,6 +612,7 @@ static void *execTextLoadThread(void *ptr)
             if (*row_end == 0x00)
                 break;
             tlob = row_end + strlen(row_separator);
+            ++row_tally;
         }
 
         // free stashed redis command on same thread as allocated
@@ -622,7 +624,7 @@ static void *execTextLoadThread(void *ptr)
         }
     }
     loader_queue->Stopped();
-    rxServerLog(rxLL_NOTICE, "rxGraphDb.Load.Text async loader stopped");
+    rxServerLog(rxLL_NOTICE, "rxGraphDb.Load.Text async loader stopped, %d rows", row_tally);
     while ((command_reponse_queue->QueueLength() + command_request_queue->QueueLength()) > 0)
     {
         // free stashed redis command on same thread as allocated
@@ -636,7 +638,7 @@ static void *execTextLoadThread(void *ptr)
 
     loader_queue->response_queue->Enqueue(load_entry);
     rxDeleteTimeEvent(execute_textload_command_cron_id);
-    rxServerLog(rxLL_NOTICE, "rxGraphDb.Load.Text.Load.Text async redis commands stopped");
+    rxServerLog(rxLL_NOTICE, "rxGraphDb.Load.Text.Load.Text async redis commands stopped, %d rows", row_tally);
     return NULL;
 }
 

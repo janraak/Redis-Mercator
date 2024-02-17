@@ -41,7 +41,6 @@ protected:
     short no_of_stack_entries_produced;
     operationProc *opf;
     parserContextProc *pcf;
-    ParserToken *copy_of;
     ParserToken *bracketResult;
     long reference;
     ParsedExpression *objectExpression;
@@ -51,6 +50,15 @@ protected:
     int options;
 
 public:
+    ParserToken *copy_of;
+
+    long long n_calls;
+    long long us_calls;
+    long long n_errors;
+    long long us_errors;
+    long long n_setsize_in;
+    long long n_setsize_out;
+
     // Is the token modifying data?
     short read_or_write;
 
@@ -116,6 +124,8 @@ public:
     bool HasExecutor();
     operationProc *Executor();
     int Execute(CStack *stackO);
+
+    void AggregateSizeSizes(long in, long out);
 };
 
 class Sjiboleth
@@ -163,6 +173,8 @@ protected:
 
 public:
     ParserToken *LookupToken(rxString token);
+    rax *Registry();
+    static void *Startup();
 
 public:
     static Sjiboleth *Get(const char* dialect);
@@ -277,6 +289,7 @@ public:
 
     void AddError(rxString msg);
     bool HasErrors();
+    void ClearErrors();
     int writeErrors(RedisModuleCtx *ctx);
 
     void Write(RedisModuleCtx *ctx);

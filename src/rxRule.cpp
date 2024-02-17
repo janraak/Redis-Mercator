@@ -76,28 +76,50 @@ const char *RX_LOADSCRIPT = "RXLOADSCRIPT";
 const char *RX_EVALSHA = "RXEVALSHA";
 const char *RX_HELP = "RXHELP";
 
-
 int rule_execution_duration = 100;
 int rule_execution_interval = 100;
 long long rule_execution_cron_id = -1;
 
-int rule_execution_cron(struct aeEventLoop *, long long int, void *)
-{
-    redisNodeInfo *index_config = rxIndexNode();
+// extern indexerThread index_info;
 
-    long long start = ustime();
-    const char *key = NULL;
-    while ((key = getTriggeredKey()) != NULL)
+// int rule_execution_cron(struct aeEventLoop *, long long int, void *)
+// {
+//     long long start = ustime();
+//     const char *key = NULL;
+//     while ((key = getTriggeredKey()) != NULL)
+//     {
+//         // index_info.key_triggered_dequeued_tally++;
+//         BusinessRule::ApplyAll(key);
+//         freeTriggerProcessedKey(key);
+
+//         if (ustime() - start >= rule_execution_duration * 1000)
+//         {
+//             // Yield when slot time over
+//             return rule_execution_interval;
+//         }
+//     }
+
+//     return rule_execution_interval;
+// }
+
+static void *execRulesThread(void *ptr)
+{
+    redisNodeInfo *data_config = rxDataNode();
+    auto stack = (SilNikParowy_Kontekst*)(ptr);
+    while (true)
     {
-        BusinessRule::ApplyAll(key);
-        if (ustime() - start >= rule_execution_duration * 1000)
+        long long start = ustime();
+        const char *key = NULL;
+        while ((key = getTriggeredKey()) != NULL)
         {
-            // Yield when slot time over
-            return rule_execution_interval;
+            // index_info.key_triggered_dequeued_tally++;
+            BusinessRule::ApplyAll(key, stack);
+            freeTriggerProcessedKey(key);
         }
+        sched_yield();
     }
 
-    return rule_execution_interval;
+    return NULL;
 }
 
 /*
@@ -112,21 +134,51 @@ int rule_execution_cron(struct aeEventLoop *, long long int, void *)
     * [Are cluster wide].
     * [Replication]?
  */
+
 int rxRuleSet(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     size_t len;
     const char *ruleName = RedisModule_StringPtrLen(argv[1], &len);
-    rxString sep = rxStringNew("");
-    rxString query = rxStringNew("");
+    rxString sep[6] = {rxStringNew(""), rxStringNew(""), rxStringNew("")};
+    rxString query[6] = {rxStringNew(""), rxStringNew(""), rxStringNew("")};
+    int phrase = 0;
     for (int j = 2; j < argc; ++j)
     {
         char *q = (char *)RedisModule_StringPtrLen(argv[j], &len);
-        query = rxStringFormat("%s%s%s", query, sep, q);
-        sep = rxStringNew(" ");
+        if (rxStringMatch("IF", q, 1))
+        {
+            phrase = 1;
+            continue;
+        }
+        else if (rxStringMatch("THEN", q, 1))
+        {
+            phrase = 0;
+            continue;
+        }
+        else if (rxStringMatch("ELSE", q, 1))
+        {
+            phrase = 2;
+            continue;
+        }
+        else if (rxStringMatch("IFNOT", q, 1))
+        {
+            phrase = 3;
+            continue;
+        }
+        else if (rxStringMatch("APPLY", q, 1))
+        {
+            phrase = phrase == 0 ? 4 :5;
+            continue;
+        }
+        query[phrase] = rxStringFormat("%s%s%s", query[phrase], sep[phrase], q);
+        sep[phrase] = rxStringNew(" ");
     }
-    BusinessRule *br = new BusinessRule(ruleName, query);
-    rxStringFree(sep);
-    rxStringFree(query);
+    BusinessRule *br = new BusinessRule(ruleName, query[1], query[0], query[4], query[2], query[5]);
+    for (int n = 0; n < sizeof(sep) / sizeof(rxString); ++n)
+    {
+        rxStringFree(sep[n]);
+        rxStringFree(query[n]);
+    }
     rxString response = rxStringFormat("Rule for: %s Expression: Expression appears to be ", ruleName);
     switch (br->isvalid)
     {
@@ -142,19 +194,19 @@ int rxRuleSet(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     }
     RedisModule_ReplyWithSimpleString(ctx, response);
     rxStringFree(response);
-    rxAlsoPropagate(0, argv, (void**)argc, -1);
+    rxAlsoPropagate(0, (void **)argv, argc, -1);
 
     return REDISMODULE_OK;
 }
 
-int rxRuleList(RedisModuleCtx *ctx, RedisModuleString **, int )
+int rxRuleList(RedisModuleCtx *ctx, RedisModuleString **, int)
 {
     return BusinessRule::WriteList(ctx);
 }
 
 int rxRuleResetCounters(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
-    rxAlsoPropagate(0, argv, (void**)argc, -1);
+    rxAlsoPropagate(0, (void **)argv, argc, -1);
     return BusinessRule::ResetCounters(ctx);
 }
 
@@ -177,20 +229,19 @@ int rxRuleDel(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
             BusinessRule::Forget(br);
         }
     }
-    rxAlsoPropagate(0, argv, (void**)argc, -1);
+    rxAlsoPropagate(0, (void **)argv, argc, -1);
 
     RedisModule_ReplyWithSimpleString(ctx, "OK");
     return REDISMODULE_OK;
 }
 
-int rxRuleGet(RedisModuleCtx *ctx, RedisModuleString **, int )
+int rxRuleGet(RedisModuleCtx *ctx, RedisModuleString **, int)
 {
     RedisModule_ReplyWithSimpleString(ctx, "Command not yet implemented!");
     return REDISMODULE_OK;
 }
 
-
-int rxRuleWait(RedisModuleCtx *ctx, RedisModuleString **, int )
+int rxRuleWait(RedisModuleCtx *ctx, RedisModuleString **, int)
 {
     RedisModule_ReplyWithSimpleString(ctx, "Command not yet implemented!");
     return REDISMODULE_OK;
@@ -198,12 +249,14 @@ int rxRuleWait(RedisModuleCtx *ctx, RedisModuleString **, int )
 
 extern RedisModuleCtx *loadCtx;
 
-int rxApply(RedisModuleCtx *ctx, RedisModuleString **argv, int )
-{
-    rxString key = (char *)rxGetContainedObject(argv[1]);
-    KeyTriggered(key);
-    return REDISMODULE_OK;
-}
+// int rxApply(RedisModuleCtx *, RedisModuleString **argv, int )
+// {
+//     rxString key = (char *)rxGetContainedObject(argv[1]);
+//     /*index_info.object_index_enqueued_tally += */KeyTriggered(key);
+//     return REDISMODULE_OK;
+// }
+
+pthread_t rule_threads[1] = {NULL};
 
 /* This function must be present on each R
 edis module. It is used in order to
@@ -223,21 +276,21 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     redisNodeInfo *data_config = rxDataNode();
 
     rxServerLog(rxLL_WARNING, "\nrxRule loaded, is local:%d index: %s data: %s \n\n",
-                                                index_config->is_local,
-                                                index_config->host_reference,
-                                                data_config->host_reference);
+                index_config->is_local,
+                index_config->host_reference,
+                data_config->host_reference);
     if (RedisModule_CreateCommand(ctx, "RULE.SET",
                                   rxRuleSet, "admin write", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "RULEADD",
                                   rxRuleSet, "admin write", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
-    if (RedisModule_CreateCommand(ctx, "RULE.APPLY",
-                                  rxApply, "write", 0, 0, 0) == REDISMODULE_ERR)
-        return REDISMODULE_ERR;
-    if (RedisModule_CreateCommand(ctx, "RXTRIGGER",
-                                  rxApply, "write", 0, 0, 0) == REDISMODULE_ERR)
-        return REDISMODULE_ERR;
+    // if (RedisModule_CreateCommand(ctx, "RULE.APPLY",
+    //                               rxApply, "write", 0, 0, 0) == REDISMODULE_ERR)
+    //     return REDISMODULE_ERR;
+    // if (RedisModule_CreateCommand(ctx, "RXTRIGGER",
+    //                               rxApply, "write", 0, 0, 0) == REDISMODULE_ERR)
+    //     return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "RULE.LIST",
                                   rxRuleList, "admin readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
@@ -254,9 +307,20 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
                                   rxRuleWait, "admin readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
+    // rule_execution_cron_id = rxCreateTimeEvent(1, (aeTimeProc *)rule_execution_cron, NULL, NULL);
+    // rule_execution_cron(NULL, 0, NULL);
 
-    rule_execution_cron_id = rxCreateTimeEvent(1, (aeTimeProc *)rule_execution_cron, NULL, NULL);
-    int i = rule_execution_cron(NULL, 0, NULL);
+    for (int n = 0; n < (sizeof(rule_threads) / sizeof(pthread_t)); n++)
+    {
+            auto stack = new SilNikParowy_Kontekst(data_config, ctx);
+
+        if (pthread_create(&rule_threads[n], NULL, execRulesThread, stack))
+        {
+            printf("FATAL: Failed to start indexer thread\n");
+        }
+        else
+            pthread_setname_np(rule_threads[n], "RULES");
+    }
 
     rxServerLog(rxLL_NOTICE, "OnLoad rxRule. Done!");
     return REDISMODULE_OK;
@@ -268,3 +332,6 @@ int RedisModule_OnUnload(RedisModuleCtx *ctx)
     finalizeRxSuite();
     return REDISMODULE_OK;
 }
+
+template SilNikParowy_Kontekst *tls_get(const char *key, allocatorProc *allocator, void *parms);
+template SilNikParowy_Kontekst *tls_forget(const char *key);

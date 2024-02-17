@@ -188,14 +188,28 @@ T *RedisClientPool<T>::Acquire(const char *address, const char *suffix, const ch
     return client;
 }
 
+template<> void RedisClientPool<redisContext>::Disconnect(redisContext *){
+    // redisFree(c);
+}
+
+template<> void RedisClientPool<redisAsyncContext>::Disconnect(redisAsyncContext *c){
+    redisAsyncFree(c);
+}
+
+
+template<> void RedisClientPool<struct client>::Disconnect(struct client *){
+    
+}
+
 template <typename T>
-void RedisClientPool<T>::Release(T *client, const char */*caller*/)
+void RedisClientPool<T>::Release(T *client, const char *caller)
 {
     auto *ppool = Get_ClientPool_Registry();
     auto *pool = (RedisClientPool<T> *)raxFind(ppool, (UCHAR *)client, sizeof(client));
     if (pool == raxNotFound)
     {
-        rxServerLog(rxLL_NOTICE, "RedisClientPool unregisted redis client\n");
+        rxServerLog(rxLL_NOTICE, "RedisClientPool unregisted redis client %p caller: %s\n", client, caller);
+        RedisClientPool<T>::Disconnect(client);
     }
     else
     {
@@ -219,14 +233,14 @@ template class RedisClientPool<struct client>;
 template class RedisClientPool<redisAsyncContext>;
 
 extern "C" void    ExecuteOnFake(const char *commandName, int argc, void **argv){
-    client *c = (struct client *)RedisClientPool<client>::Acquire("THIS", "_FAKE", "ExecuteRedisCommand");
+    client *c = (struct client *)RedisClientPool<client>::Acquire("THIS", "_FAKE", "ExecuteRedisCommand cmd");
     rxAllocateClientArgs(c, argv, 3);
     void *command_definition = rxLookupCommand(commandName);
     if(command_definition)
         rxClientExecute(c, command_definition);
     else
         rxServerLog(rxLL_WARNING, "Unknown command %s,  arg count: %d", commandName, argc);
-    RedisClientPool<struct client>::Release(c, "ExecuteRedisCommand");
+    RedisClientPool<struct client>::Release(c, "ExecuteRedisCommand cmd");
 }
 
 char *extractStringFromRedisReply(redisReply *r, const char *field)
@@ -272,17 +286,13 @@ redisReply *extractGroupFromRedisReplyByIndex(redisReply *r, size_t index)
 extern "C" void forwardTriggeredKey(void *key){
     redisNodeInfo *data_config = rxDataNode();
 
-
-    auto *rule_node = RedisClientPool<struct client>::Acquire(data_config->host_reference, "_FWDR", "Trigger Rules");
-
-
     void *argv[2] = {rxCreateStringObject("RXTRIGGER", 9), key};
-    auto *c = (struct client *)RedisClientPool<struct client>::Acquire(data_config->host_reference, "_FAKE", "ExecuteRedisCommand");
+    auto *c = (struct client *)RedisClientPool<struct client>::Acquire(data_config->host_reference, "_FWDR", "Trigger Rules");
     rxSetDatabase(c, 0);
     rxAllocateClientArgs(c, argv, 2);
     void *command_definition = rxLookupCommand("RXTRIGGER");
     if (command_definition)
         rxClientExecute(c, command_definition);
     rxFreeStringObject(argv[0]);
-    RedisClientPool<struct client>::Release(rule_node, "Trigger Rules");
+    RedisClientPool<struct client>::Release(c, "Trigger Rules");
 }

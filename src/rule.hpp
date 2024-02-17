@@ -38,6 +38,7 @@ void rxServerLog(int level, const char *fmt, ...);
 
 #include "sjiboleth-fablok.hpp"
 #include "sjiboleth.hpp"
+#include "tls.hpp"
 
 const char *GREMLIN_DIALECT = "gremlin";
 const char *QUERY_DIALECT = "query";
@@ -52,8 +53,17 @@ public:
     static rax *RuleRegistry;
     static bool RegistryLock;
     // Parser *rule;
-    ParsedExpression *rule = NULL;
+    ParsedExpression *if_this = NULL;
+    ParsedExpression *then_that = NULL;
+    ParsedExpression *else_that = NULL;
+
+    char *then_apply = NULL;
+    BusinessRule *then_rule = NULL;
+    char *else_apply = NULL;
+    BusinessRule *else_rule = NULL;
+
     bool isvalid;
+    bool isDeclaration;
     rxString setName;
     long long apply_count;
     long long apply_skipped_count;
@@ -157,14 +167,28 @@ public:
             while (raxNext(&ri))
             {
                 rxString ruleName = rxStringNewLen((const char *)ri.key, ri.key_len);
-                RedisModule_ReplyWithArray(ctx, 12);
                 BusinessRule *br = (BusinessRule *)ri.data;
+                RedisModule_ReplyWithArray(ctx, 12 + (br->if_this ? 2 : 0) + (br->else_that ? 2 : 0));
                 RedisModule_ReplyWithStringBuffer(ctx, (char *)"name", 4);
                 RedisModule_ReplyWithStringBuffer(ctx, (char *)ruleName, strlen((char *)ruleName));
+                if (br->if_this)
+                {
+                    rxString rpn = br->ParsedIfToString();
+                    RedisModule_ReplyWithSimpleString(ctx, (char *)"if_this");
+                    RedisModule_ReplyWithStringBuffer(ctx, (char *)rpn, strlen((char *)rpn));
+                    rxStringFree(rpn);
+                }
                 rxString rpn = br->ParsedToString();
-                RedisModule_ReplyWithStringBuffer(ctx, (char *)"rule", 4);
+                RedisModule_ReplyWithSimpleString(ctx, (char *)"then_that");
                 RedisModule_ReplyWithStringBuffer(ctx, (char *)rpn, strlen((char *)rpn));
                 rxStringFree(rpn);
+                if (br->else_that)
+                {
+                    rxString rpn = br->ParsedElseToString();
+                    RedisModule_ReplyWithSimpleString(ctx, (char *)"else_that");
+                    RedisModule_ReplyWithStringBuffer(ctx, (char *)rpn, strlen((char *)rpn));
+                    rxStringFree(rpn);
+                }
                 RedisModule_ReplyWithStringBuffer(ctx, (char *)"no of applies", 13);
                 RedisModule_ReplyWithLongLong(ctx, br->apply_count);
                 RedisModule_ReplyWithStringBuffer(ctx, (char *)"no of skips", 11);
@@ -183,8 +207,12 @@ public:
         return REDISMODULE_OK;
     }
 
-    static rxString ApplyAll(rxString key)
+    static rxString ApplyAll(rxString key, SilNikParowy_Kontekst *stack)
     {
+        if (rxStringCharCount(key, ':') >= 2)
+        {
+            return NULL;
+        }
 
         if (BusinessRule::RuleRegistry == NULL)
             return rxStringEmpty();
@@ -197,10 +225,11 @@ public:
         while (raxNext(&ri))
         {
             rxString ruleName = rxStringNewLen((const char *)ri.key, ri.key_len);
+
             BusinessRule *br = (BusinessRule *)ri.data;
 
             rxServerLogRaw(rxLL_DEBUG, rxStringFormat("Applying rules: %s to: %s\n", ruleName, key));
-            bool result = br->Apply(key);
+            bool result = br->Apply(key, stack);
             rxServerLogRaw(rxLL_DEBUG, rxStringFormat("Applied rules: %s to: %s -> %d\n", ruleName, key, result));
             response = rxStringFormat("%s%s -> %d\r", response, ruleName, result);
         }
@@ -229,8 +258,15 @@ public:
 
     BusinessRule()
     {
-        this->rule = NULL;
+        this->if_this = NULL;
+        this->then_that = NULL;
+        this->then_apply = NULL;
+        this->then_rule = NULL;
+        this->else_that = NULL;
+        this->else_apply = NULL;
+        this->else_rule = NULL;
         this->isvalid = false;
+        this->isDeclaration = false;
         this->setName = rxStringEmpty();
         this->apply_count = 0;
         this->apply_skipped_count = 0;
@@ -238,18 +274,43 @@ public:
         this->apply_miss_count = 0;
     };
 
-    BusinessRule(const char *setName, const char *query)
+    BusinessRule(const char *setName, const char *if_this, const char *then_that, const char *then_apply, const char *else_apply, const char *else_that)
         : BusinessRule()
     {
         this->setName = rxStringNew(setName);
-        rxServerLogRaw(rxLL_DEBUG, rxStringFormat("Rule (1): %s as: %s\n", this->setName, query));
-        this->rule = this->RuleParser->Parse(query);
-        rxServerLogRaw(rxLL_DEBUG, rxStringFormat("Rule (2): %s as: %s\n", this->setName, this->rule->ToString()));
+        if (if_this && strlen(if_this) > 0)
+        {
+            rxServerLogRaw(rxLL_DEBUG, rxStringFormat("Rule (1) IF: %s as: %s\n", this->setName, if_this));
+            this->if_this = this->RuleParser->Parse(if_this);
+            rxServerLogRaw(rxLL_DEBUG, rxStringFormat("Rule (2) IF: %s as: %s\n", this->setName, this->if_this->ToString()));
+        }
+        if (then_apply)
+        {
+            rxServerLogRaw(rxLL_DEBUG, rxStringFormat("Rule (1) THEN: %s as: apply%s\n", this->setName, then_apply));
+            this->then_apply = (char *)then_apply;
+        }
+        else
+        {
+            rxServerLogRaw(rxLL_DEBUG, rxStringFormat("Rule (1): %s as: %s\n", this->setName, then_that));
+            this->then_that = this->RuleParser->Parse(then_that);
+            rxServerLogRaw(rxLL_DEBUG, rxStringFormat("Rule (2): %s as: %s\n", this->setName, this->then_that->ToString()));
+        }
+        if (else_apply)
+        {
+            rxServerLogRaw(rxLL_DEBUG, rxStringFormat("Rule (1) ELSE: %s as: apply %s\n", this->setName, else_apply));
+            this->else_apply = (char *)else_apply;
+        }
+        else if (else_that && strlen(else_that) > 0)
+        {
+            rxServerLogRaw(rxLL_DEBUG, rxStringFormat("Rule (1) ELSE: %s as: %s\n", this->setName, else_that));
+            this->else_that = this->RuleParser->Parse(else_that);
+            rxServerLogRaw(rxLL_DEBUG, rxStringFormat("Rule (2) ELSE: %s as: %s\n", this->setName, this->else_that->ToString()));
+        }
     };
 
     ~BusinessRule()
     {
-        if (this->rule)
+        if (this->then_that)
         {
             BusinessRule *old;
             while (BusinessRule::RegistryLock)
@@ -259,8 +320,18 @@ public:
             raxRemove(BusinessRule::RuleRegistry, (UCHAR *)this->setName, strlen(this->setName), (void **)&old);
             rxStringFree(this->setName);
             this->setName = NULL;
-            delete this->rule;
-            this->rule = NULL;
+            if (this->if_this)
+            {
+                delete this->if_this;
+                this->if_this = NULL;
+            }
+            delete this->then_that;
+            this->then_that = NULL;
+            if (this->else_that)
+            {
+                delete this->else_that;
+                this->else_that = NULL;
+            }
             this->isvalid = false;
         }
     };
@@ -279,26 +350,28 @@ public:
         return NULL;
     };
 
-    bool Apply(const char *key)
+    bool Apply(const char *key, SilNikParowy_Kontekst *kontekst)
     {
         redisNodeInfo *index_config = rxIndexNode();
-        redisNodeInfo *data_config = rxDataNode();
         rxString k = rxStringNew(key);
-        int stringmatch = rxStringCharCount(k, ':');
         void *obj = rxFindKey(0, k);
         rxStringFree(k);
-        if (stringmatch >= 2)
-        {
-            this->apply_skipped_count++;
-            return false;
-        }
-        // rxString rpn = this->rule->ToString();
+
         this->apply_count++;
         FaBlok::ClearCache();
-        if (data_config->executor == NULL)
-            data_config->executor = (void *)new SilNikParowy_Kontekst(data_config, NULL);
-        rax *set = ((SilNikParowy_Kontekst *)data_config->executor)->Execute(this->rule, key);
-        ((SilNikParowy_Kontekst *)data_config->executor)->ClearMemoizations();
+        rax *set = NULL;
+        if (this->if_this)
+        {
+            kontekst->Reset();
+            set = kontekst->Execute(this->if_this, key);
+            if (set && raxSize(set) > 0)
+                set = kontekst->Execute(this->then_that, key);
+            else if (this->else_that)
+                set = kontekst->Execute(this->else_that, key);
+        }
+        else
+            set = kontekst->Execute(this->then_that, key);
+        kontekst->ClearMemoizations();
         FaBlok::ClearCache();
 
         const char *objT = "?";
@@ -321,7 +394,7 @@ public:
             if (index_config->is_local != 0)
             {
                 rxString t = rxStringNew(objT);
-                rxString f = rxStringNew("rule");
+                rxString f = rxStringNew("then_that");
                 rxString one = rxStringNew("1");
                 void *stashed_cmd = rxStashCommand(NULL, "RXADD", 5, key, t, f, this->setName, one);
                 ExecuteRedisCommand(NULL, stashed_cmd, index_config->host_reference);
@@ -348,7 +421,7 @@ public:
         if (index_config->is_local != 0)
         {
             rxString t = rxStringNew(objT);
-            rxString f = rxStringNew("rule");
+            rxString f = rxStringNew("then_that");
             rxString one = rxStringNew("1");
             void *stashed_cmd = rxStashCommand(NULL, "RXDEL", 4, key, t, f, this->setName);
             ExecuteRedisCommand(NULL, stashed_cmd, index_config->host_reference);
@@ -372,13 +445,23 @@ public:
         return false;
     }
 
+    rxString ParsedIfToString()
+    {
+        return this->if_this->ToString();
+    }
+
     rxString ParsedToString()
     {
-        return this->rule->ToString();
+        return this->then_that->ToString();
+    }
+
+    rxString ParsedElseToString()
+    {
+        return this->else_that->ToString();
     }
 };
 
-GremlinDialect *BusinessRule::RuleParser = new GremlinDialect();
+GremlinDialect *BusinessRule::RuleParser = (GremlinDialect *)Sjiboleth::Get("GremlinDialect");
 rax *BusinessRule::RuleRegistry = raxNew();
 bool BusinessRule::RegistryLock = false;
 #endif

@@ -23,6 +23,7 @@ extern "C"
 #include <stdlib.h>
 #include <string.h>
 
+#include "rxSuite.h"
 #include "rxSuiteHelpers.h"
 #ifdef __cplusplus
 }
@@ -87,18 +88,57 @@ void uninstallInterceptors(interceptRule *commandTable, int no_of_commands)
     }
 }
 
-static rxString rxFindByScan(int dbNo, const char *regex)
+int rxIterateDb(int dbNo, const char *regex, rxKeyMatcher keyMatcher, rxValueAction valueAction, void *parms)
 {
-    void *iter = NULL;
-    rxString key;
-    void *obj;
-
-    while ((obj = rxScanKeys(dbNo, &iter, (char **)&key)) != NULL)
+    int tally;
+    redisDb *db = (&server.db[dbNo]);
+    dictIterator *di = dictGetSafeIterator(db->dict);
+    dictEntry *de;
+    while ((de = dictNext(di)) == NULL)
     {
-        if (rxStringMatch(key, regex, MATCH_IGNORE_CASE))
-            return key;
+        robj *key = dictGetKey(de);
+        robj *value = dictGetVal(de);
+        if(keyMatcher(regex, key, value, parms) != 0){
+            valueAction(key, value, parms);
+            ++tally;
+        }
+    }
+    return tally;
+}
+
+
+void *rxIterateDbUntilFirstHit(int dbNo, const char *regex, rxKeyMatcher keyMatcher, rxValueAction valueAction, void *parms)
+{
+    redisDb *db = (&server.db[dbNo]);
+    dictIterator *di = dictGetSafeIterator(db->dict);
+    dictEntry *de;
+    while ((de = dictNext(di)) != NULL)
+    {
+        robj *key = dictGetKey(de);
+        robj *value = dictGetVal(de);
+        if (keyMatcher(regex, key, value, parms) != 0)
+        {
+            if (valueAction)
+                return valueAction(key, value, parms);
+            else
+                return value;
+        }
     }
     return NULL;
+}
+
+int rxIsRehashingDatabase(int dbNo)
+{
+    return 0;
+    redisDb *db = (&server.db[dbNo]);
+    return (db->dict->rehashidx >= 0 && db->dict->pauserehash == 0);
+}
+
+static int rxMatchKeyForIteration(const char *pattern, char *k, void *, void *)
+{
+    if(k[2] == 127)
+        rxServerLog(rxLL_NOTICE, "%s :: %s", pattern, k);
+    return rxStringMatch(pattern, k, 1);
 }
 
 void *rxFindKey(int dbNo, const char *key)
@@ -111,35 +151,47 @@ void *rxFindKey(int dbNo, const char *key)
     if (!key)
         serverPanic("findKey: No key to search!");
     // robj k = {OBJ_STRING, OBJ_ENCODING_RAW, key, OBJ_SHARED_REFCOUNT};
+    long long start = ustime();
+    long long stop1 = 0;
+    long long stop2 = 0;
+    long long stop3 = 0;
+    long long stop4 = 0;
+    sds k = sdsnew(key);
     robj *ko = createStringObject(key, strlen(key));
     robj *kv = lookupKeyRead(db, ko);
-    freeStringObject(ko);
     if (kv)
     {
-        return kv;
+        stop1 = ustime();
+        goto done;
     }
-    sds k = sdsnew(key);
-    dictEntry *de = dictFind(db->dict, k);
-    sdsfree(k);
+    dictEntry *de = dictFind(db->dict, key);
     if (de)
     {
-        return dictGetVal(de);
+        kv = dictGetVal(de);
+        stop2 = ustime();
+        goto done;
+    }
+    de = dictFind(db->dict, k);
+    if (de)
+    {
+        kv = dictGetVal(de);
+        stop2 = ustime();
+        goto done;
     }
     else
     {
-        rxString altK = rxFindByScan(dbNo, key);
-        if (altK)
-        {
-            de = dictFind(db->dict, altK);
-            if (de)
-            {
-                return dictGetVal(de);
-            }
-            return NULL;
-        }
+        kv = rxIterateDbUntilFirstHit(dbNo, key, rxMatchKeyForIteration, NULL, NULL);
+        stop3 = ustime();
+        goto done;
     }
-    return NULL;
+        stop4 = ustime();
+done:
+    logLookupStats(start, stop1, stop2, stop3, stop4);
+    freeStringObject(ko);
+    sdsfree(k);
+    return kv;
 }
+
 void *rxFindSetKey(int dbNo, const char *key)
 {
     robj *o = rxFindKey(dbNo, key);
@@ -1261,7 +1313,7 @@ void *rxGetDatabase(int )
 
 extern client *moduleGetReplyClient(struct RedisModuleCtx *ctx);
 extern int RM_GetSelectedDb(struct RedisModuleCtx *ctx);
-void rxSetDatabase(void *c, void *orgC)
+void rxSetDatabase(void *c, void *)
 {
     // if((long long int)orgC < 7){
     //     serverLog(LL_NOTICE, "rxSetDatabase invalid RedisModuleCtx *ctx: %p", orgC);
@@ -1278,10 +1330,12 @@ void rxSetDatabase(void *c, void *orgC)
 
 rxSetMembers *rxHarvestSetmembers(void *obj)
 {
+
     size_t member_count = 0;
     size_t total_member_size = 0;
 
     robj *r = (robj *)obj;
+    incrRefCount(r);
     switch (r->encoding)
     {
     case OBJ_ENCODING_HT:
@@ -1292,6 +1346,7 @@ rxSetMembers *rxHarvestSetmembers(void *obj)
         break;
     default:
         rxServerLog(rxLL_NOTICE, "Invalid set encoding on %p %d", r, r->encoding);
+    decrRefCount(r);
         return NULL;
     }
 
@@ -1336,19 +1391,23 @@ rxSetMembers *rxHarvestSetmembers(void *obj)
     }
 
     setTypeReleaseIterator(si);
+    decrRefCount(r);
+
     return mob;
 }
 
-    const char *rxGetSetMember(rxSetMembers *mob){
-        if(!mob)
-            return NULL;
-        const char *member = NULL;
-        if(mob->member_index < mob->member_count){
-            member = mob->members[mob->member_index];
-            mob->member_index++;
-        }
-        return member;
+const char *rxGetSetMember(rxSetMembers *mob)
+{
+    if (!mob)
+        return NULL;
+    const char *member = NULL;
+    if (mob->member_index < mob->member_count)
+    {
+        member = mob->members[mob->member_index];
+        mob->member_index++;
     }
+    return member;
+}
 
 rxSetMembers *rxFreeSetmembers(rxSetMembers *mob)
 {
@@ -1373,9 +1432,9 @@ void *rxFused(const char *key, const char *fuse_key, const char *barKey, void *f
     sds cSubject = sdsnew("subject");
     sds cObject = sdsnew("object");
     sds cPredicate = sdsnew("predicate");
-    hashTypeSet(fused, cSubject, key, HASH_SET_COPY);
-    hashTypeSet(fused, cObject, barKey, HASH_SET_COPY);
-    hashTypeSet(fused, cPredicate, fuse_key + 1, HASH_SET_COPY);
+    hashTypeSet(fused, cSubject, (char *)key, HASH_SET_COPY);
+    hashTypeSet(fused, cObject, (char *)barKey, HASH_SET_COPY);
+    hashTypeSet(fused, cPredicate, (char *)fuse_key + 1, HASH_SET_COPY);
     sdsfree(cSubject);
     sdsfree(cObject);
     sdsfree(cPredicate);
@@ -1387,13 +1446,13 @@ void *rxFused(const char *key, const char *fuse_key, const char *barKey, void *f
     for (int n = 0; n < 3; ++n)
     {
         char *pfx = prefixes[n];
-        hashTypeIterator *hi = hashTypeInitIterator(inputs[n]);
+        hashTypeIterator *hi = hashTypeInitIterator((robj *)inputs[n]);
         while (hashTypeNext(hi) != C_ERR)
         {
             sds f = hashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_KEY);
             strcpy(prefixed_field, pfx);
             strcat(prefixed_field, f);
-            sds pfx_fld = sdsnew(&prefixed_field);
+            sds pfx_fld = sdsnew((const char *)&prefixed_field);
             sds v = hashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_VALUE);
             hashTypeSet(fused, pfx_fld, v, HASH_SET_COPY);
             sdsfree(f);
@@ -1405,11 +1464,26 @@ void *rxFused(const char *key, const char *fuse_key, const char *barKey, void *f
     return fused;
 }
 
+rxSetMembers *rxHarvestSetmembersForKey(int , const char *key)
+{
+    void *o = NULL;
+    if (*key != '^')
+    {
+        char k[1024];
+        snprintf(k, sizeof(k), "^%s", key);
+        o = rxFindKey(0, k);
+    }else
+        o = rxFindKey(0, key);
+    if (o)
+        return rxHarvestSetmembers(o);
+    return NULL;
+}
+
 unsigned long rxHashTypeLength(void *o){
     return hashTypeLength(o);
 }
 
-unsigned long rxHashTraverse(void *hash, rxTraversedHashField handler, void *prm)
+unsigned long rxHashTraverseHere(rxString , void *hash, rxTraversedHashField handler, void *prm)
 {
     unsigned long tally = 0;
     hashTypeIterator *hi = hashTypeInitIterator(hash);
@@ -1424,15 +1498,167 @@ unsigned long rxHashTraverse(void *hash, rxTraversedHashField handler, void *prm
     return tally;
 }
 
-rxSetMembers *rxHarvestSetmembersForKey(int , const char *key)
+unsigned long rxHashTraverse(rxString key, void *, rxTraversedHashField handler, void *prm)
 {
-    void *o = rxFindKey(0, key);
-    if (o)
-        return rxHarvestSetmembers(o);
-    return NULL;
+    unsigned long tally = 0;
+    /* The key may have been updated or deleted while traversing, 
+        so a snaphot is  requested from the redis main thread!*/
+    rxHashFieldAndValues *mob;
+    
+    rxHarvestHashFieldsForKey(0, key, &mob);
+    rxFieldValuePair *fvp = NULL;
+    while ((fvp = rxHashGetNexthFieldAndValue(mob)) != NULL)
+    {
+        handler(fvp->field, fvp->value, prm);
+        ++tally;
+    }
+    // hashTypeIterator *hi = hashTypeInitIterator(hash);
+
+    // while (hashTypeNext(hi) != C_ERR)
+    // {
+    //     rxString f = hashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_KEY);
+    //     rxString v = hashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_VALUE);
+    //     handler(f, v, prm);
+    //     ++tally;
+    // }
+    // hashTypeReleaseIterator(hi);
+    rxFreeHashFields(key, mob);
+    return tally;
 }
 
 void rxAlsoPropagate(int dbid, void **argv, int argc, int target)
 {
     alsoPropagate(dbid, (robj **)argv, argc, target);
+}
+
+
+int hash_snapshot_duration = 250;
+int hash_snapshot_quick_interval = 2;
+int hash_snapshot_interval = 250;
+long long hash_snapshot_cron_id = -1;
+rxFieldValuePair *NewRxFieldValuePair(const char *f, const char *v){
+    size_t f_len = strlen(f) + 1;
+    size_t v_len = strlen(v) + 1;
+    rxFieldValuePair *fvp = (rxFieldValuePair *)rxMemAlloc(sizeof(rxFieldValuePair) + f_len + v_len);
+    fvp->field = ((char *)fvp) + sizeof(rxFieldValuePair);
+    strcpy((char *)fvp->field, f);
+    fvp->value= fvp->field + f_len;
+    strcpy((char *)fvp->value, v);
+    return fvp;
+}
+
+int hash_snapshot_cron(struct aeEventLoop *, long long int, void *)
+{
+    long long start = ustime();
+    const char *key = NULL;
+    size_t request_tally = 0;
+    size_t release_tally = 0;
+    nextSnapshotKey(&key);
+    while (key != NULL)
+    {
+        // Create snapshot
+        void *hash = rxFindHashKey(0, key);
+        request_tally++;
+        size_t no_of_fields = hashTypeLength(hash);
+        size_t mob_sz = sizeof(rxHashFieldAndValues) + no_of_fields * sizeof(rxFieldValuePair);
+        rxHashFieldAndValues *mob = (rxHashFieldAndValues *)rxMemAlloc(mob_sz);
+        memset(mob, 0x00, mob_sz);
+        mob->signature = 20697227649722765;
+        mob->created_at = ustime();
+        mob->member_count = 0;
+        mob->member_index = 0;
+
+        hashTypeIterator *hi = hashTypeInitIterator(hash);
+        while (hashTypeNext(hi) != C_ERR && mob->member_count < no_of_fields)
+        {
+            rxString f = hashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_KEY);
+            rxString v = hashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_VALUE);
+            mob->members[mob->member_count] = NewRxFieldValuePair(f, v);
+            mob->member_count++;
+            rxStringFree(f);
+            rxStringFree(v);
+        }
+        hashTypeReleaseIterator(hi);
+
+        // hash = hashTypeDup(hash);
+        // makeObjectShared(hash);
+        ResponseSnapshotKey(key, mob);
+        if (ustime() - start >= hash_snapshot_duration * 1000)
+        {
+            // Yield when slot time over
+            logHashSnapshotCronStats(start, ustime(), request_tally, 0, 0);
+            return hash_snapshot_quick_interval;
+        }
+        nextSnapshotKey(&key);
+    }
+    long long stop_requests = ustime();
+    rxHashFieldAndValues *mob = NULL;
+    nextReleaseSnapshotKey(&mob);
+    while (mob != NULL)
+    {
+        release_tally++;
+        if (mob->signature == 20697227649722765)
+        {
+            for (size_t n = 0; n < mob->member_count; ++n)
+                rxMemFreeX(mob->members[n]);
+            rxMemFree(mob);
+        }
+        else
+            serverLog(LL_NOTICE, "corrupted rxHashFieldAndValues %p signature %lld != 20697227649722765", mob, mob->signature);
+        if (ustime() - start >= hash_snapshot_duration * 1000)
+        {
+            // Yield when slot time over
+            logHashSnapshotCronStats(start, stop_requests, request_tally, ustime(), release_tally);
+            return hash_snapshot_quick_interval;
+        }
+        nextReleaseSnapshotKey(&mob);
+    }
+    logHashSnapshotCronStats(start, stop_requests, request_tally, ustime(), release_tally);
+    return hash_snapshot_interval;
+}
+
+rxHashFieldAndValues *rxHarvestHashFieldsForKey(int, const char *key, rxHashFieldAndValues **data)
+{
+    long long start = ustime();
+    RequestSnapshotKey(key);
+
+    if (hash_snapshot_cron_id < 0)
+    {
+
+        hash_snapshot_cron_id = rxCreateTimeEvent(1, (aeTimeProc *)hash_snapshot_cron, NULL, NULL);
+        rxServerLog(rxLL_NOTICE, "Hash snapshotting cron started on => %lld", hash_snapshot_cron_id);
+        hash_snapshot_cron(NULL, 0, NULL);
+        start = ustime();
+    }
+    rxHashFieldAndValues *dd = getCompletedSnapshotKey(key, data);
+    logHashSnapshotStats(start, ustime());
+    if(dd != *data){
+        rxServerLog(rxLL_NOTICE, "#rxHarvestHashFieldsForKey# key=%s, unexpected result dd=%p *data=%p", key, dd, *data);
+    }
+    return *data;
+}
+
+rxFieldValuePair *rxHashGetNexthFieldAndValue(rxHashFieldAndValues *mob)
+{
+    if (!mob)
+        return NULL;
+    if (mob->signature != 20697227649722765)
+    {
+        serverLog(LL_NOTICE, "#rxHashGetNexthFieldAndValue# corrupted rxHashFieldAndValues %p signature %lld != 20697227649722765", mob, mob->signature);
+        return NULL;
+    }
+
+    rxFieldValuePair *member = NULL;
+    if (mob->member_index < mob->member_count)
+    {
+        member = mob->members[mob->member_index];
+        mob->member_index++;
+    }
+    return member;
+}
+
+rxHashFieldAndValues *rxFreeHashFields(const char *key, rxHashFieldAndValues *mob)
+{
+    ReleaseSnapshotKey(key, mob);
+    return NULL;
 }

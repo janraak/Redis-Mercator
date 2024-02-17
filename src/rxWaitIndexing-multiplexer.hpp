@@ -49,7 +49,8 @@ public:
         if (this->reindex_iterator == NULL)
             return -1;
 
-        if(this->queue->QueueLength() == 0 && BusinessRule::QueuedTouchesCount() == 0)
+        // if(this->queue->QueueLength() == 0 && BusinessRule::QueuedTouchesCount() == 0)
+        if(PendingKeysTriggered() == 0 && PendingObjectForIndexing() == 0)
             return -1;
             
         return 1;

@@ -149,8 +149,10 @@ static void Load(ParsedExpression *rpn, SimpleQueue *ctx)
             }
             break;
         }
+        case _index_only_execution:
+            break;
         case _expression: // Object level expression
-                    rxServerLog(rxLL_NOTICE, "Not expected: Object level expression: %s\n", t3->TokenAsSds());
+            rxServerLog(rxLL_NOTICE, "Not expected: Object level expression: %s\n", t3->TokenAsSds());
             break;
         }
     }

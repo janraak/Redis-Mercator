@@ -45,7 +45,7 @@ SJIBOLETH_HANDLER(IndexJson)
         }
         stack->Memoize("@@field@@", (void *)field_name);
 
-        auto *text_parser = (Sjiboleth *)stack->Recall("@@TEXT_PARSER@@");
+        auto text_parser = Sjiboleth::Get("TextDialect");
         while (stack->HasEntries())
         {
             FaBlok *p = stack->Pop();

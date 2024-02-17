@@ -174,11 +174,8 @@ void enqueueWriteCommand(client *c)
 {
     if (!__interceptors_installed)
         return;
-    // rxString key = (rxString)rxGetContainedObject(c->argv[1]);
+    index_info.object_index_enqueued_tally += KeyTouched(rxGetContainedObject(c->argv[1]));
 
-    forwardTriggeredKey(c->argv[1]);
-
-    rxStashCommand2(index_info.key_indexing_request_queue, NULL, 2, c->argc, (void **)c->argv);
     freeCompletedRequests();
 }
 
@@ -188,94 +185,113 @@ void setCommandIntercept(client *c)
 
     // rxServerLog(rxLL_NOTICE, "Intercepted %s for %s with %s", (char *)c->argv[0]->ptr, (char *)c->argv[1]->ptr, (char *)c->argv[2]->ptr);
     index_info.set_tally++;
+    WaitForIndexAndTriggerCompletionKeyTouched(c->argv[1]);
     redisCommandProc *standard_command_proc = standard_command_procs[SET_INTERCEPT];
-    enqueueWriteCommand(c);
     standard_command_proc(c);
+    enqueueWriteCommand(c);
 }
 
 void hsetCommandIntercept(client *c)
 {
     index_info.hset_tally++;
+    long long start = ustime();
+    WaitForIndexAndTriggerCompletionKeyTouched(c->argv[1]);
+    long long stop1 = ustime();
+
     redisCommandProc *standard_command_proc = standard_command_procs[HSET_INTERCEPT];
-    enqueueWriteCommand(c);
     standard_command_proc(c);
+    long long stop2 = ustime();
+    enqueueWriteCommand(c);
+    long long stop3 = ustime();
+    tallyHset(start, stop1, stop2, stop3);
 }
 
 void setnxCommandIntercept(client *c)
 {
+    WaitForIndexAndTriggerCompletionKeyTouched(c->argv[1]);
     redisCommandProc *standard_command_proc = standard_command_procs[SETNX_INTERCEPT];
-    enqueueWriteCommand(c);
     standard_command_proc(c);
+    enqueueWriteCommand(c);
 }
 
 void setexCommandIntercept(client *c)
 {
+    WaitForIndexAndTriggerCompletionKeyTouched(c->argv[1]);
     redisCommandProc *standard_command_proc = standard_command_procs[SETEX_INTERCEPT];
-    enqueueWriteCommand(c);
     standard_command_proc(c);
+    enqueueWriteCommand(c);
 }
 
 void psetexCommandIntercept(client *c)
 {
+    WaitForIndexAndTriggerCompletionKeyTouched(c->argv[1]);
     rxServerLog(LL_NOTICE, "PSETEX_INTERCEPT");
     redisCommandProc *standard_command_proc = standard_command_procs[PSETEX_INTERCEPT];
-    enqueueWriteCommand(c);
     standard_command_proc(c);
+    enqueueWriteCommand(c);
 }
 
 void appendCommandIntercept(client *c)
 {
+    WaitForIndexAndTriggerCompletionKeyTouched(c->argv[1]);
     redisCommandProc *standard_command_proc = standard_command_procs[APPEND_INTERCEPT];
-    enqueueWriteCommand(c);
     standard_command_proc(c);
+    enqueueWriteCommand(c);
 }
 
 void delCommandIntercept(client *c)
 {
+    WaitForIndexAndTriggerCompletionKeyTouched(c->argv[1]);
     redisCommandProc *standard_command_proc = standard_command_procs[DEL_INTERCEPT];
-    enqueueWriteCommand(c);
     standard_command_proc(c);
+    enqueueWriteCommand(c);
 }
 
 void hsetnxCommandIntercept(client *c)
 {
+    WaitForIndexAndTriggerCompletionKeyTouched(c->argv[1]);
     redisCommandProc *standard_command_proc = standard_command_procs[HSETNX_INTERCEPT];
-    enqueueWriteCommand(c);
     standard_command_proc(c);
+    enqueueWriteCommand(c);
 }
 
 void hdelCommandIntercept(client *c)
 {
+    WaitForIndexAndTriggerCompletionKeyTouched(c->argv[1]);
     redisCommandProc *standard_command_proc = standard_command_procs[HDEL_INTERCEPT];
-    enqueueWriteCommand(c);
     standard_command_proc(c);
+    enqueueWriteCommand(c);
 }
 
 void getsetCommandIntercept(client *c)
 {
+    WaitForIndexAndTriggerCompletionKeyTouched(c->argv[1]);
     redisCommandProc *standard_command_proc = standard_command_procs[GETSET_INTERCEPT];
-    enqueueWriteCommand(c);
     standard_command_proc(c);
+    enqueueWriteCommand(c);
 }
 
 void msetCommandIntercept(client *c)
 {
+    WaitForIndexAndTriggerCompletionKeyTouched(c->argv[1]);
     rxServerLog(LL_NOTICE, "MSET_INTERCEPT");
     redisCommandProc *standard_command_proc = standard_command_procs[MSET_INTERCEPT];
-    enqueueWriteCommand(c);
     standard_command_proc(c);
+    enqueueWriteCommand(c);
 }
 
 void msetnxCommandIntercept(client *c)
 {
+    WaitForIndexAndTriggerCompletionKeyTouched(c->argv[1]);
     rxServerLog(LL_NOTICE, "MSETNX_INTERCEPT");
     redisCommandProc *standard_command_proc = standard_command_procs[MSETNX_INTERCEPT];
-    enqueueWriteCommand(c);
     standard_command_proc(c);
+    enqueueWriteCommand(c);
 }
 
 void moveCommandIntercept(client *c)
 {
+    WaitForIndexAndTriggerCompletionKeyTouched(c->argv[1]);
     rxServerLog(LL_NOTICE, "MOVE_INTERCEPT");
     redisCommandProc *standard_command_proc = standard_command_procs[MOVE_INTERCEPT];
     standard_command_proc(c);
@@ -283,6 +299,7 @@ void moveCommandIntercept(client *c)
 
 void renameCommandIntercept(client *c)
 {
+    WaitForIndexAndTriggerCompletionKeyTouched(c->argv[1]);
     rxServerLog(LL_NOTICE, "RENAME_INTERCEPT");
     redisCommandProc *standard_command_proc = standard_command_procs[RENAME_INTERCEPT];
     standard_command_proc(c);
@@ -290,6 +307,7 @@ void renameCommandIntercept(client *c)
 
 void renamenxCommandIntercept(client *c)
 {
+    WaitForIndexAndTriggerCompletionKeyTouched(c->argv[1]);
     rxServerLog(LL_NOTICE, "RENAMENX_INTERCEPT");
     redisCommandProc *standard_command_proc = standard_command_procs[RENAMENX_INTERCEPT];
     standard_command_proc(c);
@@ -305,22 +323,26 @@ void selectCommandIntercept(client *c)
 
 void xaddCommandIntercept(client *c)
 {
+    WaitForIndexAndTriggerCompletionKeyTouched(c->argv[1]);
     redisCommandProc *standard_command_proc = standard_command_procs[XADD_INTERCEPT];
-    enqueueWriteCommand(c);
     standard_command_proc(c);
+    enqueueWriteCommand(c);
 }
 
 void xdelCommandIntercept(client *c)
 {
+    WaitForIndexAndTriggerCompletionKeyTouched(c->argv[1]);
     redisCommandProc *standard_command_proc = standard_command_procs[DEL_INTERCEPT];
-    enqueueWriteCommand(c);
     standard_command_proc(c);
+    enqueueWriteCommand(c);
 }
 
 void touchCommandIntercept(client *c)
 {
+    WaitForIndexAndTriggerCompletionKeyTouched(c->argv[1]);
     redisCommandProc *standard_command_proc = standard_command_procs[TOUCH_INTERCEPT];
     standard_command_proc(c);
+    enqueueWriteCommand(c);
 }
 
 void genericCommandIntercept(client *c)

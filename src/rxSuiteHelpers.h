@@ -20,6 +20,7 @@ extern "C"
 #include "../../src/rax.h"
 #include "../../src/dict.h"
 #include "sdsWrapper.h"
+#include "rxSuite.h"
 
 #ifdef __cplusplus
 }
@@ -149,8 +150,14 @@ extern "C"
     void *rxFused(const char *key, const char *fuse_key, const char *barKey, void *fuse_subject, void *fuse_object, void *fuse_predicate);
 
     typedef void (*rxTraversedHashField)(const char *f, const char *v, void *prm);
+    typedef int (*rxKeyMatcher)(const char *pattern, void *k, void *v, void *prm);
+    typedef void *(*rxValueAction)(void *k, void *v, void *prm);
+
     unsigned long rxHashTypeLength(void *o);
-    unsigned long rxHashTraverse(void *hash, rxTraversedHashField handler, void *prm);
+    // Traverse a hash key on the main thread
+    unsigned long rxHashTraverseHere(rxString key, void *hash, rxTraversedHashField handler, void *prm);
+    // Traverse a hash key on a worker thread
+    unsigned long rxHashTraverse(rxString key, void *hash, rxTraversedHashField handler, void *prm);
 
     long long rxCreateTimeEvent(long long milliseconds,
                                 aeTimeProc *proc, void *clientData,
@@ -214,7 +221,9 @@ extern "C"
     rxClientInfo rxGetClientInfo();
     rxClientInfo rxGetClientInfoForHealthCheck();
     double rxGetMemoryUsedPercentage();
-  typedef struct rxSetMembers
+
+    int rxIsRehashingDatabase(int db);
+    typedef struct rxSetMembers
     {
         size_t member_count;    // Number of members in this block
         size_t member_index;    // Number of members in this block
@@ -226,6 +235,26 @@ extern "C"
     rxSetMembers *rxHarvestSetmembersForKey(int dbNo, const char *key);
     rxSetMembers *rxFreeSetmembers(rxSetMembers *mob);
     const char *rxGetSetMember(rxSetMembers *mob);
+
+/* Get Hash snapshot
+    
+    1) rxHarvestHashFields / rxHarvestHashFieldsForKey
+        a) Enqueue key on request rax
+        b) Spin/Poll response rax
+        c) return snapshot
+    2)  rxHarvestHashFieldsCron
+        a) Dequeue a key from the request rax
+        b) Create the snapshot
+        c) Enqueue the snapshot on the response rax
+        d) Dequeue a key from the release rax
+        e) Free the snapshot
+        f) Do a-e for max %n milliseconds
+
+ */
+
+    rxHashFieldAndValues *rxHarvestHashFieldsForKey(int dbNo, const char *key, rxHashFieldAndValues **data);
+    rxHashFieldAndValues *rxFreeHashFields(const char *key, rxHashFieldAndValues *mob);
+    rxFieldValuePair *rxHashGetNexthFieldAndValue(rxHashFieldAndValues *mob);
 
     void rxAlsoPropagate(int dbid, void **argv, int argc, int target);
 #ifdef __cplusplus

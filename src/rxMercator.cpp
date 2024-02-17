@@ -1113,14 +1113,10 @@ redisReply *ExecuteLocal(const char *cmd, int options)
         if ((options & LOCAL_NO_RESPONSE) == LOCAL_NO_RESPONSE)
         {
             freeReplyObject(rcc);
-            RedisClientPool<redisContext>::Release(redis_node, "EXEC_LOCAL");
             return NULL;
         }
-        else
-            RedisClientPool<redisContext>::Release(redis_node, "EXEC_LOCAL");
         return rcc;
     }
-
     return NULL;
 }
 

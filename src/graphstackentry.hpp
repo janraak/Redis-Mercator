@@ -63,7 +63,7 @@ void ExecuteRedisCommand(SimpleQueue *ctx, void *stash, const char *host_referen
         return;
     }
     void **argv = (void **)(stash + sizeof(void *));
-    auto *c = (struct client *)RedisClientPool<struct client>::Acquire(host_reference, "_FAKE", "ExecuteRedisCommand");
+    auto *c = (struct client *)RedisClientPool<struct client>::Acquire(host_reference, "_FAKE", "ExecuteRedisCommand_FAKE");
     rxSetDatabase(c, loadCtx);
     rxAllocateClientArgs(c, argv, argc);
     rxString commandName = (rxString)rxGetContainedObject(argv[0]);
@@ -72,7 +72,7 @@ void ExecuteRedisCommand(SimpleQueue *ctx, void *stash, const char *host_referen
         rxClientExecute(c, command_definition);
     else
         rxServerLog(rxLL_WARNING, "Unknown command %s,  arg count: %d", commandName, argc);
-    RedisClientPool<struct client>::Release(c, "ExecuteRedisCommand");
+    RedisClientPool<struct client>::Release(c, "ExecuteRedisCommand_FAKE");
     if (ctx)
         enqueueSimpleQueue(ctx, stash);
 }

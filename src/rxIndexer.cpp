@@ -52,8 +52,8 @@ extern "C"
 #ifdef __cplusplus
 }
 #endif
-#include "tls.hpp"
 #include "indexIntercepts.h"
+#include "tls.hpp"
 
 #include "client-pool.hpp"
 #include "rule.hpp"
@@ -73,11 +73,11 @@ static void stopIndexerThreads();
 indexerThread data_info = {};
 indexerThread index_info = {};
 
-#define BEGIN_COMMAND_INTERCEPTOR(fn)                                                        \
+#define BEGIN_COMMAND_INTERCEPTOR(fn)                                            \
     static int fn(void *stash, redisNodeInfo *, SilNikParowy_Kontekst *executor) \
-    {                                                                                        \
-        int argc = *((int *)stash);                                                          \
-        void **argv = (void **)(stash + sizeof(void *));                                     \
+    {                                                                            \
+        int argc = *((int *)stash);                                              \
+        void **argv = (void **)(stash + sizeof(void *));                         \
         rxStashCommand(index_info.index_update_request_queue, "MULTI", 0);
 
 #define END_COMMAND_INTERCEPTOR(fn)                                   \
@@ -85,8 +85,6 @@ indexerThread index_info = {};
     return 0;                                                         \
     }
 
-CSjiboleth *json_parser = newJsonEngine();
-CSjiboleth *text_parser = newTextEngine();
 static int must_stop = 0;
 
 BEGIN_COMMAND_INTERCEPTOR(indexingHandlerDelCommand)
@@ -128,13 +126,12 @@ rxUNUSED(executor);
 rxString okey = (rxString)rxGetContainedObject(argv[1]);
 
 auto *collector = raxNew();
-executor->Memoize("@@TEXT_PARSER@@", (void *)text_parser);
 executor->Memoize("@@collector@@", (void *)collector);
 
 ParsedExpression *parsed_text;
 int key_type = rxOBJ_STREAM;
 
-   bool use_bracket = true;
+bool use_bracket = true;
 
 int j = 2;
 rxString currentArg = (rxString)rxGetContainedObject(argv[j]);
@@ -165,7 +162,7 @@ while (j < argc)
     rxString currentValue = (rxString)rxGetContainedObject(argv[j + 1]);
 
     executor->Memoize("@@field@@", (void *)currentField);
-    auto *parser = currentValue[0] == '{' ? json_parser : text_parser;
+    auto *parser = currentValue[0] == '{' ? Sjiboleth::Get("JsonDialect") : Sjiboleth::Get("TextDialect");
     parsed_text = (ParsedExpression *)parseQ(parser, currentValue);
     auto *sub = parsed_text;
     while (sub)
@@ -179,14 +176,11 @@ while (j < argc)
     j = j + 2;
 }
 
-    if (raxSize(collector) > 0)
-        TextDialect::FlushIndexables(collector, okey, key_type, index_info.index_update_request_queue, use_bracket);
-    raxFree(collector);
-    collector = NULL;
+if (raxSize(collector) > 0)
+    TextDialect::FlushIndexables(collector, okey, key_type, index_info.index_update_request_queue, use_bracket);
+raxFree(collector);
+collector = NULL;
 
-    KeyTriggered(okey);
-
-    rxStashCommand(index_info.index_update_request_queue, "RXTRIGGER", 1, okey);
 rxUNUSED(okey);
 
 END_COMMAND_INTERCEPTOR(indexingHandlerXaddCommand)
@@ -212,116 +206,6 @@ extern "C"
 #ifdef __cplusplus
 }
 #endif
-void freeCompletedRedisRequests();
-
-int client_health_interval = 100;
-long long client_health_cron = -1;
-struct client *rxrule_fakeClient = NULL;
-struct redisCommand *rule_apply_cmd;
-void *rxruleApply = NULL;
-/* This is the rule.apply timer handler.
- * An apply entry is scheduled after an rxcommit to
- * update all business rules. */
-int rxrule_timer_handler(struct aeEventLoop *, long long int, void *)
-{
-    redisNodeInfo *index_config = rxIndexNode();
-    if (must_stop == 1)
-        return -1;
-
-    long long start = ustime();
-    freeCompletedRedisRequests();
-    void *index_request = NULL;
-    while ((index_request = index_info.index_rxRuleApply_request_queue->Dequeue()) != NULL)
-    {
-        ExecuteRedisCommand(index_info.index_rxRuleApply_respone_queue, index_request, index_config->host_reference);
-        if (ustime() - start >= client_health_interval * 1000)
-        {
-            // Yield when slot time over
-            return client_health_interval;
-        }
-    }
-
-    return client_health_interval;
-}
-
-static int indexingHandler(int, void *stash, redisNodeInfo *index_config, SilNikParowy_Kontekst *executor)
-{
-    int argc = *((int *)stash);
-    void **argv = (void **)(stash + sizeof(void *));
-
-    rxString command = (rxString)rxGetContainedObject(argv[0]);
-    if (command == NULL)
-    {
-        return C_ERR;
-    }
-    rxString key = (rxString)rxGetContainedObject(argv[1]);
-    if (rxStringMatch(command, "DEL", MATCH_IGNORE_CASE))
-        return indexingHandlerDelCommand(stash, index_config, executor);
-    else if (rxStringMatch(command, "XDEL", MATCH_IGNORE_CASE))
-        return indexingHandlerXDelCommand(stash, index_config, executor);
-    else if (rxStringMatch(command, "XADD", MATCH_IGNORE_CASE))
-        return indexingHandlerXaddCommand(stash, index_config, executor);
-
-    auto *collector = raxNew();
-    executor->Memoize("@@TEXT_PARSER@@", (void *)text_parser);
-    executor->Memoize("@@collector@@", (void *)collector);
-
-    ParsedExpression *parsed_text;
-    int key_type;
-    bool use_bracket = true;
-    if (argc == 3)
-    {
-        rxString f = rxStringNew("*");
-        rxString v = (rxString)rxGetContainedObject(argv[2]);
-        executor->Memoize("@@field@@", (void *)f);
-        key_type = rxOBJ_STRING;
-        auto *parser = v[0] == '{' ? json_parser : text_parser;
-        parsed_text = (ParsedExpression *)parseQ(parser, v);
-        auto *sub = parsed_text;
-        while (sub)
-        {
-            sub->Show(v);
-            SilNikParowy::Execute(sub, executor);
-            sub = sub->Next();
-        }
-        delete parsed_text;
-        executor->Forget("@@field@@");
-        rxStringFree(f);
-    }
-    else
-    {
-        key_type = rxOBJ_HASH;
-        use_bracket = argc > 4;
-        for (int j = 2; j < (argc-1); j += 2)
-        {
-            rxString f = (rxString)rxGetContainedObject(argv[j]);
-            rxString v = (rxString)rxGetContainedObject(argv[j + 1]);
-
-            rxServerLog(rxLL_DEBUG, "Indexing Hash field %s with %s", f, v);
-
-            executor->Memoize("@@field@@", (void *)f);
-            auto *parser = v[0] == '{' ? json_parser : text_parser;
-            parsed_text = (ParsedExpression *)parseQ(parser, v);
-            auto *sub = parsed_text;
-            while (sub)
-            {
-                sub->PrependExecutionMode();
-                SilNikParowy::Execute(sub, executor);
-                sub = sub->Next();
-            }
-            delete parsed_text;
-            executor->Forget("@@field@@");
-        }
-    }
-    if (raxSize(collector) > 0)
-        TextDialect::FlushIndexables(collector, key, key_type, index_info.index_update_request_queue, use_bracket);
-    raxFree(collector);
-    collector = NULL;
-    // TODO: executor->Reset();
-
-    // rxStashCommand(index_info.index_update_request_queue, "RXTRIGGER", 1, key);
-    return C_OK;
-}
 
 void freeCompletedRedisRequests()
 {
@@ -333,12 +217,6 @@ void freeCompletedRedisRequests()
     {
         GET_ARGUMENTS_FROM_STASH(index_request);
         rxUNUSED(argv);
-        // if (argc > 1)
-        // {
-        //     rxString key = (rxString)rxGetContainedObject(argv[1]);
-        //     BusinessRule::Touched(key);
-        //     // rxStashCommand(index_info.index_rxRuleApply_request_queue, "RULE.APPLY", 1, key);
-        // }
 
         FreeStash(index_request);
         index_request = index_info.index_update_respone_queue->Dequeue();
@@ -370,24 +248,53 @@ long long reindex_latency = 0;
 
 int indexerInfo(RedisModuleCtx *ctx, RedisModuleString **, int)
 {
-    rxString response = rxStringFormat("Indexer is:                       %s\n", indexer_state ? "Active" : "Not Active");
-    response = rxStringFormat("%sReIndexing is:                             %s\n", response, reindex_iterator ? "Active" : "Not Active");
-    response = rxStringFormat("%sNumber of SET commands intercepts:         %d\n", response, index_info.set_tally);
-    response = rxStringFormat("%sNumber of HSET commands intercepts:        %d\n", response, index_info.hset_tally);
-    response = rxStringFormat("%sNumber of indexing queued requests:        %d\n", response, index_info.key_indexing_request_queue->QueueLength());
-    response = rxStringFormat("%sNumber of queued redis requests:           %d\n", response, index_info.index_update_request_queue->QueueLength());
-    response = rxStringFormat("%sNumber of RXBEGIN commands:                %d\n", response, index_info.rxbegin_tally);
-    response = rxStringFormat("%sNumber of RXADD commands:                  %d\n", response, index_info.rxadd_tally);
-    response = rxStringFormat("%sNumber of RXCOMMIT commands:               %d\n", response, index_info.rxcommit_tally);
-    response = rxStringFormat("%sNumber of completed requests:              %d\n", response, index_info.key_indexing_respone_queue->QueueLength());
-    response = rxStringFormat("%sNumber of key_indexing_enqueues:           %d\n", response, index_info.key_indexing_respone_queue->enqueue_fifo_tally.load());
-    response = rxStringFormat("%sNumber of key_indexing_dequeues:           %d\n", response, index_info.key_indexing_respone_queue->dequeue_fifo_tally.load());
-    response = rxStringFormat("%sNumber of completed Redis requests:        %d\n", response, index_info.index_update_respone_queue->QueueLength());
-    response = rxStringFormat("%sNumber of redis_enqueues:                  %d\n", response, index_info.index_update_request_queue->enqueue_fifo_tally.load());
-    response = rxStringFormat("%sNumber of redis_dequeues:                  %d\n", response, index_info.index_update_request_queue->dequeue_fifo_tally.load());
-    // response = rxStringFormat("%sNumber of REDIS commands:                  %d\n", response, dictSize(server.commands));
-    // response = rxStringFormat("%sNumber of REDIS commands:                  %d, intercepts: %d\n", response, dictSize(server.commands), sizeof(interceptorCommandTable) / sizeof(struct redisCommand));
-    response = rxStringFormat("%sNumber of Field index comm                 %d\n", response, index_info.field_index_tally);
+    auto config = (rxSuiteShared *)initRxSuite();
+    rxString response = rxStringFormat("Indexer is:                       %s\012", indexer_state ? "Active" : "Not Active");
+    response = rxStringFormat("%sReIndexing is:                             %s\012", response, reindex_iterator ? "Active" : "Not Active");
+    response = rxStringFormat("%sNumber of SET commands intercepts:         %d\012", response, index_info.set_tally);
+    response = rxStringFormat("%sNumber of HSET commands intercepts:        %d\012", response, index_info.hset_tally);
+    response = rxStringFormat("%sNumber of enqueued objects to index:       %d\012", response, config->n_enq_touchedKeys);
+    response = rxStringFormat("%sNumber of enqueue key to index spins:      %d\012", response, config->n_touchedKey_spins);
+    response = rxStringFormat("%sTotal ms for enqueue key to index spins:   %d\012", response, config->us_touchedKey_spins);
+    response = rxStringFormat("%sAverage ms for enqueue key spins:          %0.3f\012", response, config->us_touchedKey_spins * 1.0 / config->n_touchedKey_spins);
+    response = rxStringFormat("%sNumber of indexed keys:                    %d\012", response, config->n_indexed);
+    response = rxStringFormat("%sTotal ms for indexed keys:                 %d\012", response, config->us_indexed);
+    response = rxStringFormat("%sAverage ms per indexed key:                %0.3f\012", response, config->us_indexed * 1.0 / config->n_indexed);
+    response = rxStringFormat("%sNumber of dequeued objects to index:       %d\012", response, config->n_deq_touchedKeys);
+    response = rxStringFormat("%sNumber of pending objects to index:        %d\012", response, PendingObjectForIndexing());
+    response = rxStringFormat("%sNumber of enqueued key triggered:          %d\012", response, config->n_enq_triggeredKeys);
+    response = rxStringFormat("%sNumber of dequeued key triggered:          %d\012", response, config->n_deq_triggeredKeys);
+    response = rxStringFormat("%sNumber of enqueue triggered key spins:     %d\012", response, config->n_triggeredKey_spins);
+    response = rxStringFormat("%sTotal ms for enqueue triggered key spins:  %d\012", response, config->us_triggeredKey_spins);
+    response = rxStringFormat("%sAverage ms for enqueue triggered key spins:%0.3f\012", response, config->us_triggeredKey_spins * 1.0 / config->us_triggeredKey_spins);
+    response = rxStringFormat("%sNumber of pending keys triggered:          %d\012", response, PendingKeysTriggered());
+    response = rxStringFormat("%sNumber of processed triggered keys:        %d\012", response, config->n_processingTriggered);
+    response = rxStringFormat("%sTotal ms for processing triggered keys:    %d\012", response, config->us_indexed);
+    response = rxStringFormat("%sAverage ms per triggered key:              %0.3f\012", response, config->us_processingTriggered * 1.0 / config->n_processingTriggered);
+    // response = rxStringFormat("%sNumber of RXBEGIN commands:                %d\012", response, index_info.rxbegin_tally);
+    // response = rxStringFormat("%sNumber of RXADD commands:                  %d\012", response, index_info.rxadd_tally);
+    // response = rxStringFormat("%sNumber of RXCOMMIT commands:               %d\012", response, index_info.rxcommit_tally);
+    response = rxStringFormat("%savg us hset                                %d\012", response, config->us_hset / config->n_hset);
+    response = rxStringFormat("%savg us hset  key block                     %d\012", response, config->us_hset_key_block / config->n_hset);
+    response = rxStringFormat("%savg us hset  original                      %d\012", response, config->us_hset_std / config->n_hset);
+    response = rxStringFormat("%sn_enqueue_pool1                            %d\012", response, config->n_enqueue_pool1);
+    response = rxStringFormat("%sn_enqueue_pool2                            %d\012", response, config->n_enqueue_pool2);
+    response = rxStringFormat("%savg us_enqueue_outside                     %d\012", response, config->us_enqueue_outside / config->n_enqueue_pool1);
+    response = rxStringFormat("%savg us_enqueue_inside                      %d\012", response, config->us_enqueue_inside / config->n_enqueue_pool1);
+    response = rxStringFormat("%savg us_enqueue_pool1                       %d\012", response, config->us_enqueue_pool1 / config->n_enqueue_pool1);
+    response = rxStringFormat("%savg us_enqueue_pool2                       %d\012", response, config->us_enqueue_pool2 / config->n_enqueue_pool2);
+    response = rxStringFormat("%skey lookup using lookup                    %d\012", response, config->n_lookupByLookup);
+    if (config->n_lookupByLookup)
+        response = rxStringFormat("%savg lookup using lookup                    %d\012", response, config->us_lookupByLookup / config->n_lookupByLookup);
+    response = rxStringFormat("%skey lookup using dict                      %d\012", response, config->n_lookupByDict);
+    if (config->n_lookupByDict)
+        response = rxStringFormat("%savg lookup using dict                      %d\012", response, config->us_lookupByDict / config->n_lookupByDict);
+    response = rxStringFormat("%skey lookup using scan                    %d\012", response, config->n_lookupByScan);
+    if (config->n_lookupByScan)
+        response = rxStringFormat("%savg lookup using scan                    %d\012", response, config->us_lookupByScan / config->n_lookupByScan);
+    response = rxStringFormat("%skey lookup Not Found                           %d\012", response, config->n_lookupNotFound);
+    if (config->n_lookupNotFound)
+        response = rxStringFormat("%savg lookup Not Found                       %d\012", response, config->us_lookupNotFound / config->n_lookupNotFound);
 
     return RedisModule_ReplyWithStringBuffer(ctx, response, strlen(response));
 }
@@ -443,6 +350,93 @@ int indexerControl(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     return RedisModule_ReplyWithSimpleString(ctx, "OK");
 }
 
+void Index_Object(rxString key, void *value_for_key, SilNikParowy_Kontekst *engine)
+{
+    rax *collector = raxNew();
+    engine->Memoize("@@collector@@", (void *)collector);
+
+    index_info.object_index_dequeued_tally++;
+
+    ParsedExpression *parsed_text;
+    int key_type = rxGetObjectType(value_for_key);
+    // rxHashFieldAndValues *mob = NULL;
+    switch (key_type)
+    {
+    case rxOBJ_STRING:
+    {
+        rxString value = (rxString)rxGetContainedObject(value_for_key);
+        if (value != NULL)
+        {
+            rxString f = rxStringNew("*");
+            engine->Memoize("@@field@@", (void *)f);
+            parsed_text = (ParsedExpression *)parseQ((value[0] == '{') ? Sjiboleth::Get("JsonDialect") : Sjiboleth::Get("TextDialect"), value);
+            auto *sub = parsed_text;
+            while (sub)
+            {
+                sub->PrependExecutionMode();
+                engine->Execute(sub);
+                sub = sub->Next();
+            }
+            delete parsed_text;
+            engine->Forget("@@field@@");
+            rxStringFree(f);
+        }
+    }
+    break;
+    case rxOBJ_LIST:
+        rxServerLog(LL_NOTICE, "ReIndexing unexpected type: rxOBJ_LIST");
+        break;
+    case rxOBJ_HASH:
+    {
+        if (rxStringCharCount(key, ':') >= 2)
+            break;
+        rxHashTraverse(
+            key,
+            value_for_key, [](const char *f, const char *v, void *p)
+            {
+                    if(rxStringMatch("type", f, 1))
+                        return;
+                    auto engine = (SilNikParowy_Kontekst *)p;
+                    ParsedExpression *parsed_text;
+                    engine->Memoize("@@field@@", (void *)f);
+                    auto leftQuote = strchr(v, '\'');
+                    auto end = strchr(v, 0x00) - 1;
+                    if (!(*v == '\'' && *end == '\''))
+                        while (leftQuote)
+                        {
+                            // Some names, or sentences may start with a quote
+                            // auto rightQuote = strchr(leftQuote + 1, '\'');
+                            // if(rightQuote && rightQuote != end)
+                            //     rightQuote = NULL;
+
+                            // if (leftQuote && !rightQuote)
+                            *((char *)leftQuote) = ' ';
+                            leftQuote = strchr(v, '\'');
+                        }
+                    parsed_text = (ParsedExpression *)parseQ((v[0] == '{') ? Sjiboleth::Get("JsonDialect") : Sjiboleth::Get("TextDialect"), v);
+                    auto *sub = parsed_text;
+                    while (sub)
+                    {
+                        sub->PrependExecutionMode();
+                        engine->Execute(sub);
+                        sub = sub->Next();
+                    }
+                    delete parsed_text;
+                    engine->Forget("@@field@@"); },
+            engine);
+    }
+    break;
+    default:
+        rxServerLog(LL_NOTICE, "ReIndexing unexpected type: %d", key_type);
+        break;
+    }
+    TextDialect::FlushIndexables(collector, key, key_type, index_info.index_update_request_queue, true);
+    // if(mob)
+    //     rxFreeHashFields(mob);
+    engine->Forget("@@collector@@");
+    raxFree(collector);
+}
+
 /* This is the timer handler that is called by the main event loop. We schedule
  * this timer to be called when the nearest of our module timers will expire. */
 int reindex_cron(struct aeEventLoop *, long long, void *clientData)
@@ -477,72 +471,11 @@ int reindex_cron(struct aeEventLoop *, long long, void *clientData)
             reindex_skipped_no_of_keys++;
             continue;
         }
-        auto *collector = raxNew();
-        engine->Memoize("@@collector@@", (void *)collector);
-
-        ParsedExpression *parsed_text;
         void *value_for_key = dictGetVal(de);
-        int key_type = rxGetObjectType(value_for_key);
-
-        switch (key_type)
-        {
-        case rxOBJ_STRING:
-        {
-            rxString value = (rxString)rxGetContainedObject(value_for_key);
-            if (value != NULL)
-            {
-                rxString f = rxStringNew("*");
-                engine->Memoize("@@field@@", (void *)f);
-                parsed_text = (ParsedExpression *)parseQ((value[0] == '{') ? json_parser : text_parser, value);
-                auto *sub = parsed_text;
-                while (sub)
-                {
-                    engine->Execute(sub);
-                    sub = sub->Next();
-                }
-                delete parsed_text;
-                engine->Forget("@@field@@");
-                rxStringFree(f);
-            }
-        }
-        break;
-        case rxOBJ_LIST:
-            rxServerLog(LL_NOTICE, "ReIndexing unexpected type: rxOBJ_LIST");
-            break;
-        case rxOBJ_HASH:
-        {
-            struct rxHashTypeIterator *hi = rxHashTypeInitIterator(value_for_key);
-            int j = 0;
-            while (rxHashTypeNext(hi) != C_ERR)
-            {
-                rxString field = rxHashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_KEY);
-                rxString field_value = rxHashTypeCurrentObjectNewSds(hi, rxOBJ_HASH_VALUE);
-                engine->Memoize("@@field@@", (void *)field);
-                parsed_text = (ParsedExpression *)parseQ((field_value[0] == '{') ? json_parser : text_parser, field_value);
-                auto *sub = parsed_text;
-                while (sub)
-                {
-                    engine->Execute(sub);
-                    sub = sub->Next();
-                }
-                j += 2;
-                delete parsed_text;
-                engine->Forget("@@field@@");
-            }
-            rxHashTypeReleaseIterator(hi);
-        }
-        break;
-        default:
-            rxServerLog(LL_NOTICE, "ReIndexing unexpected type");
-            break;
-        }
-        TextDialect::FlushIndexables(collector, key, key_type, index_info.index_update_request_queue, true);
+        Index_Object(key, value_for_key, engine);
         // TODO: engine->Reset();
-        raxFree(collector);
-        engine->Forget("@@collector@@");
 
-        KeyTriggered(key);
-        rxStashCommand(index_info.index_update_request_queue, "RXTRIGGER", 1, key);
+        // rxStashCommand(index_info.index_update_request_queue, "RXTRIGGER", 1, key);
         if (ustime() - start >= reindex_cron_slot_time * 1000)
         {
             // Yield when slot time over
@@ -611,19 +544,19 @@ int reindex(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         rxStringToUpper(arg);
         if (rxStringMatch(arg, "STATUS", 1))
         {
-            response = rxStringFormat("%sIndexer is:                 %s\n", response, indexer_state ? "Active" : "Not Active");
-            response = rxStringFormat("%sReIndexing is:              %s\n", response, reindex_iterator ? "Active" : "Not Active");
-            response = rxStringFormat("%sReIndexing stats:\r");
-            response = rxStringFormat("%sTotal no of keys:           %d\n", response, reindex_total_no_of_keys);
-            response = rxStringFormat("%sTotal no of keys processed: %d\n", response, reindex_processed_no_of_keys);
-            response = rxStringFormat("%sTotal no of keys skipped:   %d\n", response, reindex_skipped_no_of_keys);
-            response = rxStringFormat("%s\n", response);
-            response = rxStringFormat("%sTotal reindexing time:      %ims\n", response, reindex_latency / 1000);
-            response = rxStringFormat("%s\n", response);
-            response = rxStringFormat("%sTotal no of timer slots:    %d\n", response, reindex_no_of_slots);
-            response = rxStringFormat("%sTotal no of timer expires:  %d\n", response, reindex_yielded_no_of_keys);
-            response = rxStringFormat("%sTotal no of queue throttles:%d\n", response, reindex_qthrottleded_no_of_keys);
-            response = rxStringFormat("%sTotal no of no memory throttles:%d\n", response, reindex_throttleded_no_mem);
+            response = rxStringFormat("%sIndexer is:                 %s\r\n", response, indexer_state ? "Active" : "Not Active");
+            response = rxStringFormat("%sReIndexing is:              %s\r\n", response, reindex_iterator ? "Active" : "Not Active");
+            response = rxStringFormat("%sReIndexing stats:\r\n");
+            response = rxStringFormat("%sTotal no of keys:           %d\r\n", response, reindex_total_no_of_keys);
+            response = rxStringFormat("%sTotal no of keys processed: %d\r\n", response, reindex_processed_no_of_keys);
+            response = rxStringFormat("%sTotal no of keys skipped:   %d\r\n", response, reindex_skipped_no_of_keys);
+            response = rxStringFormat("%s\r\n", response);
+            response = rxStringFormat("%sTotal reindexing time:      %ims\r\n", response, reindex_latency / 1000);
+            response = rxStringFormat("%s\r\n", response);
+            response = rxStringFormat("%sTotal no of timer slots:    %d\r\n", response, reindex_no_of_slots);
+            response = rxStringFormat("%sTotal no of timer expires:  %d\r\n", response, reindex_yielded_no_of_keys);
+            response = rxStringFormat("%sTotal no of queue throttles:%d\r\n", response, reindex_qthrottleded_no_of_keys);
+            response = rxStringFormat("%sTotal no of no memory throttles:%d\r\n", response, reindex_throttleded_no_mem);
             return RedisModule_ReplyWithStringBuffer(ctx, response, strlen(response));
         }
         return RedisModule_ReplyWithSimpleString(ctx, "Invalid option");
@@ -651,7 +584,6 @@ int reindex(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     reindex_no_of_slots = 0;
 
     auto *engine = new SilNikParowy_Kontekst(index_config, NULL);
-    engine->Memoize("@@TEXT_PARSER@@", (void *)text_parser);
 
     reindex_helper_cron = rxCreateTimeEvent(1, (aeTimeProc *)reindex_cron, engine, NULL);
     reindex_cron(NULL, 0, engine);
@@ -661,47 +593,65 @@ int reindex(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     return RedisModule_ReplyWithSimpleString(ctx, response);
 }
 
-void *Allocate_Global_Context(void *config){
+void *Allocate_Global_Context(void *config)
+{
     return (void *)new SilNikParowy_Kontekst((redisNodeInfo *)config);
-
 }
 
-SilNikParowy_Kontekst *executor = NULL;
+int object_indexing_duration = 100;
+int object_indexing_interval = 100;
+long long object_indexing_cron_id = -1;
+
+int object_indexing_cron(struct aeEventLoop *, long long int, void *)
+{
+    SilNikParowy_Kontekst *executor = NULL;
+    redisNodeInfo *index_config = rxIndexNode();
+    if (executor == NULL)
+    {
+        executor = new SilNikParowy_Kontekst(index_config, NULL);
+    }
+
+    long long start = ustime();
+    const char *key = NULL;
+    while ((key = getIndexableKey()))
+    {
+        void *obj = rxFindKey(0, key);
+        Index_Object(key, obj, executor);
+        freeIndexedKey(key);
+        if (ustime() - start >= object_indexing_duration * 1000)
+        {
+            // Yield when slot time over
+            return object_indexing_interval;
+        }
+    }
+
+    return object_indexing_interval;
+}
+
 static void *execIndexerThread(void *ptr)
 {
+    // return;
     SimpleQueue *indexing_queue = (SimpleQueue *)ptr;
     indexer_set_thread_title("rxIndexer index keys");
     rxServerLog(LL_NOTICE, "execIndexerThread started pumping");
     indexing_queue->Started();
 
     redisNodeInfo *index_config = rxIndexNode();
-    auto *c = (struct client *)RedisClientPool<struct client>::Acquire(index_config->host_reference, "_FAKE", "execIndexerThread");
-    RedisClientPool<struct client>::Release(c, "execIndexerThread");
 
-    if(executor == NULL){
-        executor = new SilNikParowy_Kontekst(index_config, NULL);
-    }
-    long long start = ustime();
-    int tally = 0;
+    auto executor = new SilNikParowy_Kontekst(index_config, NULL);
+
     while (!indexing_queue->must_stop)
     {
-        if (ustime() - start >= reindex_cron_slot_time * 1000)
+        const char *key = NULL;
+        while ((key = getIndexableKey()))
         {
-            // Yield when slot time over
-            sched_yield();
-            start = ustime();
+            void *obj = rxFindKey(0, key);
+            Index_Object(key, obj, executor);
+            freeIndexedKey(key);
         }
-        void *index_request = indexing_queue->Dequeue();
-        while (index_request != NULL)
-        {
-            indexingHandler(tally, index_request, index_config, executor);
-            index_info.key_indexing_respone_queue->Enqueue(index_request);
-            index_request = indexing_queue->Dequeue();
-        }
-        freeCompletedRedisRequests();
         sched_yield();
     }
-    client_health_interval = 0;
+
     indexing_queue->Stopped();
     return NULL;
 }
@@ -713,19 +663,19 @@ static void *execUpdateRedisThread(void *ptr)
     redis_queue->Started();
     redisNodeInfo *index_config = rxIndexNode();
 
-    rxServerLog(LL_NOTICE, "\ncapture starting: %s\n", index_config->host_reference);
+    rxServerLog(LL_NOTICE, "\ncapture starting: %s\r\n", index_config->host_reference);
     redisContext *context;
     context = redisConnect(index_config->host, index_config->port);
     if (context == NULL || context->err)
     {
         if (context)
         {
-            rxServerLog(LL_NOTICE, "Connection error: %s\n", context->errstr);
+            rxServerLog(LL_NOTICE, "Connection error: %s\r\n", context->errstr);
             redisFree(context);
         }
         else
         {
-            rxServerLog(LL_NOTICE, "Connection error: can't allocate lzf context\n");
+            rxServerLog(LL_NOTICE, "Connection error: can't allocate lzf context\r\n");
         }
         return NULL;
     }
@@ -795,17 +745,11 @@ static void startIndexerThreads()
 
     t->key_indexing_respone_queue = new SimpleQueue("STRESP");
     t->index_update_respone_queue = new SimpleQueue("IXRESP");
-    t->index_rxRuleApply_respone_queue = new SimpleQueue("RLRESP");
-    t->index_rxRuleApply_request_queue = new SimpleQueue("RLREQ", t->index_rxRuleApply_respone_queue);
-    t->key_indexing_request_queue = new SimpleQueue("IXREQ", (void *)execIndexerThread, 1, t->key_indexing_respone_queue);
+    t->key_indexing_request_queue = new SimpleQueue("IXREQ", (void *)execIndexerThread, 4, t->key_indexing_respone_queue);
     t->index_update_request_queue = new SimpleQueue("STREQ", (void *)execUpdateRedisThread, 1, t->index_update_respone_queue);
     rxServerLog(LL_NOTICE, "Indexer started");
     SetIndex_info(t);
 
-    client_health_interval = 100;
-    client_health_cron = rxCreateTimeEvent(1, (aeTimeProc *)rxrule_timer_handler, NULL, NULL);
-    int i = rxrule_timer_handler(NULL, 0, NULL);
-    rxServerLog(LL_NOTICE, "RX Rule cron started: %lld interval=%d", client_health_cron, i);
     installIndexerInterceptors(&preFlushCallback, &postFlushCallback);
 }
 
@@ -816,13 +760,10 @@ static void stopIndexerThreads()
     must_stop = 1;
 
     rxDeleteTimeEvent(reindex_helper_cron);
-    rxDeleteTimeEvent(client_health_cron);
     t->key_indexing_request_queue = SimpleQueue::Release(t->key_indexing_request_queue);
     t->key_indexing_respone_queue = SimpleQueue::Release(t->key_indexing_respone_queue);
     t->index_update_request_queue = SimpleQueue::Release(t->index_update_request_queue);
     t->index_update_respone_queue = SimpleQueue::Release(t->index_update_respone_queue);
-    t->index_rxRuleApply_request_queue = SimpleQueue::Release(t->index_rxRuleApply_request_queue);
-    t->index_rxRuleApply_respone_queue = SimpleQueue::Release(t->index_rxRuleApply_respone_queue);
 
     if (reindex_iterator)
     {
@@ -851,7 +792,7 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     initRxSuite();
 
     char *libpath = getenv("LD_LIBRARY_PATH");
-    if(libpath)
+    if (libpath)
         rxServerLog(rxLL_NOTICE, RXINDEX_FORMAT_001, strlen(libpath), libpath);
     else
         rxServerLog(rxLL_NOTICE, "rxIndexer NO LD_LIBRARY_PATH SET ");
@@ -876,6 +817,10 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 
     startIndexerThreads();
     rxServerLog(rxLL_NOTICE, "OnLoad rxIndexer. Done!");
+    Sjiboleth::Get("QueryDialect");
+    Sjiboleth::Get("GremlinDialect");
+    Sjiboleth::Get("JsonDialect");
+    Sjiboleth::Get("TextDialect");
 
     return REDISMODULE_OK;
 }
@@ -894,3 +839,84 @@ int RedisModule_OnUnload(RedisModuleCtx *ctx)
     finalizeRxSuite();
     return REDISMODULE_OK;
 }
+
+long long indexer_stats_cron_id = -1;
+#define ms_5MINUTES (5 * 60 * 1000)
+#define ms_1MINUTE (1 * 60 * 1000)
+
+typedef struct indexer_stats_entry
+{
+    const char *label;
+    long long tally;
+    long long sum;
+    const char *suffix;
+} indexer_stats_entry;
+
+long long indexer_stats__last_stats = 0;
+int indexer_stats_cron(struct aeEventLoop *, long long, void *)
+{
+    if ((mstime() - indexer_stats__last_stats) < ms_5MINUTES)
+        return ms_1MINUTE;
+    indexer_stats__last_stats = mstime();
+    auto config = (rxSuiteShared *)initRxSuite();
+
+    indexer_stats_entry entries[] = {
+        {/*00*/ "Number of SET commands intercepts", index_info.set_tally, 0, NULL},
+        {/*01*/ "Number of HSET commands intercepts", index_info.hset_tally, 0, "\n"},
+        {/*02*/ "Number of enqueued objects to index", config->n_enq_touchedKeys, config->us_enq_touchedKeys, NULL},
+        {/*04*/ "Enqueue key spins", config->n_touchedKey_spins, config->us_touchedKey_spins, NULL},
+        {/*06*/ "Indexed keys", config->n_indexed, config->us_indexed, NULL},
+        {/*09*/ "Number of dequeued objects to index", config->n_deq_touchedKeys, 0, NULL},
+        {/*09*/ "Indexing completed objects", config->n_done_touchedKeys, config->n_indexed > 0 ? config->us_indexed * 1.0 / config->n_indexed : 0, NULL},
+        {/*10*/ "Pending objects to index", PendingObjectForIndexing(), 0, NULL},
+        {/*11*/ "Enqueued keys triggered", config->n_enq_triggeredKeys, config->us_enq_triggeredKeys, NULL},
+        {/*12*/ "Dequeued keys triggered", config->n_deq_triggeredKeys, 0, NULL},
+        {/*12*/ "Keys trigger executions", config->n_done_triggeredKeys, config->n_processingTriggered > 0 ? config->us_processingTriggered / config->n_processingTriggered : 0, NULL},
+        {/*13*/ "Enqueue triggered spins", config->n_triggeredKey_spins, config->n_triggeredKey_spins > 0 ? config->us_triggeredKey_spins * 1.0 / config->n_triggeredKey_spins : 0, NULL},
+        {/*16*/ "Number of pending keys triggered", PendingKeysTriggered(), 0, NULL},
+        {/*17*/ "Processed key triggers", config->n_processingTriggered, config->n_processingTriggered > 0 ? config->us_processingTriggered / config->n_processingTriggered : 0, NULL},
+        {/*20*/ "avg us hset", config->n_hset, config->us_hset, NULL},
+        {/*21*/ "avg us hset  key block", config->n_hset, config->us_hset_key_block, NULL},
+        {/*22*/ "avg us hset  original", config->n_hset, config->us_hset_std, NULL},
+        {/*23*/ "queue (1)", config->n_enqueue_pool1, config->us_enqueue_pool1, NULL},
+        {/*23*/ "queue (1) outside", config->n_enqueue_pool1, config->us_enqueue_outside, NULL},
+        {/*23*/ "queue (1) inside", config->n_enqueue_pool1, config->us_enqueue_inside, NULL},
+        {/*24*/ "in progress (2)", config->n_enqueue_pool2, config->us_enqueue_pool2, NULL},
+        {/*29*/ "key lookup using lookup", config->n_lookupByLookup, config->us_lookupByLookup, NULL},
+        {/*31*/ "key lookup using dict", config->n_lookupByDict, config->us_lookupByDict, NULL},
+        {/*33*/ "key lookup using scan", config->n_lookupByScan, config->us_lookupByScan, NULL},
+        {/*33*/ "hash snapshots", config->n__hash_snapshots, config->us_hash_snapshots, NULL},
+        {/*33*/ "hash snapshot request", config->n_hash_snapshot_request, config->us_hash_snapshot_request, NULL},
+        {/*33*/ "hash snapshot completions", config->n_hash_snapshot_response, config->us_hash_snapshot_response, NULL},
+        {/*33*/ "hash snapshot request", config->n_hash_snapshot_release, config->us_hash_snapshot_release, NULL},
+        {/*33*/ "hash snapshot cron leaps", config->n_snapshots_cron, config->us_snapshots_cron, NULL},
+        {/*33*/ "hash snapshot cron keys", config->n_snapshots_cron_requests, config->us_snapshots_cron_requests, NULL},
+        {/*33*/ "hash snapshot cron key releases", config->n_snapshots_cron, config->us_snapshots_cron_releases, NULL},
+        {/*33*/ "hash snapshot cron keys per leap", config->n_snapshots_cron_requests, config->us_snapshots_cron_requests, NULL},
+        {/*33*/ "hash snapshot cron releases per leap", config->n_snapshots_cron_releases, config->us_snapshots_cron_requests, NULL}
+        };
+ 
+    rxServerLog(rxLL_NOTICE, "Indexer Statistics");
+    rxServerLog(rxLL_NOTICE, "%48s %10s %10s", "Counter", "Count", "Avg us");
+    for (size_t n = 0; n < sizeof(entries) / sizeof(indexer_stats_entry); ++n)
+    {
+
+        if (entries[n].tally != 0)
+        {
+            double avg = entries[n].sum * 1.0 / entries[n].tally;
+            rxServerLog(rxLL_NOTICE, "%48s %10lld %12.2f%s", entries[n].label, entries[n].tally, avg, entries[n].suffix ? entries[n].suffix : "");
+        }
+    }
+
+    return ms_1MINUTE;
+}
+
+void *rxIndexerStartup()
+{
+    indexer_stats_cron_id = rxCreateTimeEvent(1, (aeTimeProc *)indexer_stats_cron, NULL, NULL);
+    rxServerLog(rxLL_NOTICE, "Indexer stats cron started on => %lld", indexer_stats_cron_id);
+    indexer_stats_cron(NULL, 0, NULL);
+    return (void *)&rxIndexerStartup;
+}
+
+void *startUp = rxIndexerStartup();

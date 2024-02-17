@@ -879,6 +879,15 @@ int ParsedExpression::writeErrors(RedisModuleCtx *ctx)
     return C_OK;
 }
 
+void ParsedExpression::ClearErrors()
+{
+    while(listLength(this->errors) > 0){
+        listNode *ln = listFirst(this->errors);
+        rxMemFree(ln->value);
+        listDelNode(this->errors, ln);
+    }
+}
+
 ParserToken *ParsedExpression::peekParked()
 {
     return this->tokenAt(this->side_track, 0);

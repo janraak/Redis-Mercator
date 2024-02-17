@@ -32,6 +32,7 @@ rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, co
     // if(v->size <= 0 )
     v->LoadKey(0, v->setname);
     stack->Push(v);
+    e->ClearErrors();
     SilNikParowy::Preload(e, stack);
     rax *result = SilNikParowy::Execute(e, stack);
     // delete v;
@@ -176,10 +177,27 @@ rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, vo
             {
                 if (t->HasExecutor())
                 {
-                    if (t->Execute(stack) == C_ERR)
+                    long long start = ustime();
+                    int rc = t->Execute(stack);
+                    long long laps = ustime() - start;
+                    if (rc == C_ERR)
                     {
+                        if (t->copy_of != NULL)
+                        {
+                            t->copy_of->us_errors += laps;
+                            t->copy_of->n_errors++;
+                        }
+                        t->us_errors += laps;
+                        t->n_errors++;
                         goto end_of_loop;
                     }
+                    if (t->copy_of != NULL)
+                    {
+                        t->copy_of->us_calls += laps;
+                        t->copy_of->n_calls++;
+                    }
+                    t->us_calls += laps;
+                    t->n_calls++;
                 }
                 else if (t->Priority() > priImmediate)
                 {
@@ -211,8 +229,7 @@ end_of_loop:
             {
                 rxServerLog(rxLL_NOTICE, "ERROR: %s\n", e->ToString());
                 rxServerLog(rxLL_NOTICE, "ERROR: %s\n", (char *)ln->value);
-                error = rxStringFormat("%s%s", error, (char *)ln->value);
-                error = rxStringFormat("%s%s", error, "\n");
+                error = rxStringFormat("%s%s\n", error, (char *)ln->value);
             }
         }
         if (strlen(error) > 0)

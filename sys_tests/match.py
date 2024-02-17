@@ -6,7 +6,10 @@ import ast
 import traceback
 import os.path
 import os
-
+import asyncio
+import logging
+import threading
+import time
 
 class ReconnectException(BaseException):
     def __init__(self, ex) -> None:
@@ -246,6 +249,9 @@ def filterRows(outcome, field, values):
 def HeaderOnly(outcome):
     return stripField(outcome, b"path")
 
+def play_task(ctl, repeats, scenario):
+    for n in range(0,repeats):
+        ctl.play(scenario, True)
 
 class Matcher:
     def __init__(self, test_name) -> None:
@@ -277,16 +283,35 @@ class Matcher:
                 f"FAILED: {self.test_name}, {self.match_calls - self.succes_tally} of {self.match_calls} steps failed"
             )
 
-    def play(self, scenario):
+    
+    def play(self, scenario, no_finalize = False):
+        tasks = []
         for facet in scenario:
             if "debug" in facet:
                 pdb.set_trace()
+            if "parallel" in facet:
+                parallel = facet["parallel"]
+                repeats = parallel["repeats"]
+                name = parallel["name"]
+                task = threading.Thread(target=play_task, args=(self, repeats, parallel["steps"],))
+                task.start()
+                # task = asyncio.create_task(play_task(self, repeats, parallel["steps"]))
+                tasks.append(task)
+                print(f'\033[1;{1 + len(tasks) * 40}H{Style.RESET_ALL}{Fore.YELLOW}{Back.LIGHTGREEN_EX} Task started for: {name}\033[1E{Style.RESET_ALL}')
+                continue
+                
+            if "pace" in facet:    
+                pace = facet["pace"]
+                time.sleep(pace)
+                
             strip_set = facet["strip"] if "strip" in facet else None
             msg = f'#{1 + self.match_calls} {facet["step"]}'
             node = facet["node"]
             command = facet["command"]
             expects = facet["expects"]
-            if isinstance(strip_set, list):
+            if isinstance(expects, str):
+                self.by_strings(msg, node.execute_command(command), expects)
+            elif isinstance(strip_set, list):
                 self.by_sets(
                     msg,
                     stripField(node.execute_command(command), strip_set),
@@ -294,4 +319,5 @@ class Matcher:
                 )
             else:
                 self.by_sets(msg, node.execute_command(command), expects)
-        self.finalize()
+        if(no_finalize == False):
+            self.finalize()

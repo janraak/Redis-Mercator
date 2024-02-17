@@ -49,10 +49,10 @@ bool TextDialect::FlushIndexables(rax *collector, rxString key, int key_type, CS
 		int segments = 0;
 		rxString *parts = rxStringSplitLen(avp, indexablesIterator.key_len, "/", 1, &segments);
 		auto *indexable = (Indexable *)indexablesIterator.data;
-		rxString score = rxStringFormat("%f", rxGetIndexScoringMethod() == UnweightedIndexScoring
-											? indexable->sum_w 
-											: indexable->sum_w / (indexable->tally * indexable->tally)
-										);
+		char score[64];
+		snprintf(score, sizeof(score), "%f", rxGetIndexScoringMethod() == UnweightedIndexScoring
+								   ? indexable->sum_w
+								   : indexable->sum_w / (indexable->tally * indexable->tally));
 		// void *add_args[] = {(void *)key, (void *)KEYTYPE_TAGS[key_type], (void *)parts[0], (void *)parts[1], (void *)score, (void *)"0"};
 		// rxStashCommand2(persist_q, "RXADD", STASH_STRING, 6, add_args);
 		rcc = (redisReply *)redisCommand(client, "RXADD %s %s %s %s %s %s", key, KEYTYPE_TAGS[key_type], parts[0], parts[1], score, "0");
@@ -60,7 +60,6 @@ bool TextDialect::FlushIndexables(rax *collector, rxString key, int key_type, CS
 			freeReplyObject(rcc);
 		rxStringFreeSplitRes(parts, segments);
 		rxStringFree(avp);
-		rxStringFree(score);
 	}
 	raxStop(&indexablesIterator);
 

@@ -313,7 +313,7 @@ unsigned long  rxWriteHash(rxIndexEntry *hash, RedisModuleCtx *ctx, CGraphStack 
     else
     {
         RedisModule_ReplyWithArray(ctx, 2 * rxHashTypeLength(hash->obj));
-        tally = rxHashTraverse(hash->obj, WriteHasField, ctx);
+        tally = rxHashTraverseHere(hash->key, hash->obj, WriteHasField, ctx);
     }
     // delete object once emitted
     // rxFreeObject(hash); // TODO: Don't know if the hash is dynamic or from database

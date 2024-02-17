@@ -8,6 +8,7 @@
 
 using std::string;
 #include "sjiboleth-fablok.hpp"
+#include "sjiboleth.hpp"
 #include "sjiboleth.h"
 
 #include "../../deps/hiredis/hiredis.h"
@@ -31,6 +32,8 @@ extern "C"
 #endif
 #include "passthru-multiplexer.hpp"
 #include "rxQuery-multiplexer.hpp"
+
+#include "tls.hpp"
 
 // const char *AS_ARG = "AS";
 // const char *DEBUG_ARG = "DEBUG";
@@ -118,90 +121,82 @@ const char *HELP_STRING = "RX Query Commands:\n"
 #define STRINGTYPE 'S'
 #include "../../src/adlist.h"
 
-// rxString hashToJson(robj *o, rxString json)
-// {
-//     hashTypeIterator *hi = hashTypeInitIterator(o);
-//     rxString fieldsep = rxStringEmpty();
-//     while (hashTypeNext(hi) != C_ERR)
-//     {
-//         rxString field = hashTypeCurrentObjectNewSds(hi, OBJ_HASH_KEY);
-//         rxString value = hashTypeCurrentObjectNewSds(hi, OBJ_HASH_VALUE);
-//         json = rxStringFormat("%s%s%s\"%s\":\"%s\"", json, fieldsep, field, value);
-//         fieldsep = rxStringNew(", ");
-//     }
-//     hashTypeReleaseIterator(hi);
-//     json = rxStringFormat("%s%s", json, "}");
-//     return json;
-// }
+class QueryAsync : public Multiplexer
+{
+public:
+    rax *r;
+    SilNikParowy_Kontekst *e;
+    int fetch_rows;
+    bool ranked = false;
+    double ranked_lower_bound;
+    double ranked_upper_bound;
 
-// rxString asJson(dict *keyset)
-// {
-//     rxString json = rxStringNew("[");
-//     dictIterator *iter = dictGetSafeIterator(keyset);
-//     dictEntry *match;
-//     rxString objsep = rxStringEmpty();
-//     while ((match = dictNext(iter)))
-//     {
-//         robj *o = dictGetVal(match);
-//         json = rxStringFormat("%s%s{ \"key\":\"%s\", \"value\" : {", json, objsep, (char *)match->key);
-//         if (o->type == rxOBJ_TRIPLET)
-//         {
-//             Graph_Triplet *t = (Graph_Triplet *)o->ptr; // cn->value;
-//             if (t)
-//             {
-//                 // if (t->subject)
-//                 // {
-//                 //     json = hashToJson(t->subject, json);
-//                 //     json = rxStringFormat("%s%s", json, ", ");
-//                 // }
-//                 json = rxStringFormat("%s\"subject\":\"%s\"", json, t->subject_key);
-//                 json = rxStringFormat("%s, \"objects\":[", json);
-//                 listIter *eli = listGetIterator(t->edges, 0);
-//                 listNode *elnarglen;
-//                 rxString sep = rxStringEmpty();
-//                 while ((eln = listNext(eli)))
-//                 {
-//                     Graph_Triplet_Edge *e = (Graph_Triplet_Edge *)eln->value;
-//                     json = rxStringFormat("%s%s{\"object\":\"%s\", \"path\":[", json, sep, e->object_key);
-//                     // if (e->object)
-//                     //     json = hashToJson(e->object, json);
-//                     listIter *li = listGetIterator(e->path, 0);
-//                     listNode *ln;
-//                     rxString pathsep = rxStringEmpty();
-//                     while ((ln = listNext(li)))
-//                     {
-//                         rxString k = (rxString)ln->value;
-//                         json = rxStringFormat("%s%s\"%s\"", json, pathsep, k);
-//                         pathsep = rxStringNew(", ");
-//                     }
-//                     listReleaseIterator(li);
-//                     json = rxStringFormat("%s%s", json, "] }");
-//                     sep = rxStringNew(", ");
-//                 }
-//                 json = rxStringFormat("%s%s", json, "]");
-//                 listReleaseIterator(eli);
-//                 json = rxStringFormat("%s%s", json, "}");
-//             }
-//         }
-//         else if (o->type == OBJ_HASH)
-//         {
-//             json = hashToJson(o, json);
-//         }
-//         json = rxStringFormat("%s%s", json, "}");
-//         objsep = rxStringNew(", ");
-//     }
+    QueryAsync()
+        : Multiplexer()
+    {
+    }
 
-//     json = rxStringFormat("%s%s", json, "]");
-//     return json;
-// }
+    QueryAsync(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
+        : Multiplexer(argv, argc)
+    {
+        this->ctx = ctx;
+        this->r = NULL;
+        redisNodeInfo *index_config = rxIndexNode();
+        redisNodeInfo *data_config = rxDataNode();
+        if (data_config->executor == NULL)
+        {
+            auto e = new SilNikParowy_Kontekst(index_config, ctx);
+            data_config->executor = e;
+            index_config->executor = e;
+        }
 
-short executeQueryCommand(Sjiboleth *parser, const char *cmd, int fetch_rows, RedisModuleCtx *ctx, list *errors, bool ranked, double ranked_lower_bound, double ranked_upper_bound)
+        this->e = (SilNikParowy_Kontekst *)data_config->executor;
+        this->fetch_rows = 0;
+        this->ranked = false;
+        this->ranked_lower_bound = -1; // std::numeric_limits<double>::min();
+        this->ranked_upper_bound = std::numeric_limits<double>::max();
+    }
+
+    int Write(RedisModuleCtx *ctx)
+    {
+        if (this->r)
+        {
+            WriteResults(this->r, ctx, this->fetch_rows, NULL, this->ranked, this->ranked_lower_bound, this->ranked_upper_bound, this->e->fieldSelector, this->e->sortSelector);
+            if (e->CanDeleteResult())
+                FreeResults(this->r);
+        }
+        else
+            RedisModule_ReplyWithSimpleString(ctx, "No results!");
+        e->Reset();
+        return -1;
+    }
+
+    int Done()
+    {
+        return -1;
+    }
+
+    int Execute()
+    {
+        return -1;
+    };
+
+    void *StopThread()
+    {
+        this->state = Multiplexer::done;
+        return NULL;
+    }
+};
+
+static void *_allocateKontekst(void *data_config){
+    return new SilNikParowy_Kontekst(data_config, data_config);
+}
+
+short executeQueryCommand(QueryAsync *multiplexer, Sjiboleth *parser, const char *cmd, RedisModuleCtx *ctx, list *errors)
 {
     rxUNUSED(errors);
-    rxUNUSED(fetch_rows);
-
-    redisNodeInfo *index_config = rxIndexNode();
     redisNodeInfo *data_config = rxDataNode();
+
     auto *t = parser->Parse(cmd);
     short read_or_write = t->read_or_write;
     
@@ -211,9 +206,9 @@ short executeQueryCommand(Sjiboleth *parser, const char *cmd, int fetch_rows, Re
         writeParsedErrors(t, ctx);
         return read_or_write;
     }
-    auto *e = (SilNikParowy_Kontekst *)data_config->executor;
-    if (e)
+    if (multiplexer->e)
     {
+        auto e = multiplexer->e;
         if (e->fieldSelector)
         {
             delete e->fieldSelector;
@@ -225,22 +220,8 @@ short executeQueryCommand(Sjiboleth *parser, const char *cmd, int fetch_rows, Re
             e->sortSelector = NULL;
         }
     }
-    if (data_config->executor == NULL)
-    {
-        e = new SilNikParowy_Kontekst(index_config, ctx);
-        data_config->executor = e;
-        index_config->executor = e;
-    }
-    rax *r = e->Execute(t);
-    if (r)
-    {
-        WriteResults(r, ctx, fetch_rows, NULL, ranked, ranked_lower_bound, ranked_upper_bound, e->fieldSelector, e->sortSelector);
-        if (e->CanDeleteResult())
-            FreeResults(r);
-    }
-    else
-        RedisModule_ReplyWithSimpleString(ctx, "No results!");
-    e->Reset();
+    auto kontekst = tls_get<SilNikParowy_Kontekst *>((const char *)"SilNikParowy_Kontekst", _allocateKontekst, data_config);
+    multiplexer->r = kontekst->Execute(t);
     releaseQuery(t);
     return read_or_write;
 }
@@ -297,9 +278,9 @@ int executeParseCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     releaseParser(parser);
     rxStringFree(query);
     return REDISMODULE_OK;
-}
+};
 
-int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
+int executeQueryCommand(QueryAsync *multiplexer, RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     loadCtx = ctx;
     if (rxGetMemoryUsedPercentage() > 95.0)
@@ -311,12 +292,12 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     rxString cmd = (char *)rxGetContainedObject(argv[0]);
     const char *target_setname = NULL;
     rxStringToUpper(cmd);
-    int fetch_rows = strcmp(RX_GET, cmd) == 0 ? 1 : strcmp("Q", cmd) == 0 ? 1 : strcmp("G", cmd) == 0 ? 1 : 0;
+    multiplexer->fetch_rows = strcmp(RX_GET, cmd) == 0 ? 1 : strcmp("Q", cmd) == 0 ? 1 : strcmp("G", cmd) == 0 ? 1 : 0;
     rxString query = rxStringEmpty();
     rxString sv_query;
-    bool ranked = false;
-    double ranked_lower_bound = -1; // std::numeric_limits<double>::min();
-    double ranked_upper_bound = std::numeric_limits<double>::max();
+    multiplexer->ranked = false;
+    multiplexer->ranked_lower_bound = -1; // std::numeric_limits<double>::min();
+    multiplexer->ranked_upper_bound = std::numeric_limits<double>::max();
     int dialect_skippy = 0;
     size_t arg_len;
     for (int j = 1; j < argc; ++j)
@@ -334,21 +315,21 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         }
         else if (rxStringMatch(q, RANKED_ARG, MATCH_IGNORE_CASE))
         {
-            ranked = true;
+            multiplexer->ranked = true;
         }
         else if (rxStringMatch(q, OVER_ARG, MATCH_IGNORE_CASE))
         {
             ++j;
             q = (char *)RedisModule_StringPtrLen(argv[j], &arg_len);
-            ranked_lower_bound = atof(q);
-            ranked_upper_bound = std::numeric_limits<double>::max();
+            multiplexer->ranked_lower_bound = atof(q);
+            multiplexer->ranked_upper_bound = std::numeric_limits<double>::max();
         }
         else if (rxStringMatch(q, BELOW_ARG, MATCH_IGNORE_CASE))
         {
             ++j;
             q = (char *)RedisModule_StringPtrLen(argv[j], &arg_len);
-            ranked_lower_bound = std::numeric_limits<double>::min();
-            ranked_upper_bound = atof(q);
+            multiplexer->ranked_lower_bound = std::numeric_limits<double>::min();
+            multiplexer->ranked_upper_bound = atof(q);
         }
         else
         {
@@ -400,10 +381,10 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
             parser = QueryDialect::Get("QueryDialect");
         }
         list *errors = listCreate();
-        short read_or_write = executeQueryCommand(parser, (const char *)query + dialect_skippy, fetch_rows, ctx, errors, ranked, ranked_lower_bound, ranked_upper_bound);
+        short read_or_write = executeQueryCommand(multiplexer, parser, (const char *)query + dialect_skippy, ctx, errors);
         // Propage WRITE queries to replicas
         if(read_or_write != Q_READONLY)
-            rxAlsoPropagate(0, argv, argc, -1);
+            rxAlsoPropagate(0, (void**)argv, argc, -1);
         listRelease(errors);
         releaseParser(parser);
         rxStringFree(sv_query);
@@ -416,20 +397,27 @@ int executeQueryCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     }
 }
 
+void *QueryAsync_Go(void *privData)
+{
+    auto *multiplexer = (QueryAsync *)privData;
+    multiplexer->state = Multiplexer::running;
+
+    executeQueryCommand(multiplexer, multiplexer->ctx, multiplexer->argv, multiplexer->argc);
+    return multiplexer->StopThread();
+}
+
 int executeQueryAsyncCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
-    // redisNodeInfo *index_config = rxIndexNode();
-    redisNodeInfo *data_config = rxDataNode();
-    rxString cmd = (char *)rxGetContainedObject(argv[0]);
-    auto *multiplexer = new RxQueryMultiplexer(rxStashCommand2(NULL, cmd, 1, argc, (void **)argv), data_config);
-    multiplexer->Start(ctx);
-    return REDISMODULE_OK;
+     auto *multiplexer = new QueryAsync(ctx, argv, argc);
+    multiplexer->Async(ctx, QueryAsync_Go);
+
+    return C_OK;
 }
 
 int passthru(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     auto *multiplexer = new PassthruMultiplexer(argv, argc);
-    multiplexer->Start(ctx);
+    multiplexer->Async(ctx, PassthruAsync_Go);
     return REDISMODULE_OK;
 }
 
@@ -468,7 +456,7 @@ int addTypeTree(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     }
     RedisModule_ReplyWithSimpleString(ctx, typetree);
     rxStringFree((typetree));
-    rxAlsoPropagate(0, argv, argc, -1);
+    rxAlsoPropagate(0, (void**)argv, argc, -1);
     return REDISMODULE_OK;
 }
 
@@ -563,7 +551,7 @@ int executeLoadScriptCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int 
 
     rxMemFree(script_text);
 
-    rxAlsoPropagate(0, argv, argc, -1);
+    rxAlsoPropagate(0, (void**)argv, argc, -1);
 
     return REDIS_OK;
 }
@@ -599,17 +587,20 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     rxRegisterConfig((void **)argv, argc);
 
     if (RedisModule_CreateCommand(ctx, RX_QUERY,
-                                  executeQueryCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
+                                  executeQueryAsyncCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     if (RedisModule_CreateCommand(ctx, RX_GET,
-                                  executeQueryCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
+                                  executeQueryAsyncCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "Q",
-                                  executeQueryCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
+                                  executeQueryAsyncCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
     if (RedisModule_CreateCommand(ctx, "G",
-                                  executeQueryCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
+                                  executeQueryAsyncCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
+        return REDISMODULE_ERR;
+    if (RedisModule_CreateCommand(ctx, "GA",
+                                  executeQueryAsyncCommand, "readonly", 0, 0, 0) == REDISMODULE_ERR)
         return REDISMODULE_ERR;
 
     if (RedisModule_CreateCommand(ctx, RXCACHE,
@@ -646,6 +637,12 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     c = (struct client *)RedisClientPool<struct client>::Acquire(data_config->host_reference, "_CLIENT", RX_QUERY);
     RedisClientPool<struct client>::Release(c, RX_QUERY);
     rxServerLog(rxLL_NOTICE, "OnLoad rxQuery. Done!");
+
+    Sjiboleth::Get("QueryDialect");
+    Sjiboleth::Get("GremlinDialect");
+    Sjiboleth::Get("JsonDialect");
+    Sjiboleth::Get("TextDialect");
+
     return REDISMODULE_OK;
 }
 

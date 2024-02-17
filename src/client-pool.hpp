@@ -23,8 +23,10 @@ extern "C"
 template <typename T>
 class RedisClientPool
 {
+    static void Disconnect(T *c);
+
 public:
-      static  rax *Get_ClientPool_Registry();
+    static rax *Get_ClientPool_Registry();
 public:
     static rax *HostRegistry;
     static rax *Lookup;
@@ -46,7 +48,7 @@ public:
 
     static T *Acquire(const char *host_reference, const char *suffix, const char */*caller*/);
 
-    static void Release(T *client, const char */*caller*/);
+    static void Release(T *client, const char *caller);
 };
 
     char *extractStringFromRedisReply(redisReply *r, const char *field);

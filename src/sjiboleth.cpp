@@ -6,16 +6,19 @@
 
 #include <setjmp.h>
 #include <signal.h>
+#include <threads.h>
 
 #ifdef __cplusplus
 extern "C"
 {
 #endif
+
 #include "sdsWrapper.h"
 #ifdef __cplusplus
 }
 #endif
 #include "tls.hpp"
+void *rxMercatorShared = NULL;
 
 ParserToken::ParserToken()
 {
@@ -45,6 +48,13 @@ ParserToken *ParserToken::Init(eTokenType token_type,
     this->bracketResult = NULL;
     this->options = options;
     this->read_or_write = read_or_write;
+
+    this->n_calls = 0;
+    this->n_errors = 0;
+    this->us_calls = 0;
+    this->us_errors = 0;
+    this->n_setsize_in = 0;
+    this->n_setsize_out = 0;
     return this;
 }
 
@@ -95,6 +105,11 @@ ParserToken *ParserToken::Copy(ParserToken *base, long reference)
     return token;
 }
 
+void ParserToken::AggregateSizeSizes(long in, long out){
+    auto t = this->copy_of ? this->copy_of : this;
+    t->n_setsize_in += in;
+    t->n_setsize_out += out;
+}
 void ParserToken::ObjectExpression(ParsedExpression *objectExpression)
 {
     this->objectExpression = objectExpression;
@@ -371,6 +386,9 @@ bool ParserToken::Is(const char *aStr)
     // return true;
 }
 
+mtx_t Master_Registry_lock;
+int Master_Registry_lock_started =  mtx_init(&Master_Registry_lock, mtx_plain);
+
 bool Sjiboleth::ResetSyntax()
 {
     return false;
@@ -378,6 +396,7 @@ bool Sjiboleth::ResetSyntax()
 
 bool Sjiboleth::RegisterSyntax(const char *op, short token_priority, int inE, int outE, short read_or_write, operationProc *opf, int options)
 {
+    mtx_lock(&Master_Registry_lock);
     auto *t = ParserToken::New(op, _operator, token_priority, inE, outE, opf, options, read_or_write);
     void *old = NULL;
     raxRemove(this->registry, t->Operation(), t->OperationLength(), &old);
@@ -385,11 +404,13 @@ bool Sjiboleth::RegisterSyntax(const char *op, short token_priority, int inE, in
 
     if (old != NULL)
         FreeSyntax(old);
+    mtx_unlock(&Master_Registry_lock);
     return true;
 }
 
 bool Sjiboleth::RegisterSyntax(const char *op, short token_priority, int inE, int outE, short read_or_write, operationProc *opf, parserContextProc *pcf, int options)
 {
+    mtx_lock(&Master_Registry_lock);
     auto *t = ParserToken::New(op, _operator, token_priority, inE, outE, opf, options, read_or_write);
     void *old = NULL;
     raxRemove(this->registry, t->Operation(), t->OperationLength(), &old);
@@ -397,6 +418,7 @@ bool Sjiboleth::RegisterSyntax(const char *op, short token_priority, int inE, in
     raxInsert(this->registry, t->Operation(), t->OperationLength(), t, NULL);
     if (old != NULL)
         FreeSyntax(old);
+    mtx_unlock(&Master_Registry_lock);
     return true;
 }
 
@@ -433,11 +455,82 @@ ParserToken *Sjiboleth::LookupToken(rxString token)
     return NULL;
 }
 
+
+long long sjiboleth_stats_cron_id = -1;
+#define ms_5MINUTES (5 * 60 * 1000)
+#define ms_1MINUTE (1 * 60 * 1000)
+
 rax *Sjiboleth::Master_Registry = NULL;
+static long long sjiboleth_stats_last_stats = 0;
+int sjiboleth_stats_cron(struct aeEventLoop *, long long, void *clientData)
+{
+    if( (mstime() - sjiboleth_stats_last_stats) < ms_5MINUTES )
+        return ms_1MINUTE;
+
+    mtx_lock(&Master_Registry_lock);
+    raxIterator dialectIterator;
+    raxStart(&dialectIterator, clientData);
+    raxSeek(&dialectIterator, "^", NULL, 0);
+    while (raxNext(&dialectIterator))
+    {
+        rxString k = rxStringNewLen((const char *)dialectIterator.key, dialectIterator.key_len);
+        rxServerLog(rxLL_NOTICE, "Sjiboleth Execution statistices for: %-16s  [%p]", k, clientData);
+        rxStringFree(k);
+        raxIterator tokenIterator;
+        auto dialect = (Sjiboleth *)dialectIterator.data;
+        auto tokens = dialect->Registry();
+        if (tokens->numnodes)
+        {
+            raxStart(&tokenIterator, tokens);
+            raxSeek(&tokenIterator, "^", NULL, 0);
+                    rxServerLog(rxLL_NOTICE, "... %16s %10s %12s %10s %12s %12s %12s", 
+                    "Function", 
+                    "calls", 
+                    "avg (us)", 
+                    "errors", 
+                    "avg (us)",
+                    "avg in",
+                    "avg out");
+            while (raxNext(&tokenIterator))
+            {
+                auto t = (ParserToken *)tokenIterator.data;
+                if ((t->n_calls + t->n_errors) > 0 )
+                {
+                    rxString i = rxStringNewLen((const char *)tokenIterator.key, tokenIterator.key_len);
+                    rxServerLog(rxLL_NOTICE, "... %16s %10lld %12.2f %10lld %12.2f %12.2f %12.2f", 
+                    i, 
+                    t->n_calls, 
+                    t->n_calls > 0 ? t->us_calls * 1.0 / t->n_calls : 0, 
+                    t->n_errors, 
+                    t->n_errors > 0 ? t->us_errors * 1.0 / t->n_errors : 0, 
+                    t->n_calls > 0 ? t->n_setsize_in * 1.0 / t->n_calls : 0, 
+                    t->n_calls > 0 ? t->n_setsize_out * 1.0 / t->n_calls : 0);
+                    rxStringFree(i);
+                }
+            }
+            raxStop(&tokenIterator);
+        }
+    }
+    raxStop(&dialectIterator);
+    mtx_unlock(&Master_Registry_lock);
+    sjiboleth_stats_last_stats = mstime();
+
+    return ms_1MINUTE;
+}
+
+rax *Sjiboleth::Registry(){
+    return this->registry;
+}
 rax *Sjiboleth::Get_Master_Registry()
 {
-    if (Sjiboleth::Master_Registry == NULL)
+    if (Sjiboleth::Master_Registry == NULL){
         Sjiboleth::Master_Registry = raxNew();
+    }
+    // if(sjiboleth_stats_cron_id < 0){
+    //     sjiboleth_stats_cron_id = rxCreateTimeEvent(1, (aeTimeProc *)sjiboleth_stats_cron, Sjiboleth::Master_Registry, NULL);
+    //     rxServerLog(rxLL_NOTICE, "Sjiboleth stats cron started on %p => %lld", Sjiboleth::Master_Registry, sjiboleth_stats_cron_id);
+    //     sjiboleth_stats_cron(NULL, 0, Sjiboleth::Master_Registry);
+    // }
     return Sjiboleth::Master_Registry;
 }
 
@@ -484,13 +577,16 @@ Sjiboleth::~Sjiboleth()
 
 void *_allocateDialect(void *)
 {
-    return raxNew();
+    auto r = raxNew();
+    sjiboleth_stats_cron_id = rxCreateTimeEvent(1, (aeTimeProc *)sjiboleth_stats_cron, r, NULL);
+    sjiboleth_stats_cron(NULL, 0, r);
+    return r;
 }
 
 Sjiboleth *Sjiboleth::Get(const char *dialect)
 {
-    auto *master = tls_get<rax *>((const char *)"Sjiboleth", _allocateDialect, NULL);
-    // auto *master = Sjiboleth::Get_Master_Registry();
+    // auto *master = tls_get<rax *>((const char *)"Sjiboleth", _allocateDialect, NULL);
+    auto *master = Sjiboleth::Get_Master_Registry();
     size_t dialect_len = strlen(dialect);
     auto *parser = (Sjiboleth *)raxFind(master, (UCHAR *)dialect, dialect_len);
     if (parser == raxNotFound)
@@ -543,3 +639,18 @@ SilNikParowy *TextDialect::GetEngine()
 {
     return new SilNikParowy();
 }
+
+void *Sjiboleth::Startup(){
+    if(!Sjiboleth::Master_Registry)
+        Sjiboleth::Master_Registry = Sjiboleth_Master_Registry();
+    Sjiboleth::Get("QueryDialect");
+    Sjiboleth::Get("GremlinDialect");
+    Sjiboleth::Get("JsonDialect");
+    Sjiboleth::Get("TextDialect");
+    sjiboleth_stats_cron_id = rxCreateTimeEvent(1, (aeTimeProc *)sjiboleth_stats_cron, Sjiboleth::Master_Registry, NULL);
+    rxServerLog(rxLL_NOTICE, "Sjiboleth stats cron started on %p => %lld", Sjiboleth::Master_Registry, sjiboleth_stats_cron_id);
+    sjiboleth_stats_cron(NULL, 0, Sjiboleth::Master_Registry);
+    return Sjiboleth::Get_Master_Registry();
+}
+
+void *startUp = Sjiboleth::Startup();

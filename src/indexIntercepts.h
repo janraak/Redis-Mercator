@@ -49,12 +49,17 @@ typedef struct indexerThread
     SimpleQueue *index_rxRuleApply_request_queue;
     SimpleQueue *index_rxRuleApply_respone_queue;
 
-    int field_index_tally;
-    int rxbegin_tally;
-    int rxadd_tally;
-    int rxcommit_tally;
-    int set_tally;
-    int hset_tally;
+    size_t field_index_tally;
+    size_t rxbegin_tally;
+    size_t rxadd_tally;
+    size_t rxcommit_tally;
+    size_t set_tally;
+    size_t hset_tally;
+
+    size_t object_index_enqueued_tally;
+    size_t object_index_dequeued_tally;
+    size_t key_triggered_enqueued_tally;
+    size_t key_triggered_dequeued_tally;
 
     long long start_batch_ms;
     void *executor;

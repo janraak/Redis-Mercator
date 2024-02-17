@@ -2,13 +2,13 @@ import redis
 from match import Matcher, HeaderOnly
 
 def SD_102_Traversing_a_Redis_Database_Redis_as_a_GraphDB(cluster_id, controller, data, index):
+
     matcher = Matcher("SD_102_Traversing_a_Redis_Database_Redis_as_a_GraphDB")
 
     scenario = [
         {"step": "get test data", "node": data, "command": "g.wget https://roxoft.dev/assets/bedrock1.txt", "expects": b'bedrock1.txt'},
         {"step": "load test data", "node": data, "command": "g.set FILE bedrock1.txt", "expects": b'OK'},
         {"step": "Fred as hash", "node": data, "command": "HGETALL fred", "expects": {b'age': b'40', b'type': b'male', b'name': b'Fred Flintstone', b'image': b"%3cimg src='Stories/assets/fred.jpg' width='50px'  max-width='50px'   max-heigth='50px' /%3e"}},
-        {"step": "wait indexing completed", "node": data, "command": "rxIndex wait", "expects": b'OK'},
 
         {"step": "verify TRAVERSE All Males", "node":data, "command": "rxquery G:v(male)", "expects": [b'key', b'chip', b'type', b'H', b'score', b'1.000000', b'key', b'fred', b'type', b'H', b'score', b'1.000000', b'key', b'bambam', b'type', b'H', b'score', b'1.000000', b'key', b'barney', b'type', b'H', b'score', b'1.000000', b'key', b'mrslate', b'type', b'H', b'score', b'1.000000']},
         {"step": "verify TRAVERSE Fred and Dino", "node":data, "command": "rxquery G:v().out(owner)", "expects": [b'key', b'bqgc', b'key', b'dino', b'key', b'fred', b'key', b'mrslate'], "strip": [b'value',b'score']},
@@ -18,4 +18,3 @@ def SD_102_Traversing_a_Redis_Database_Redis_as_a_GraphDB(cluster_id, controller
         {"step": "Frankenstones: match(freaky,atrocia)", "node":data, "command": "G match(freaky,atrocia)", "expects": [[b'subject', b'freaky', b'length', b'2', b'object', b'atrocia', b'path', [[b'freaky', b'0'], [b'mother:frank:freaky', b'0.5'], [b'frank', b'0.5'], [b'daughter:atrocia:frank', b'0.5'], [b'atrocia', b'0.5']]]], "strip": [b'value',b'score']},
     ]
     matcher.play(scenario)
-
