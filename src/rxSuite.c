@@ -1,4 +1,6 @@
 #include "rxSuite.h"
+#include "pthread.h"
+#include <stdatomic.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -15,26 +17,93 @@ extern "C"
 extern int rxIsRehashingDatabase(int db);
 
 typedef const char *rxRedisModuleString;
-static rxSuiteShared rxMercatorConfig;
 
-extern void *rxMercatorShared;
+// long long n_enq_triggeredKeys;
+// long long n_deq_triggeredKeys;
+// long long us_enq_triggeredKeys;
+// long long n_done_triggeredKeys;
+// long long n_triggeredKeys;
+// long long n_triggeredKey_spins;
+// long long us_triggeredKey_spins;
+// long long n_processingTriggered;
+// long long us_processingTriggered;
+// long long n_enq_touchedKeys;
+// long long us_enq_touchedKeys;
+// long long n_renq_touchedKeys;
+// long long n_deq_touchedKeys;
+// long long n_done_touchedKeys;
+// long long n_touchedKeys;
+// long long n_touchedKey_spins;
+// long long us_touchedKey_spins;
+// long long n_indexed;
+// long long us_indexed;
+// long long n_hset;
+// long long us_hset;
+// long long us_hset_key_block;
+// long long us_hset_std;
+// long long us_hset_enqueue;
+
+// long long us_enqueue_outside;
+// long long us_enqueue_inside;
+// long long us_enqueue_pool1;
+// long long us_enqueue_pool2;
+// long long n_enqueue_pool1;
+// long long n_enqueue_pool2;
+
+// long long n_lookupByLookup;
+// long long us_lookupByLookup;
+// long long n_lookupByDict;
+// long long us_lookupByDict;
+// long long n_lookupByScan;
+// long long us_lookupByScan;
+// long long n_lookupNotFound;
+// long long us_lookupNotFound;
+
+// rxCounter enq_triggeredKeys = {"enq_triggeredKeys", 0, 0, 0, 0};
+// rxCounter deq_triggeredKeys = {"deq_triggeredKeys", 0, 0, 0, 0};
+// rxCounter enq_triggeredKeys = {"", 0, 0, 0, 0};
+// rxCounter enq_triggeredKeys = {"", 0, 0, 0, 0};
+// rxCounter enq_triggeredKeys = {"", 0, 0, 0, 0};
+// rxCounter enq_triggeredKeys = {"", 0, 0, 0, 0};
+// rxCounter enq_triggeredKeys = {"", 0, 0, 0, 0};
+// rxCounter enq_triggeredKeys = {"", 0, 0, 0, 0};
+// rxCounter enq_triggeredKeys = {"", 0, 0, 0, 0};
+// rxCounter enq_triggeredKeys = {"", 0, 0, 0, 0};
+// rxCounter enq_triggeredKeys = {"", 0, 0, 0, 0};
+// rxCounter enq_triggeredKeys = {"", 0, 0, 0, 0};
+// rxCounter enq_triggeredKeys = {"", 0, 0, 0, 0};
+// rxCounter enq_triggeredKeys = {"", 0, 0, 0, 0};
+// rxCounter enq_triggeredKeys = {"", 0, 0, 0, 0};
 
 void *initRxSuite()
 {
-    if (!rxMercatorShared)
+
+    if (!server.rxMercator)
     {
-        rxSuiteShared *shared = &rxMercatorConfig;
-        // zmalloc(sizeof(rxSuiteShared));
+        rxSuiteShared *shared = zmalloc(sizeof(rxSuiteShared));
         memset(shared, 0x00, sizeof(rxSuiteShared));
+
         shared->parserClaimCount = 0;
         shared->debugMessages = 0;
-        rxMercatorShared = shared;
+        server.rxMercator = shared;
+
+        shared->IndexingHandler = NULL;
+        shared->nIndexingRequests = 0;
+        shared->TriggerHandler = NULL;
+        shared->nTriggerRequests = 0;
+        shared->ThPoolSz = 0;
+
+        shared->thpool = thpool_init(THREADPOOL_SIZE);
+        shared->ThPoolSz = THREADPOOL_SIZE;
+
         shared->triggeredKeys = raxNew();
         shared->processingTriggeredKeys = raxNew();
         mtx_init(&shared->triggeredKeysLock, mtx_plain);
         shared->indexableKeys = raxNew();
         shared->indexingKeys = raxNew();
         mtx_init(&shared->indexableKeysLock, mtx_plain);
+        sem_init(&shared->signpost_indexing, 0, 0);
+        sem_init(&shared->signpost_triggering, 0, 0);
         shared->n_enq_triggeredKeys = 0;
         shared->us_enq_triggeredKeys = 0;
         shared->n_deq_triggeredKeys = 0;
@@ -45,6 +114,7 @@ void *initRxSuite()
         shared->n_processingTriggered = 0;
         shared->us_processingTriggered = 0;
         shared->n_enq_touchedKeys = 0;
+        shared->n_renq_touchedKeys = 0;
         shared->us_enq_touchedKeys = 0;
         shared->n_deq_touchedKeys = 0;
         shared->n_done_touchedKeys = 0;
@@ -74,9 +144,9 @@ void *initRxSuite()
         shared->n_lookupNotFound = 0;
         shared->us_lookupNotFound = 0;
 
-        shared->requestHashSnapshotKeys = raxNew();
-        shared->responseHashSnapshotKeys = raxNew();
-        shared->releaseHashSnapshotKeys = raxNew();
+        shared->snapShotRequests = raxNew();
+        shared->snapshotResponses = raxNew();
+        shared->snapshotReleases = raxNew();
 
         shared->n_snapshots_cron = 0;
         shared->us_snapshots_cron = 0;
@@ -94,7 +164,18 @@ void *initRxSuite()
         shared->us_hash_snapshot_response = 0;
         shared->n_hash_snapshot_release = 0;
         shared->us_hash_snapshot_release = 0;
-        mtx_init(&shared->HashSnapshotLock, mtx_plain);
+
+        shared->n__set_snapshots = 0;
+        shared->us_set_snapshots = 0;
+
+        shared->n_set_snapshot_request = 0;
+        shared->us_set_snapshot_request = 0;
+        shared->n_set_snapshot_response = 0;
+        shared->us_set_snapshot_response = 0;
+        shared->n_set_snapshot_release = 0;
+        shared->us_set_snapshot_release = 0;
+        shared->us_snapshots_cron_yield = 0;
+        mtx_init(&shared->SnapshotLock, mtx_plain);
 
         shared->sjeboleth_master_registry = NULL;
 
@@ -106,14 +187,14 @@ void *initRxSuite()
         shared->indexNode.port = server.port;
         shared->indexNode.database_id = 0;
         shared->indexNode.is_local = 0;
-        shared->indexNode.executor = NULL;
+        // shared->indexNode.executor = NULL;
 
         shared->dataNode.host_reference = sdsnew(default_address);
         shared->dataNode.host = sdsnew("127.0.0.1");
         shared->dataNode.port = server.port;
         shared->dataNode.database_id = 0;
         shared->dataNode.is_local = 0;
-        shared->dataNode.executor = NULL;
+        // shared->dataNode.executor = NULL;
         shared->defaultQueryOperator = sdsnew("&");
 
         shared->controllerNode.host_reference = sdsnew(default_address);
@@ -121,33 +202,58 @@ void *initRxSuite()
         shared->controllerNode.port = server.port;
         shared->controllerNode.database_id = 0;
         shared->controllerNode.is_local = 0;
-        shared->controllerNode.executor = NULL;
-        rxMercatorShared = shared;
+        // shared->controllerNode.executor = NULL;
+        server.rxMercator = shared;
     }
-    return rxMercatorShared;
+    return server.rxMercator;
 }
 
 rxSuiteShared *getRxSuite()
 {
-    if (rxMercatorShared == NULL)
+    if (server.rxMercator == NULL)
         initRxSuite();
-    return rxMercatorShared;
+    return server.rxMercator;
 }
 
 void finalizeRxSuite()
 {
-    if (!rxMercatorShared)
+    if (!server.rxMercator)
     {
-        rxMemFree(rxMercatorShared);
+        rxMemFree(server.rxMercator);
     }
 }
 
-rax *Sjiboleth_Master_Registry()
+void SetIndexingHandler(runner handler)
+{
+    rxSuiteShared *shared = initRxSuite();
+    shared->IndexingHandler = handler;
+}
+
+void CommencedIndexingHandler()
+{
+    rxSuiteShared *shared = initRxSuite();
+    shared->nIndexingRequests--;
+}
+void SetTriggerHandler(runner handler)
+{
+    rxSuiteShared *shared = initRxSuite();
+    shared->TriggerHandler = handler;
+}
+void CommencedTriggerHandler()
+{
+    rxSuiteShared *shared = initRxSuite();
+    shared->nTriggerRequests--;
+}
+
+rax *Sjiboleth_Master_Registry(timeProc cron)
 {
     rxSuiteShared *config = getRxSuite();
     if (!config->sjeboleth_master_registry)
     {
         config->sjeboleth_master_registry = raxNew();
+        if(cron){
+            aeCreateTimeEvent(server.el, 0, cron, config->sjeboleth_master_registry, NULL);            
+        }
     }
     return config->sjeboleth_master_registry;
 }
@@ -315,7 +421,7 @@ void rxSetDataRoot(const char *s)
     config->wget_root = sdsnew(s);
 }
 
-static int actionForKey(rax *pool, rax *poolT, mtx_t *lock, const char *k, void *d)
+static int addActionForKey(rax *pool, mtx_t *lock, snapshot_request *k)
 {
     rxSuiteShared *shared = initRxSuite();
 
@@ -324,25 +430,13 @@ static int actionForKey(rax *pool, rax *poolT, mtx_t *lock, const char *k, void 
     // if (lock)
     mtx_lock(lock);
     long long stop1 = ustime();
-    void *memo = raxFind(pool, (UCHAR *)k, strlen(k));
+    void *memo = raxFind(pool, (UCHAR *)k->k, k->k_len);
     if (memo == raxNotFound)
     {
-        long long start = mstime();
-        raxInsert(pool, (UCHAR *)k, strlen(k), d ? d : (void *)start, NULL);
+        raxInsert(pool, (UCHAR *)k->k, k->k_len, k, NULL);
         nAdded = 1;
     }
     long long stop2 = ustime();
-    if (poolT)
-    {
-        shared->n_enqueue_pool2++;
-        memo = raxFind(poolT, (UCHAR *)k, strlen(k));
-        if (memo == raxNotFound)
-        {
-            long long start = mstime();
-            raxInsert(poolT, (UCHAR *)k, strlen(k), d ? d : (void *)start, NULL);
-            nAdded = 1;
-        }
-    }
     long long stop3 = ustime();
     // if (lock)
     mtx_unlock(lock);
@@ -352,19 +446,21 @@ static int actionForKey(rax *pool, rax *poolT, mtx_t *lock, const char *k, void 
     shared->us_enqueue_outside += stop4 - start;
     shared->us_enqueue_inside += stop3 - stop1;
     shared->us_enqueue_pool1 += stop2 - stop1;
-    if (poolT)
-        shared->us_enqueue_pool2 += stop3 - stop2;
 
+    if (nAdded == 0)
+        shared->n_renq_touchedKeys++;
+
+    // rxServerLog(rxLL_NOTICE, "#addActionForKey# 9999 inqueue:%d tally:%d pool:%p type:%d len:%d %s", raxSize(pool), nAdded, pool, k->type, k->k_len, k->k);
     return nAdded;
 }
-
-#define INDEXING_DELAY_ms 2500 /* = 500 ms = 0.5s*/
-static const char *getActionKey(rax *pool, mtx_t *lock, long long *queue_time)
+#define INDEXING_NO_DELAY_ms 0   /* = 0 ms = 0s*/
+#define INDEXING_DELAY_ms 500000 /* = 500 ms = 0.5s*/
+static snapshot_request *getActionKey(rax *pool, mtx_t *lock, long long *queue_time, long long delay)
 {
     if (rxIsRehashingDatabase(0))
         return NULL;
 
-    const char *k = NULL;
+    snapshot_request *k = NULL;
     mtx_lock(lock);
     {
         raxIterator ki;
@@ -372,14 +468,13 @@ static const char *getActionKey(rax *pool, mtx_t *lock, long long *queue_time)
         raxSeek(&ki, "^", NULL, 0);
         while (raxNext(&ki))
         {
-            long long now = mstime();
-            if ((now - ((long long)ki.data)) > INDEXING_DELAY_ms)
+            long long now = ustime();
+            if ((now - (((snapshot_request *)ki.data)->enqueued)) > delay)
             {
-                k = rxStringNewLen((const char *)ki.key, ki.key_len);
-                long long start;
-                raxRemove(pool, ki.key, ki.key_len, (void *)&start);
+                raxRemove(pool, (UCHAR *)ki.key, ki.key_len, (void *)&k);
+                k->dequeued = ustime();
                 if (queue_time)
-                    *queue_time = *queue_time + now - start;
+                    *queue_time = *queue_time + k->dequeued - k->enqueued;
 
                 break;
             }
@@ -390,12 +485,12 @@ static const char *getActionKey(rax *pool, mtx_t *lock, long long *queue_time)
     return k;
 }
 
-static void *getActionData(rax *pool, mtx_t *lock)
+static snapshot_request *getActionData(rax *pool, mtx_t *lock)
 {
     if (rxIsRehashingDatabase(0))
         return NULL;
 
-    void *d = NULL;
+    snapshot_request *d = NULL;
     mtx_lock(lock);
     {
         raxIterator ki;
@@ -422,57 +517,82 @@ static size_t getPending(rax *pool, mtx_t *lock)
     return tally;
 }
 
-#define mstimeMAX_SPIN_ms 50 /* = 50 ms = 0.05sec */
+snapshot_request *SnapShotRequestNew(const char *k, short type)
+{
+    size_t k_len = strlen(k);
+    size_t cob_size = sizeof(snapshot_request) + k_len + 1;
+    snapshot_request *req = rxMemAlloc(cob_size);
+    memset(req, 0x00, cob_size);
+    req->type = type;
+    req->k_len = k_len;
+    req->k = (const char *)((void *)req) + sizeof(snapshot_request);
+    strncpy((char *)req->k, k, k_len + 1);
+    req->enqueued = ustime();
+    return req;
+}
+
+#define mstimeMAX_SPIN_ms 500000 /* = 50 ms = 0.05sec */
+
+static void SchedulePendingWork(rxSuiteShared *config)
+{
+    if (raxSize(config->indexableKeys) > config->ThPoolSz)
+        // for (int n = 0; n < config->ThPoolSz; ++n)
+            addTaskToPool(config->IndexingHandler, config);
+    if (raxSize(config->triggeredKeys) > config->ThPoolSz)
+        addTaskToPool(config->TriggerHandler, config);
+}
 
 int KeyTouched(const char *k)
 {
     rxSuiteShared *config = initRxSuite();
+    // rxServerLog(rxLL_NOTICE, "#KeyTouched# 0000 I:%p T:%p", config->indexableKeys, config->triggeredKeys);
+    snapshot_request *reqI = SnapShotRequestNew(k, -1);
+    snapshot_request *reqT = SnapShotRequestNew(k, -2);
+
     config->n_touchedKeys++;
-    // long long start = mstime();
-    // int spin = 0;
-    // while ((mstime() - start) < mstimeMAX_SPIN_ms)
-    // {
-    //     // mtx_lock(&config->triggeredKeysLock);
-    //     // mtx_lock(&config->indexableKeysLock);
-    //     void *memo1 = raxSize(config->indexingKeys) == 0 ? raxNotFound : raxFind(config->indexingKeys, (UCHAR *)k, strlen(k));
-    //     void *memo2 = raxSize(config->processingTriggeredKeys) == 0 ? raxNotFound : raxFind(config->processingTriggeredKeys, (UCHAR *)k, strlen(k));
-    //     // mtx_unlock(&config->indexableKeysLock);
-    //     // mtx_unlock(&config->triggeredKeysLock);
-    //     if (memo1 == raxNotFound && memo2 == raxNotFound)
-    //     {
-    //         break;
-    //     }
-    //     spin++;
-    //     sched_yield();
-    // }
-    // if (spin)
-    // {
-    //     config->us_touchedKey_spins += mstime() - start;
-    //     config->n_touchedKey_spins += spin;
-    // }
-    int tally = actionForKey(config->indexableKeys, config->triggeredKeys, &config->indexableKeysLock, k, NULL);
-    config->n_enq_touchedKeys += tally;
-    return tally;
+    int tallyI = addActionForKey(config->indexableKeys, &config->indexableKeysLock, reqI);
+    if (tallyI && config->IndexingHandler && config->nIndexingRequests < (config->ThPoolSz - config->nIndexingRequests))
+    {
+        addTaskToPool(config->IndexingHandler, config);
+        config->nIndexingRequests++;
+    }
+    int tallyT = addActionForKey(config->triggeredKeys, &config->indexableKeysLock, reqT);
+    if (tallyI && config->TriggerHandler && config->nTriggerRequests < (config->ThPoolSz - config->nTriggerRequests))
+    {
+        addTaskToPool(config->TriggerHandler, config);
+        config->nTriggerRequests++;
+    }
+    config->n_enq_touchedKeys += tallyI;
+    config->n_enq_triggeredKeys += tallyT;
+    // sem_post(&config->signpost_indexing);
+    // sem_post(&config->signpost_triggering);
+    return tallyI + tallyT;
 }
 
 int PendingKeysTriggered()
 {
     rxSuiteShared *config = initRxSuite();
+    SchedulePendingWork(config);
     return getPending(config->triggeredKeys, &config->indexableKeysLock);
 }
 
 int PendingObjectForIndexing()
 {
     rxSuiteShared *config = initRxSuite();
+    SchedulePendingWork(config);
     return getPending(config->indexableKeys, &config->indexableKeysLock);
 }
 
+/*
+    For a key being indexed or triggered, wait for a completion
+*/
 int WaitForIndexAndTriggerCompletionKeyTouched(const char *k)
 {
+    return 0;
     rxSuiteShared *config = initRxSuite();
-    long long start = mstime();
+    long long start = ustime();
     int spin = 0;
-    while ((mstime() - start) < mstimeMAX_SPIN_ms)
+    while ((ustime() - start) < mstimeMAX_SPIN_ms)
     {
         // mtx_lock(&config->indexableKeysLock);
         mtx_lock(&config->indexableKeysLock);
@@ -489,7 +609,7 @@ int WaitForIndexAndTriggerCompletionKeyTouched(const char *k)
     }
     if (spin)
     {
-        config->us_touchedKey_spins += (mstime() - start);
+        config->us_touchedKey_spins += (ustime() - start);
         config->n_touchedKey_spins += spin++;
         config->n_triggeredKey_spins += spin++;
     }
@@ -497,48 +617,58 @@ int WaitForIndexAndTriggerCompletionKeyTouched(const char *k)
     return spin;
 }
 
-const char *getTriggeredKey()
+snapshot_request *getTriggeredKey()
 {
     rxSuiteShared *config = initRxSuite();
-    const char *k = getActionKey(config->triggeredKeys, &config->indexableKeysLock, &config->us_enq_triggeredKeys);
+    snapshot_request *k = getActionKey(config->triggeredKeys, &config->indexableKeysLock, &config->us_enq_triggeredKeys, INDEXING_DELAY_ms);
     if (k)
     {
-        actionForKey(config->processingTriggeredKeys, NULL, &config->indexableKeysLock, k, NULL);
+        // rxServerLog(rxLL_NOTICE, "#getTriggeredKey# 1000 pool:%p type:%d len:%d %s", config->processingTriggeredKeys, k->type, k->k_len, k->k);
+        addActionForKey(config->processingTriggeredKeys, &config->indexableKeysLock, k);
         config->n_deq_triggeredKeys++;
+    }else if(raxSize(config->triggeredKeys)){
+        SchedulePendingWork(config);
     }
     return k;
 }
 
-const char *getIndexableKey()
+snapshot_request *getIndexableKey()
 {
     rxSuiteShared *config = initRxSuite();
-    const char *k = getActionKey(config->indexableKeys, &config->indexableKeysLock, &config->us_enq_touchedKeys);
+    snapshot_request *k = getActionKey(config->indexableKeys, &config->indexableKeysLock, &config->us_enq_touchedKeys, INDEXING_DELAY_ms);
     if (k)
     {
-        actionForKey(config->indexingKeys, NULL, &config->indexableKeysLock, k, NULL);
+        // rxServerLog(rxLL_NOTICE, "#getIndexableKey# 1000 pool:%p type:%d len:%d %s", config->processingTriggeredKeys, k->type, k->k_len, k->k);
+        addActionForKey(config->indexingKeys, &config->indexableKeysLock, k);
+        k->dequeued = ustime();
         config->n_deq_touchedKeys++;
+    } else if(raxSize(config->indexingKeys)){
+        SchedulePendingWork(config);
     }
     return k;
 }
 
-void freeIndexedKey(const char *k)
+void freeIndexedKey(snapshot_request *k)
 {
     rxSuiteShared *config = initRxSuite();
     mtx_lock(&config->indexableKeysLock);
-    long long start = mstime();
-    raxRemove(config->indexingKeys, (UCHAR *)k, strlen(k), (void *)&start);
-    config->us_indexed += mstime() - start;
+    snapshot_request *start = NULL;
+    raxRemove(config->indexingKeys, (UCHAR *)k->k, k->k_len, (void *)&start);
+    k->completed = ustime();
+    config->us_indexed += k->completed - k->enqueued;
     config->n_done_touchedKeys += 1;
     mtx_unlock(&config->indexableKeysLock);
 }
 
-void freeTriggerProcessedKey(const char *k)
+void freeTriggerProcessedKey(snapshot_request *req)
 {
     rxSuiteShared *config = initRxSuite();
     mtx_lock(&config->indexableKeysLock);
-    long long start;
-    raxRemove(config->processingTriggeredKeys, (UCHAR *)k, strlen(k), (void *)&start);
-    config->us_processingTriggered += mstime() - start;
+    snapshot_request *start = NULL;
+    raxRemove(config->processingTriggeredKeys, req->k, req->k_len, (void *)&start);
+    // rxServerLog(rxLL_NOTICE, "freeTriggerProcessedKey()=>%p %s %p", req, req->k, start);
+    req->completed = ustime();
+    config->us_processingTriggered += req->completed - req->enqueued;
     config->n_done_triggeredKeys += 1;
     mtx_unlock(&config->indexableKeysLock);
 }
@@ -578,101 +708,83 @@ void logLookupStats(long long start, long long stop1, long long stop2, long long
     }
 }
 
-int RequestSnapshotKey(const char *k)
+int RequestHashSnapshot(const char *k)
 {
     rxSuiteShared *config = initRxSuite();
-    long long start = mstime();
-    int tally = actionForKey(config->requestHashSnapshotKeys, NULL, &config->HashSnapshotLock, k, NULL);
+    snapshot_request *req = SnapShotRequestNew(k, OBJ_HASH);
+    int tally = addActionForKey(config->snapShotRequests, &config->SnapshotLock, req);
     config->n_hash_snapshot_request += tally;
-    config->us_hash_snapshot_request += mstime() - start;
-    // serverLog(LL_NOTICE, "..RequestSnapshotKey %s => %d", k, tally);
+    config->us_hash_snapshot_request += ustime() - req->enqueued;
+    // serverLog(LL_NOTICE, "..RequestHashSnapshot %s => %d", k, tally);
+    SchedulePendingWork(config);
     return tally;
 }
 
-int ResponseSnapshotKey(const char *k, rxHashFieldAndValues *s)
+int ResponseHashSnapshot(snapshot_request *k)
 {
-    if (s->signature != 20697227649722765)
-    {
-        serverLog(LL_NOTICE, "#ResponseSnapshotKey# corrupted rxHashFieldAndValues %p signature %lld != 20697227649722765", s, s->signature);
-    }
-
+    k->completed = ustime();
     rxSuiteShared *config = initRxSuite();
-    long long start = mstime();
-    int tally = actionForKey(config->responseHashSnapshotKeys, NULL, &config->HashSnapshotLock, k, s);
+    int tally = addActionForKey(config->snapshotResponses, &config->SnapshotLock, k);
     config->n_hash_snapshot_response += tally;
-    config->us_hash_snapshot_response += mstime() - start;
-    // serverLog(LL_NOTICE, "..ResponseSnapshotKey %s %p => %d", k, s, tally);
+    config->us_hash_snapshot_response += k->completed - k->dequeued;
+    // serverLog(LL_NOTICE, "..ResponseHashSnapshot %s %p => %d", k, s, tally);
     return tally;
 }
 
-int ReleaseSnapshotKey(const char *k, rxHashFieldAndValues *s)
+int ReleaseSnapshot(snapshot_request *k)
 {
-    if (s->signature != 20697227649722765)
-    {
-        serverLog(LL_NOTICE, "#ReleaseSnapshotKey# corrupted rxHashFieldAndValues %p signature %lld != 20697227649722765", s, s->signature);
-    }
+    k->released = ustime();
     rxSuiteShared *config = initRxSuite();
-    long long start = mstime();
-    int tally = actionForKey(config->releaseHashSnapshotKeys, NULL, &config->HashSnapshotLock, k, s);
+    k->completed = ustime();
+    int tally = addActionForKey(config->snapshotReleases, &config->SnapshotLock, k);
     config->n_hash_snapshot_release += tally;
-    config->us_hash_snapshot_release += mstime() - start;
-    // serverLog(LL_NOTICE, "..ReleaseSnapshotKey %s %p => %d", k, s, tally);
+    config->us_hash_snapshot_release += k->released - k->completed;
+    // serverLog(LL_NOTICE, "..ReleaseSnapshot %s %p => %d", k, s, tally);
     return tally;
 }
 
-const char *nextSnapshotKey(const char **kk)
+snapshot_request *nextHashSnapshot(snapshot_request **kk)
 {
     /* The return value is corrupted, hence an out parameter */
     rxSuiteShared *config = initRxSuite();
-    long long time;
-    const char *k = getActionKey(config->requestHashSnapshotKeys, &config->HashSnapshotLock, &time);
+    snapshot_request *k = getActionKey(config->snapShotRequests, &config->SnapshotLock, NULL, INDEXING_NO_DELAY_ms);
     *kk = k;
-    // serverLog(LL_NOTICE, "..nextSnapshotKey %s ", k);
+    if (k)
+    {
+        k->dequeued = ustime();
+    }
+    // serverLog(LL_NOTICE, "..nextHashSnapshot %s ", k);
     return k;
 }
 
-rxHashFieldAndValues *getCompletedSnapshotKey(const char *k, rxHashFieldAndValues **d)
+rxHashFieldAndValues *getCompletedHashSnapshot(const char *k, rxHashFieldAndValues **d)
 {
     rxSuiteShared *config = initRxSuite();
 
-    void *memo = raxNotFound;
+    snapshot_request *memo = raxNotFound;
 
     while (memo == raxNotFound)
     {
-        mtx_lock(&config->HashSnapshotLock);
-        size_t k_len = strlen(k);
-        raxRemove(config->responseHashSnapshotKeys, (UCHAR *)k, k_len, (void *)&memo);
-        // memo = raxFind(config->responseHashSnapshotKeys, (UCHAR *)k, k_len);
-        mtx_unlock(&config->HashSnapshotLock);
+        mtx_lock(&config->SnapshotLock);
+        raxRemove(config->snapshotResponses, (UCHAR *)k, strlen(k), (void *)&memo);
+        mtx_unlock(&config->SnapshotLock);
         if (memo != raxNotFound)
         {
-            *d = memo;
-            // serverLog(LL_NOTICE, "..getCompletedSnapshotKey %s => %p", k, *d);
-            if (*d && (*d)->signature != 20697227649722765)
-            {
-                serverLog(LL_NOTICE, "#getCompletedSnapshotKey# corrupted rxHashFieldAndValues %p signature %lld != 20697227649722765", (*d), (*d)->signature);
-            }
-            // mtx_lock(&config->HashSnapshotLock);
-            // raxRemove(config->responseHashSnapshotKeys, (UCHAR *)k, k_len, (void *)&memo);
-            // mtx_unlock(&config->HashSnapshotLock);
+            *d = (rxHashFieldAndValues *)memo->obj;
             return *d;
         }
         sched_yield();
     }
 
-    // serverLog(LL_NOTICE, "..getCompletedSnapshotKey %s => NULL", k);
+    // serverLog(LL_NOTICE, "..getCompletedHashSnapshot %s => NULL", k);
     return NULL;
 }
 
-rxHashFieldAndValues *nextReleaseSnapshotKey(rxHashFieldAndValues **d)
+snapshot_request *nextReleasedSnapshot(snapshot_request **d)
 {
     rxSuiteShared *config = initRxSuite();
-    *d = getActionData(config->releaseHashSnapshotKeys, &config->HashSnapshotLock);
-    // serverLog(LL_NOTICE, "..nextReleaseSnapshotKey %p", *d);
-    if (*d && (*d)->signature != 20697227649722765)
-    {
-        serverLog(LL_NOTICE, "#nextReleaseSnapshotKey# corrupted rxHashFieldAndValues %p signature %lld != 20697227649722765", (*d), (*d)->signature);
-    }
+    snapshot_request *request = getActionData(config->snapshotReleases, &config->SnapshotLock);
+    *d = request;
     return *d;
 }
 
@@ -684,7 +796,7 @@ void logHashSnapshotStats(long long start, long long stop)
     shared->us_hash_snapshots += lag;
 }
 
-void logHashSnapshotCronStats(long long start, long long stopRequests, long long nRequests, long long stopReleases, long long nReleases)
+long long logHashSnapshotCronStats(long long start, long long stopRequests, long long nRequests, long long stopReleases, long long nReleases, long long idle)
 {
     long long lag1 = stopRequests - start;
     long long lag2 = stopReleases - stopRequests;
@@ -693,8 +805,89 @@ void logHashSnapshotCronStats(long long start, long long stopRequests, long long
 
     shared->n_snapshots_cron++;
     shared->us_snapshots_cron += lag3;
-    shared->n_snapshots_cron_requests = nRequests;
+    shared->n_snapshots_cron_requests += nRequests;
     shared->us_snapshots_cron_requests += lag1;
-    shared->n_snapshots_cron_releases = nReleases;
+    shared->n_snapshots_cron_releases += nReleases;
     shared->us_snapshots_cron_releases += lag2;
+    shared->us_snapshots_cron_yield += idle;
+    return ustime();
+}
+
+int WaitForIndexRequest()
+{
+    rxSuiteShared *shared = initRxSuite();
+    sem_wait(&shared->signpost_indexing);
+    return 1;
+}
+int WaitForKeyTriggered()
+{
+    rxSuiteShared *shared = initRxSuite();
+    sem_wait(&shared->signpost_triggering);
+    return 1;
+};
+
+
+//TODO: Optimize: return response when key not exists
+int RequestSetSnapshot(const char *k)
+{
+    rxSuiteShared *config = initRxSuite();
+    long long start = ustime();
+    snapshot_request *req = SnapShotRequestNew(k, OBJ_SET);
+    int tally = addActionForKey(config->snapShotRequests, &config->SnapshotLock, req);
+    config->n_set_snapshot_request += tally;
+    config->us_set_snapshot_request += ustime() - start;
+    // serverLog(LL_NOTICE, "..RequestSetSnapshot %s => %d", k, tally);
+    SchedulePendingWork(config);
+    return tally;
+}
+
+int ResponseSetSnapshot(snapshot_request *k)
+{
+    k->completed = ustime();
+    rxSuiteShared *config = initRxSuite();
+    int tally = addActionForKey(config->snapshotResponses, &config->SnapshotLock, k);
+    config->n_set_snapshot_response += tally;
+    config->us_set_snapshot_response += k->completed - k->dequeued;
+    // serverLog(LL_NOTICE, "..ResponseSetSnapshot %s %p => %d", k, s, tally);
+    return tally;
+}
+
+snapshot_request *nextSetSnapshot(snapshot_request **kk)
+{
+    /* The return value is corrupted, hence an out parameter */
+    rxSuiteShared *config = initRxSuite();
+    long long time;
+    snapshot_request *k = getActionKey(config->snapShotRequests, &config->SnapshotLock, &time, INDEXING_NO_DELAY_ms);
+    *kk = k;
+    // serverLog(LL_NOTICE, "..nextSetSnapshot %s ", k);
+    return k;
+}
+
+rxSetMembers *getCompletedSetSnapshot(const char *k, rxSetMembers **d)
+{
+    rxSuiteShared *config = initRxSuite();
+
+    snapshot_request *memo = raxNotFound;
+
+    while (memo == raxNotFound)
+    {
+        mtx_lock(&config->SnapshotLock);
+        raxRemove(config->snapshotResponses, (UCHAR *)k, strlen(k), (void *)&memo);
+        mtx_unlock(&config->SnapshotLock);
+        if (memo != raxNotFound)
+        {
+            *d = (rxSetMembers *)memo->obj;
+            return *d;
+        }
+        sched_yield();
+    }
+
+    // serverLog(LL_NOTICE, "..getCompletedSetSnapshot %s => NULL", k);
+    return NULL;
+}
+
+void addTaskToPool(runner handler, void *payload)
+{
+    rxSuiteShared *config = initRxSuite();
+    thpool_add_work(config->thpool, handler, payload);
 }

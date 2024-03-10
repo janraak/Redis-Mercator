@@ -331,9 +331,8 @@ int queryInstance(RedisModuleCtx *ctx, redisContext *redis_node, char *sha1, con
                                           info.total_keys,
                                           info.bytes_per_key);
             PostCommand(cmd);
-
-            freeReplyObject(rcc);
         }
+        freeReplyObject(rcc);
     }
     rxStringFree(sKey);
     return instance_state;
@@ -397,27 +396,29 @@ int allClustersOperation(SimpleQueue *status_update_queue)
 //     if (!nodes)
 //         return 0;
 
-//     void *si = NULL;
-//     rxString node;
-//     int64_t l;
-//     while (rxScanSetMembers(nodes, &si, (char **)&node, &l) != NULL)
-//     {
-//         const char *clusterId =  strrchr(node, '_') + 1;
-//         void *params[] = {(void *)node, (void *)status_update_queue};
-//         clusterOperation(ctx, clusterId, NULL, (clusterOperationProc *)queryInstance, params, (clusterOperationProc *)clusterState);
-//         #if REDIS_VERSION_NUM < 0x00070200
-//         rxStringFree(node);
-// #endif
-//     }
+    //     void *si = NULL;
+    //     rxString node;
+    //     int64_t l;
+    //     while (rxScanSetMembers(nodes, &si, (char **)&node, &l) != NULL)
+    //     {
+    //         const char *clusterId =  strrchr(node, '_') + 1;
+    //         void *params[] = {(void *)node, (void *)status_update_queue};
+    //         clusterOperation(ctx, clusterId, NULL, (clusterOperationProc *)queryInstance, params, (clusterOperationProc *)clusterState);
+    //         #if REDIS_VERSION_NUM < 0x00070200
+    //         rxStringFree(node);
+    // #endif
+    //     }
 
-    auto *ready_queue = (SimpleQueue *)status_update_queue->response_queue;
-    void *update_request = ready_queue->Dequeue();
-    while (update_request != NULL)
+    if (status_update_queue)
     {
-        rxStringFree((const char *)update_request);
-        update_request = ready_queue->Dequeue();
+        auto *ready_queue = (SimpleQueue *)status_update_queue->response_queue;
+        void *update_request = ready_queue->Dequeue();
+        while (update_request != NULL)
+        {
+            rxStringFree((const char *)update_request);
+            update_request = ready_queue->Dequeue();
+        }
     }
-
     return C_OK;
 }
 // int query_requests_interval = 100;
@@ -483,11 +484,18 @@ static void *execSelfHealthCheckThread(void *)
     rxServerLog(rxLL_NOTICE, "SelfHealthCheck stopped");
     return NULL;
 }
+pthread_t health_threads[1];
 
 int startMonitor(void *handler, const char *)
 {
-    status_complete_queue = new SimpleQueue("HMDONE");
-    status_update_queue = new SimpleQueue("HMSTORE", (void *)handler, 1, status_complete_queue);
+    // status_complete_queue = new SimpleQueue("HMDONE");
+    // status_update_queue = new SimpleQueue("HMSTORE", (void *)handler, 1, status_complete_queue);
+    if (pthread_create(&health_threads[0], NULL, (void* (*)(void*))handler, NULL))
+    {
+        printf("FATAL: Failed to start health monitor thread\n");
+    }
+    else
+        pthread_setname_np(health_threads[0], "HEALTH");
 
     return C_OK;
 }

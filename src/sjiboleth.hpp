@@ -131,9 +131,7 @@ public:
 class Sjiboleth
 {
 protected:
-    static rax *Master_Registry;
     rax *registry;
-    static rax* Get_Master_Registry();
 private:
     // Parser *parser;
     bool is_volatile;
@@ -161,6 +159,8 @@ protected:
 
     virtual bool RegisterDefaultSyntax();
     bool ResetSyntax();
+
+public:
 
     DECLARE_SJIBOLETH_HANDLER(executePlusMinus);
     DECLARE_SJIBOLETH_HANDLER(executeStore);
@@ -294,6 +294,7 @@ public:
 
     void Write(RedisModuleCtx *ctx);
 
+    void show(const char *query, void *stack);
     void show(const char *query);
     void Show(const char *query);
     ParsedExpression(Sjiboleth *dialect);
@@ -373,7 +374,7 @@ public:
 
     static rxIndexEntry *New(const char *entry, size_t len, double key_score, void *obj)
     {
-        void *ie = rxMemAlloc(sizeof(rxIndexEntry) + strlen(entry) + 1);
+        void *ie = rxMemAlloc(sizeof(rxIndexEntry) + len + 1);
         char *key = (char *)(ie + sizeof(rxIndexEntry));
         strncpy(key, entry, len);
         char *tab = strchr((char *)key, '\t');

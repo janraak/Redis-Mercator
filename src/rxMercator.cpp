@@ -49,7 +49,7 @@
 extern std::string generate_uuid();
 
 using namespace std;
-
+int rc = 0;
 #ifdef __cplusplus
 extern "C"
 {
@@ -341,7 +341,8 @@ public:
     void *StopThread()
     {
         this->state = Multiplexer::done;
-        return NULL;
+     //int rc = 0; //pthread_exit(&rc);
+       return NULL;
     }
 };
 
@@ -516,6 +517,7 @@ public:
     void *StopThread()
     {
         this->state = Multiplexer::done;
+    //int rc = 0; //pthread_exit(&rc);
         return NULL;
     }
 
@@ -801,7 +803,8 @@ public:
     void *StopThread()
     {
         this->state = Multiplexer::done;
-        return NULL;
+        //int rc = 0; //pthread_exit(&rc);
+       return NULL;
     }
 
     /*
@@ -1541,6 +1544,7 @@ void *CreateClusterAsync_Go(void *privData)
         start_cluster(multiplexer->ctx, (char *)sha1);
     }
     multiplexer->result_text = sha1;
+    //pthread_exit(&rc);
     return multiplexer->StopThread();
 }
 
@@ -1585,6 +1589,7 @@ int rx_create_cluster(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 
     auto *multiplexer = new CreateClusterAsync(ctx, argv, argc);
     multiplexer->Async(ctx, CreateClusterAsync_Go);
+    //pthread_exit(&rc);
 
     return C_OK;
 }
@@ -1642,6 +1647,7 @@ void *AttachControllerAsync_Go(void *privData)
     PostCommand(rxStringFormat(UPDATE_CLUSTER__STATE, sha1, "ATTACHED", "ATTACHED", GetCurrentDateTimeAsString(buffer)));
 
     multiplexer->result_text = c_ip;
+    //pthread_exit(&rc);
     return multiplexer->StopThread();
 }
 
@@ -1683,6 +1689,7 @@ void *DestroyControllerAsync_Go(void *privData)
     ExecuteLocal(cmd, LOCAL_FREE_CMD | LOCAL_NO_RESPONSE);
 
     multiplexer->result_text = msg;
+    //pthread_exit(&rc);
     return multiplexer->StopThread();
 }
 
@@ -1968,10 +1975,9 @@ redisReply *FindInstanceGroup(const char *sha1, const char *fields, bool primari
 {
     if (fields == NULL)
         fields = "address,port,STATUS";
-    // rxString cmd = cmd = rxStringFormat("rxget \"g:v(cluster).inout(has_instance,instance_of).select(%s).has(owner,'%s')\"", fields, sha1);
     rxString cmd = rxStringFormat("G \"v('%s').out(%s).select(%s)\"", sha1, primariesOnly ? "primary" : "has_instance", fields);
     redisReply *nodes = ExecuteLocal(cmd, LOCAL_FREE_CMD);
-    if (nodes->type != REDIS_REPLY_ARRAY || nodes->elements == 0)
+    if (nodes && (nodes->type != REDIS_REPLY_ARRAY || nodes->elements == 0))
     {
         freeReplyObject(nodes);
         return NULL;
@@ -2638,7 +2644,7 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         rx_setconfig(NULL, NULL, 0);
         RedisModule_CreateCommand(ctx, "mercator.healthcheck", rx_healthcheck, "admin write", 0, 0, 0);
         RedisModule_CreateCommand(ctx, "mercator.instance.status", rx_healthcheck, "admin write", 0, 0, 0);
-        libpath = getenv("LD_LIBRARY_PATH");
+        // libpath = getenv("LD_LIBRARY_PATH");
         if (libpath)
             startClientMonitor();
     }
@@ -2703,7 +2709,7 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         libpath = getenv("LD_LIBRARY_PATH");
         startInstanceMonitor();
     }
-
+    initRxSuite();
     return REDISMODULE_OK;
 }
 

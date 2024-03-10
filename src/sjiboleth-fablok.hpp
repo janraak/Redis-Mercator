@@ -140,6 +140,8 @@ public:
       FaBlok *Left();
 
       FaBlok *Copy(const char* set_name, int value_type, RaxCopyCallProc *fnCallback, void *privData);
+      FaBlok *Copy(rax *r);
+      FaBlok *CopyAnd(FaBlok *r);
       FaBlok *Copy(const char* set_name, int value_type);
       FaBlok *Copy(const char* set_name, int value_type, RaxFilterCallProc *fnCallback, void *privData);
       FaBlok *CopyKeys(const char* set_name, int value_type, RaxCopyCallProc *fnCallback, void *privData);
@@ -151,6 +153,7 @@ public:
       int MergeFrom(FaBlok *left, FaBlok *right);
       int MergeDisjunct(FaBlok *left, FaBlok *right);
       int CopyNotIn(FaBlok *left, FaBlok *right);
+      int CopyNotIn(rax *left, rax *right);
       rax *AsRax();
 
       rxString AsSds();
@@ -193,7 +196,7 @@ protected:
         virtual rax *Execute(ParsedExpression *e);
         virtual rax *Execute(ParsedExpression *e, const char *key);
         virtual void *Execute(ParsedExpression *e, void *data);
-
+        virtual rax *ExecuteWithSet(ParsedExpression *e, FaBlok *triggers);
         GraphStack<const char> *fieldSelector;
         GraphStack<const char> *sortSelector;
 
@@ -240,7 +243,7 @@ public:
     static rax *Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack);
     static rax *Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, void *data);
     static rax *Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, const char *key);
-
+    static rax *ExecuteWithSet(ParsedExpression *e, SilNikParowy_Kontekst *stack, FaBlok *triggers);
     SilNikParowy();
     virtual ~SilNikParowy();
 
@@ -264,7 +267,7 @@ public:
     if (HasMinimumStackEntries(stack, minSize) == C_ERR) \
     {                                                    \
         auto *t = (ParserToken *)tO;                     \
-        rxString msg = rxStringFormat("%s requires %d sets!", t->Token(), minSize); \
+        rxString msg = rxStringFormat("(%d) %s requires %d sets!", (int) gettid(), t->Token(), minSize); \
         stack->AddError(msg);                                \
         rxStringFree(msg);                                    \
         return C_ERR;                                    \
@@ -274,7 +277,7 @@ public:
     {                                                 \
         rxString m = rxStringNew(msg);                          \
         stack->AddError(m);                             \
-        rxServerLog(rxLL_NOTICE, "ERROR: %s\n", m);                             \
+        rxServerLog(rxLL_NOTICE, "(%d) ERROR: %s\n", (int) gettid(), m);                             \
         rxStringFree(m);                                   \
         return C_ERR;                                 \
     }
@@ -282,7 +285,7 @@ public:
 #define ERROR_RETURN_NULL(msg)                        \
     {                                                 \
         rxString m = rxStringNew(msg);                          \
-        rxServerLog(rxLL_NOTICE, "ERROR: %s\n", m);                     \
+        rxServerLog(rxLL_NOTICE, "(%d) ERROR: %s\n", (int) gettid(), m);                     \
         stack->AddError(m);                           \
         rxStringFree(m);                                   \
         return NULL;                                  \

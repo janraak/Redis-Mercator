@@ -107,6 +107,7 @@ extern "C"
     int MergeInto(CFaBlok *in, CFaBlok *out);
     int MergeFrom(CFaBlok *out, CFaBlok *left, CFaBlok *right);
     int MergeDisjunct(CFaBlok *out, CFaBlok *left, CFaBlok *right);
+    // int CopyNotInOnRax(CFaBlok *out, rax *left, rax *right);
     int CopyNotIn(CFaBlok *out, CFaBlok *left, CFaBlok *right);
 #ifdef __cplusplus
 }

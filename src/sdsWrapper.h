@@ -25,6 +25,7 @@ rxString rxStringEmpty();
 rxString rxStringDup(rxString s);
 
 void rxStringFree(rxString s);
+char *rxCopyString(char *t, size_t tl, const char*s, size_t sl);
 
 rxString rxStringTrim(rxString s, const char *cset);
 

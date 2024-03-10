@@ -10,6 +10,12 @@ import asyncio
 import logging
 import threading
 import time
+import redis
+
+def clone_client(client):
+    redis_client = redis.Redis(client.get_connection_kwargs()["host"], client.get_connection_kwargs()["port"], 0)
+    # pdb.set_trace()
+    return redis_client
 
 class ReconnectException(BaseException):
     def __init__(self, ex) -> None:
@@ -249,9 +255,9 @@ def filterRows(outcome, field, values):
 def HeaderOnly(outcome):
     return stripField(outcome, b"path")
 
-def play_task(ctl, repeats, scenario):
+def play_task(ctl, repeats, scenario, clients):
     for n in range(0,repeats):
-        ctl.play(scenario, True)
+        ctl.play(scenario, 1, True)
 
 class Matcher:
     def __init__(self, test_name) -> None:
@@ -284,19 +290,20 @@ class Matcher:
             )
 
     
-    def play(self, scenario, no_finalize = False):
+    def play(self, scenario, clients = 1, no_finalize = False):
         tasks = []
         for facet in scenario:
             if "debug" in facet:
                 pdb.set_trace()
             if "parallel" in facet:
                 parallel = facet["parallel"]
+                clients = facet["clients"]
                 repeats = parallel["repeats"]
                 name = parallel["name"]
-                task = threading.Thread(target=play_task, args=(self, repeats, parallel["steps"],))
+                task = threading.Thread(target=play_task, args=(self, repeats, parallel["steps"], clients,))
                 task.start()
-                # task = asyncio.create_task(play_task(self, repeats, parallel["steps"]))
                 tasks.append(task)
+                # play_task(self, repeats, parallel["steps"], 1,)
                 print(f'\033[1;{1 + len(tasks) * 40}H{Style.RESET_ALL}{Fore.YELLOW}{Back.LIGHTGREEN_EX} Task started for: {name}\033[1E{Style.RESET_ALL}')
                 continue
                 
@@ -307,6 +314,8 @@ class Matcher:
             strip_set = facet["strip"] if "strip" in facet else None
             msg = f'#{1 + self.match_calls} {facet["step"]}'
             node = facet["node"]
+            if clients != 1:
+                node = clone_client(node)
             command = facet["command"]
             expects = facet["expects"]
             if isinstance(expects, str):
@@ -319,5 +328,9 @@ class Matcher:
                 )
             else:
                 self.by_sets(msg, node.execute_command(command), expects)
+            if clients != 1:
+                node = None
         if(no_finalize == False):
             self.finalize()
+        for task in tasks:
+            task.join()

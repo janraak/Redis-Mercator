@@ -38,9 +38,15 @@ public:
         this->sequencer = base;
     };
 
+    virtual void PopAndDeleteValue();
+
     ~GraphStack()
     {
-        listRelease(this->sequencer);
+        // listRelease(this->sequencer);// TODO FIX!
+        while (this->HasEntries())
+        {
+            this->PopAndDeleteValue();
+        }
         this->sequencer = NULL;
     };
 
@@ -70,7 +76,7 @@ public:
 
     void Add(T *t)
     {
-        listAddNodeTail(this->sequencer, t);
+        listAddNodeTail(this->sequencer, (void *)t);
     }
 
     void Remove(T *t)

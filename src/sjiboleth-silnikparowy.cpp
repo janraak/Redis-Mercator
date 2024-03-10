@@ -27,6 +27,7 @@ extern std::string generate_uuid();
 
 rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, const char *key)
 {
+    stack->Reset();
     FaBlok *v = FaBlok::Get((char *)key, KeysetDescriptor_TYPE_KEYSET);
     v->AsTemp();
     // if(v->size <= 0 )
@@ -36,6 +37,17 @@ rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, co
     SilNikParowy::Preload(e, stack);
     rax *result = SilNikParowy::Execute(e, stack);
     // delete v;
+    return result;
+}
+
+
+rax *SilNikParowy::ExecuteWithSet(ParsedExpression *e, SilNikParowy_Kontekst *stack, FaBlok *triggers)
+{
+    stack->Reset();
+    stack->Push(triggers);
+    e->ClearErrors();
+    SilNikParowy::Preload(e, stack);
+    rax *result = SilNikParowy::Execute(e, stack);
     return result;
 }
 

@@ -125,7 +125,7 @@ class QueryAsync : public Multiplexer
 {
 public:
     rax *r;
-    SilNikParowy_Kontekst *e;
+    SilNikParowy_Kontekst *kontekst;
     int fetch_rows;
     bool ranked = false;
     double ranked_lower_bound;
@@ -143,31 +143,32 @@ public:
         this->r = NULL;
         redisNodeInfo *index_config = rxIndexNode();
         redisNodeInfo *data_config = rxDataNode();
-        if (data_config->executor == NULL)
-        {
-            auto e = new SilNikParowy_Kontekst(index_config, ctx);
-            data_config->executor = e;
-            index_config->executor = e;
-        }
+            auto kontekst = new SilNikParowy_Kontekst(index_config, ctx);
+        // if (data_config->executor == NULL)
+        // {
+        //     auto kontekst = new SilNikParowy_Kontekst(index_config, ctx);
+        //     data_config->executor = kontekst;
+        //     index_config->executor = kontekst;
+        // }
 
-        this->e = (SilNikParowy_Kontekst *)data_config->executor;
-        this->fetch_rows = 0;
-        this->ranked = false;
-        this->ranked_lower_bound = -1; // std::numeric_limits<double>::min();
-        this->ranked_upper_bound = std::numeric_limits<double>::max();
+            this->kontekst = kontekst;             //(SilNikParowy_Kontekst *)data_config->executor;
+            this->fetch_rows = 0;
+            this->ranked = false;
+            this->ranked_lower_bound = -1; // std::numeric_limits<double>::min();
+            this->ranked_upper_bound = std::numeric_limits<double>::max();
     }
 
     int Write(RedisModuleCtx *ctx)
     {
         if (this->r)
         {
-            WriteResults(this->r, ctx, this->fetch_rows, NULL, this->ranked, this->ranked_lower_bound, this->ranked_upper_bound, this->e->fieldSelector, this->e->sortSelector);
-            if (e->CanDeleteResult())
+            WriteResults(this->r, ctx, this->fetch_rows, NULL, this->ranked, this->ranked_lower_bound, this->ranked_upper_bound, this->kontekst->fieldSelector, this->kontekst->sortSelector);
+            if (kontekst->CanDeleteResult())
                 FreeResults(this->r);
         }
         else
             RedisModule_ReplyWithSimpleString(ctx, "No results!");
-        e->Reset();
+        kontekst->Reset();
         return -1;
     }
 
@@ -184,18 +185,18 @@ public:
     void *StopThread()
     {
         this->state = Multiplexer::done;
+    //int rc = 0; //pthread_exit(&rc);
         return NULL;
     }
 };
 
-static void *_allocateKontekst(void *data_config){
-    return new SilNikParowy_Kontekst(data_config, data_config);
-}
+// static void *_allocateKontekst(void *data_config){
+//     return new SilNikParowy_Kontekst(data_config, data_config);
+// }
 
 short executeQueryCommand(QueryAsync *multiplexer, Sjiboleth *parser, const char *cmd, RedisModuleCtx *ctx, list *errors)
 {
     rxUNUSED(errors);
-    redisNodeInfo *data_config = rxDataNode();
 
     auto *t = parser->Parse(cmd);
     short read_or_write = t->read_or_write;
@@ -206,21 +207,23 @@ short executeQueryCommand(QueryAsync *multiplexer, Sjiboleth *parser, const char
         writeParsedErrors(t, ctx);
         return read_or_write;
     }
-    if (multiplexer->e)
+    if (multiplexer->kontekst)
     {
-        auto e = multiplexer->e;
-        if (e->fieldSelector)
+        auto kontekst = multiplexer->kontekst;
+        if (kontekst->fieldSelector)
         {
-            delete e->fieldSelector;
-            e->fieldSelector = NULL;
+            delete kontekst->fieldSelector;
+            kontekst->fieldSelector = NULL;
         }
-        if (e->sortSelector)
+        if (kontekst->sortSelector)
         {
-            delete e->sortSelector;
-            e->sortSelector = NULL;
+            delete kontekst->sortSelector;
+            kontekst->sortSelector = NULL;
         }
     }
-    auto kontekst = tls_get<SilNikParowy_Kontekst *>((const char *)"SilNikParowy_Kontekst", _allocateKontekst, data_config);
+    auto kontekst = multiplexer->kontekst;
+    // tls_get<SilNikParowy_Kontekst *>((const char *)"SilNikParowy_Kontekst", _allocateKontekst, data_config);
+    kontekst->serviceConfig = rxIndexNode();
     multiplexer->r = kontekst->Execute(t);
     releaseQuery(t);
     return read_or_write;
@@ -336,10 +339,6 @@ int executeQueryCommand(QueryAsync *multiplexer, RedisModuleCtx *ctx, RedisModul
             query = rxStringFormat("%s %s", query, q);
         }
     }
-    if (strstr(query, "HEALTH_CHECK_SHIFT"))
-    {
-        printf("Special check: %s\n", query);
-    }
     rxUNUSED(target_setname);
     Sjiboleth *parser;
     sv_query = query;
@@ -408,7 +407,7 @@ void *QueryAsync_Go(void *privData)
 
 int executeQueryAsyncCommand(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
-     auto *multiplexer = new QueryAsync(ctx, argv, argc);
+    auto *multiplexer = new QueryAsync(ctx, argv, argc);
     multiplexer->Async(ctx, QueryAsync_Go);
 
     return C_OK;
@@ -426,12 +425,12 @@ int addTypeTree(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     if (argc < 2)
         return RedisModule_ReplyWithSimpleString(ctx, HELP_STRING);
     size_t arg_len;
-    char type_prefix = '`';
+    char type_prefix = '#';
 
     int n = 2;
     const char *super_type = RedisModule_StringPtrLen(argv[1], &arg_len);
     if(rxStringMatch("VERTEX", super_type, 1)){
-        type_prefix = '`';
+        type_prefix = '#';
         super_type = RedisModule_StringPtrLen(argv[n], &arg_len);
         ++n;
     }else if(rxStringMatch("EDGE", super_type, 1)){

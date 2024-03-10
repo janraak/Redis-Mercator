@@ -64,7 +64,7 @@ os.system("{}dos2unix {}/{}".format(start0, home, start_script))
 os.system("{}wget --no-check-certificate  --timestamping  -O {}/{} {}/{}".format(start0, home, install_script, cdn, install_script))
 os.system("{}dos2unix {}/{}".format(start0, home, install_script))
 
-os.system("{}bash  --debug --verbose  {}/{} {} {} {} 4 256 1GB >>{}/data/startup.log 2>>{}/data/startup.log".format(start0, home, start_script, redis_version, host, port, wd, wd))
+os.system("{}bash  --debug --verbose  {}/{} {} {} {} 4 256 8GB >>{}/data/startup.log 2>>{}/data/startup.log".format(start0, home, start_script, redis_version, host, port, wd, wd))
 
 # os.system("{}")rm 
 redis_client = None

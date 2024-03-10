@@ -48,18 +48,17 @@ bool TextDialect::FlushIndexables(rax *collector, rxString key, int key_type, CS
 		rxString avp = rxStringNewLen((const char *)indexablesIterator.key, indexablesIterator.key_len);
 		int segments = 0;
 		rxString *parts = rxStringSplitLen(avp, indexablesIterator.key_len, "/", 1, &segments);
-		auto *indexable = (Indexable *)indexablesIterator.data;
+		auto indexable = (Indexable *)indexablesIterator.data;
 		char score[64];
 		snprintf(score, sizeof(score), "%f", rxGetIndexScoringMethod() == UnweightedIndexScoring
 								   ? indexable->sum_w
 								   : indexable->sum_w / (indexable->tally * indexable->tally));
-		// void *add_args[] = {(void *)key, (void *)KEYTYPE_TAGS[key_type], (void *)parts[0], (void *)parts[1], (void *)score, (void *)"0"};
-		// rxStashCommand2(persist_q, "RXADD", STASH_STRING, 6, add_args);
 		rcc = (redisReply *)redisCommand(client, "RXADD %s %s %s %s %s %s", key, KEYTYPE_TAGS[key_type], parts[0], parts[1], score, "0");
 		if (rcc != NULL)
 			freeReplyObject(rcc);
 		rxStringFreeSplitRes(parts, segments);
 		rxStringFree(avp);
+		delete indexable;
 	}
 	raxStop(&indexablesIterator);
 
@@ -83,9 +82,8 @@ bool static CollectIndexables(rax *collector, rxString field_name, const char *f
 {
 	if (collector == NULL)
 		return false;
-	rxString key = rxStringDup(field_name);
-	key = rxStringFormat("%s%s", key, "/");
-	key = rxStringFormat("%s%s", key, field_value);
+	char key[16384];
+	snprintf(key,sizeof(key),"%s/%s", field_name, field_value);
 	rxStringToUpper(key);
 	auto *indexable = (Indexable *)raxFind(collector, (UCHAR *)key, strlen(key));
 	if (indexable == raxNotFound)
@@ -98,7 +96,6 @@ bool static CollectIndexables(rax *collector, rxString field_name, const char *f
 	indexable->tally++;
 	Indexable *prev_indexable = NULL;
 	raxInsert(collector, (UCHAR *)key, strlen(key), indexable, (void **)&prev_indexable);
-	rxStringFree(key);
 	return true;
 }
 
@@ -365,7 +362,7 @@ bool TextDialect::RegisterDefaultSyntax()
 	this->RegisterSyntax("!!!:", priIgnore, 0, 0, Q_READONLY, NULL);
 	this->RegisterSyntax("\t", priBreak, 0, 0, Q_READONLY, NULL);
 	this->RegisterSyntax("\n", priBreak, 0, 0, Q_READONLY, NULL);
-	this->RegisterSyntax("`", priIgnore, 0, 0, Q_READONLY, NULL);
+	this->RegisterSyntax("#", priIgnore, 0, 0, Q_READONLY, NULL);
 	this->RegisterSyntax("'", priIgnore, 0, 0, Q_READONLY, NULL);
 	this->RegisterSyntax("~~~=~~~", 5, 0, 0, Q_READONLY, IndexText);
 	return true;

@@ -18,7 +18,7 @@ extern "C"
 }
 #endif
 #include "tls.hpp"
-void *rxMercatorShared = NULL;
+// void *server.rxMercator = NULL;
 
 ParserToken::ParserToken()
 {
@@ -457,10 +457,9 @@ ParserToken *Sjiboleth::LookupToken(rxString token)
 
 
 long long sjiboleth_stats_cron_id = -1;
-#define ms_5MINUTES (5 * 60 * 1000)
+#define ms_5MINUTES (2 * 60 * 1000)
 #define ms_1MINUTE (1 * 60 * 1000)
 
-rax *Sjiboleth::Master_Registry = NULL;
 static long long sjiboleth_stats_last_stats = 0;
 int sjiboleth_stats_cron(struct aeEventLoop *, long long, void *clientData)
 {
@@ -469,7 +468,7 @@ int sjiboleth_stats_cron(struct aeEventLoop *, long long, void *clientData)
 
     mtx_lock(&Master_Registry_lock);
     raxIterator dialectIterator;
-    raxStart(&dialectIterator, clientData);
+    raxStart(&dialectIterator, (rax *)clientData);
     raxSeek(&dialectIterator, "^", NULL, 0);
     while (raxNext(&dialectIterator))
     {
@@ -521,18 +520,6 @@ int sjiboleth_stats_cron(struct aeEventLoop *, long long, void *clientData)
 rax *Sjiboleth::Registry(){
     return this->registry;
 }
-rax *Sjiboleth::Get_Master_Registry()
-{
-    if (Sjiboleth::Master_Registry == NULL){
-        Sjiboleth::Master_Registry = raxNew();
-    }
-    // if(sjiboleth_stats_cron_id < 0){
-    //     sjiboleth_stats_cron_id = rxCreateTimeEvent(1, (aeTimeProc *)sjiboleth_stats_cron, Sjiboleth::Master_Registry, NULL);
-    //     rxServerLog(rxLL_NOTICE, "Sjiboleth stats cron started on %p => %lld", Sjiboleth::Master_Registry, sjiboleth_stats_cron_id);
-    //     sjiboleth_stats_cron(NULL, 0, Sjiboleth::Master_Registry);
-    // }
-    return Sjiboleth::Master_Registry;
-}
 
 Sjiboleth::Sjiboleth()
 {
@@ -575,18 +562,9 @@ Sjiboleth::~Sjiboleth()
     // this->registry = NULL;
 }
 
-void *_allocateDialect(void *)
-{
-    auto r = raxNew();
-    sjiboleth_stats_cron_id = rxCreateTimeEvent(1, (aeTimeProc *)sjiboleth_stats_cron, r, NULL);
-    sjiboleth_stats_cron(NULL, 0, r);
-    return r;
-}
-
 Sjiboleth *Sjiboleth::Get(const char *dialect)
 {
-    // auto *master = tls_get<rax *>((const char *)"Sjiboleth", _allocateDialect, NULL);
-    auto *master = Sjiboleth::Get_Master_Registry();
+    auto *master = Sjiboleth_Master_Registry(sjiboleth_stats_cron);
     size_t dialect_len = strlen(dialect);
     auto *parser = (Sjiboleth *)raxFind(master, (UCHAR *)dialect, dialect_len);
     if (parser == raxNotFound)
@@ -613,44 +591,99 @@ const char *Sjiboleth::defaultOperator()
 {
     return this->default_operator;
 }
-
+static SilNikParowy *ENGINE = new SilNikParowy();
 SilNikParowy *Sjiboleth::GetEngine()
 {
     // FOR NOW!
-    return new SilNikParowy();
+    return ENGINE; //new SilNikParowy();
 }
 
 SilNikParowy *GremlinDialect::GetEngine()
 {
-    return new SilNikParowy();
+    return ENGINE; //SilNikParowy();
 }
 
 SilNikParowy *QueryDialect::GetEngine()
 {
-    return new SilNikParowy();
+    return ENGINE; //SilNikParowy();
 }
 
 SilNikParowy *JsonDialect::GetEngine()
 {
-    return new SilNikParowy();
+    return ENGINE; //SilNikParowy();
 }
 
 SilNikParowy *TextDialect::GetEngine()
 {
-    return new SilNikParowy();
+    return  ENGINE; //SilNikParowy();
 }
 
 void *Sjiboleth::Startup(){
-    if(!Sjiboleth::Master_Registry)
-        Sjiboleth::Master_Registry = Sjiboleth_Master_Registry();
+    initRxSuite();
     Sjiboleth::Get("QueryDialect");
     Sjiboleth::Get("GremlinDialect");
     Sjiboleth::Get("JsonDialect");
     Sjiboleth::Get("TextDialect");
-    sjiboleth_stats_cron_id = rxCreateTimeEvent(1, (aeTimeProc *)sjiboleth_stats_cron, Sjiboleth::Master_Registry, NULL);
-    rxServerLog(rxLL_NOTICE, "Sjiboleth stats cron started on %p => %lld", Sjiboleth::Master_Registry, sjiboleth_stats_cron_id);
-    sjiboleth_stats_cron(NULL, 0, Sjiboleth::Master_Registry);
-    return Sjiboleth::Get_Master_Registry();
+    return Sjiboleth_Master_Registry(sjiboleth_stats_cron);
 }
 
 void *startUp = Sjiboleth::Startup();
+
+
+template<> void GraphStack<const char>::PopAndDeleteValue(){
+    const char *e = this->Pop();
+    // rxMemFree(e);
+}
+
+template<> void GraphStack<GraphStack<const char>>::PopAndDeleteValue(){
+    GraphStack<const char> *e = this->Pop();
+    // delete e;
+}
+
+class renamert;
+template <>
+void GraphStack<renamert>::PopAndDeleteValue()
+{
+    renamert *e = this->Pop();
+    // rxMemFree(e);
+}
+
+class GraphStackEntry;
+template <>
+void GraphStack<GraphStackEntry>::PopAndDeleteValue()
+{
+    GraphStackEntry *e = this->Pop();
+    // delete e;
+}
+
+class Triplet;
+template <>
+void GraphStack<Triplet>::PopAndDeleteValue()
+{
+    Triplet *e = this->Pop();
+    // delete e;
+}
+
+class ReplicationGuard;
+template <>
+void GraphStack<ReplicationGuard>::PopAndDeleteValue()
+{
+    ReplicationGuard *e = this->Pop();
+    // delete e;
+}
+
+class Graph_Leg;
+template <>
+void GraphStack<Graph_Leg>::PopAndDeleteValue()
+{
+    Graph_Leg *e = this->Pop();
+    // delete e;
+}
+
+class ParserToken;
+template <>
+void GraphStack<ParserToken>::PopAndDeleteValue()
+{
+    ParserToken *e = this->Pop();
+    // delete e;
+}

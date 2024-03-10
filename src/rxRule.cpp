@@ -5,6 +5,7 @@
 #define REDISMODULE_EXPERIMENTAL_API
 #include "rxRule.hpp"
 #include <string>
+#include <list>
 
 #include <fcntl.h>
 #include <iostream>
@@ -43,6 +44,7 @@ extern "C"
 }
 #endif
 // extern dictType tokenDictType;
+#include "graphstack.hpp"
 
 #include "rxFetch-multiplexer.hpp"
 
@@ -78,47 +80,65 @@ const char *RX_HELP = "RXHELP";
 
 int rule_execution_duration = 100;
 int rule_execution_interval = 100;
-long long rule_execution_cron_id = -1;
-
-// extern indexerThread index_info;
-
-// int rule_execution_cron(struct aeEventLoop *, long long int, void *)
-// {
-//     long long start = ustime();
-//     const char *key = NULL;
-//     while ((key = getTriggeredKey()) != NULL)
-//     {
-//         // index_info.key_triggered_dequeued_tally++;
-//         BusinessRule::ApplyAll(key);
-//         freeTriggerProcessedKey(key);
-
-//         if (ustime() - start >= rule_execution_duration * 1000)
-//         {
-//             // Yield when slot time over
-//             return rule_execution_interval;
-//         }
-//     }
-
-//     return rule_execution_interval;
-// }
 
 static void *execRulesThread(void *ptr)
 {
+    CommencedTriggerHandler();
     redisNodeInfo *data_config = rxDataNode();
-    auto stack = (SilNikParowy_Kontekst*)(ptr);
-    while (true)
+
+    FaBlok *triggers = FaBlok::New("TriggerSet", KeysetDescriptor_TYPE_GREMLIN_EDGE_SET);
+    std::list<snapshot_request *> snapshots;
+    // while (true)
     {
+        // WaitForKeyTriggered();
+        SilNikParowy_Kontekst *stack = new SilNikParowy_Kontekst(data_config, (RedisModuleCtx *)ptr);
         long long start = ustime();
-        const char *key = NULL;
+        snapshot_request *key = NULL;
         while ((key = getTriggeredKey()) != NULL)
         {
+            snapshots.push_front(key);
             // index_info.key_triggered_dequeued_tally++;
-            BusinessRule::ApplyAll(key, stack);
-            freeTriggerProcessedKey(key);
+            // rxServerLog(rxLL_NOTICE, "getTriggeredKey()=>%p %s", key, key->k);
+            triggers->InsertKey(key->k, NULL);
+            // BusinessRule::ApplyAll(key, stack);
+            // freeTriggerProcessedKey(key);
+            long long cycle = ustime() - start;
+            if (cycle > 250000)
+            {
+                break;
+            }
         }
-        sched_yield();
-    }
+        if (raxSize(triggers->keyset) > 0)
+        {
+            BusinessRule::ApplyAll(triggers, stack);
+        }
+        while (snapshots.size())
+        {
+            auto req = snapshots.front();
+            snapshots.remove(req);
+            freeTriggerProcessedKey(req);
+        }
+        // TODO: key set maintenance !!
+        // if (raxSize(triggers->keyset) > 0)
+        // {
+        //     BusinessRule::ApplyAll(triggers, stack);
 
+        //     raxIterator setIterator;
+        //     raxStart(&setIterator, triggers->keyset);
+        //     raxSeek(&setIterator, "^", NULL, 0);
+        //     while (raxSize(triggers->keyset) > 0)
+        //     {
+        //         freeTriggerProcessedKey(setIterator.key, setIterator.key_len);
+        //         raxRemove(triggers->keyset, setIterator.key, setIterator.key_len, NULL);
+        //         raxSeek(&setIterator, "^", NULL, 0);
+        //     }
+        //     raxStop(&setIterator);
+        //     triggers->size = 0;
+        // }
+        delete stack;
+        // sched_yield();
+        }
+    FaBlok::Delete(triggers);
     return NULL;
 }
 
@@ -142,10 +162,16 @@ int rxRuleSet(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     rxString sep[6] = {rxStringNew(""), rxStringNew(""), rxStringNew("")};
     rxString query[6] = {rxStringNew(""), rxStringNew(""), rxStringNew("")};
     int phrase = 0;
+    bool isFinal = false;
     for (int j = 2; j < argc; ++j)
     {
         char *q = (char *)RedisModule_StringPtrLen(argv[j], &len);
-        if (rxStringMatch("IF", q, 1))
+        if (rxStringMatch("FINAL", q, 1))
+        {
+            isFinal = true;
+            continue;
+        }
+        else         if (rxStringMatch("IF", q, 1))
         {
             phrase = 1;
             continue;
@@ -173,8 +199,8 @@ int rxRuleSet(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
         query[phrase] = rxStringFormat("%s%s%s", query[phrase], sep[phrase], q);
         sep[phrase] = rxStringNew(" ");
     }
-    BusinessRule *br = new BusinessRule(ruleName, query[1], query[0], query[4], query[2], query[5]);
-    for (int n = 0; n < sizeof(sep) / sizeof(rxString); ++n)
+    BusinessRule *br = new BusinessRule(ruleName, isFinal, query[1], query[0], query[4], query[2], query[5]);
+    for (size_t n = 0; n < sizeof(sep) / sizeof(rxString); ++n)
     {
         rxStringFree(sep[n]);
         rxStringFree(query[n]);
@@ -256,7 +282,7 @@ extern RedisModuleCtx *loadCtx;
 //     return REDISMODULE_OK;
 // }
 
-pthread_t rule_threads[1] = {NULL};
+pthread_t rule_threads[1];
 
 /* This function must be present on each R
 edis module. It is used in order to
@@ -310,17 +336,17 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     // rule_execution_cron_id = rxCreateTimeEvent(1, (aeTimeProc *)rule_execution_cron, NULL, NULL);
     // rule_execution_cron(NULL, 0, NULL);
 
-    for (int n = 0; n < (sizeof(rule_threads) / sizeof(pthread_t)); n++)
-    {
-            auto stack = new SilNikParowy_Kontekst(data_config, ctx);
-
-        if (pthread_create(&rule_threads[n], NULL, execRulesThread, stack))
-        {
-            printf("FATAL: Failed to start indexer thread\n");
-        }
-        else
-            pthread_setname_np(rule_threads[n], "RULES");
-    }
+    SetTriggerHandler(execRulesThread);
+    // for (size_t n = 0; n < (sizeof(rule_threads) / sizeof(pthread_t)); n++)
+    // {
+ 
+    //     if (pthread_create(&rule_threads[n], NULL, execRulesThread, ctx))
+    //     {
+    //         printf("FATAL: Failed to start indexer thread\n");
+    //     }
+    //     else
+    //         pthread_setname_np(rule_threads[n], "RULES");
+    // }
 
     rxServerLog(rxLL_NOTICE, "OnLoad rxRule. Done!");
     return REDISMODULE_OK;
@@ -332,6 +358,3 @@ int RedisModule_OnUnload(RedisModuleCtx *ctx)
     finalizeRxSuite();
     return REDISMODULE_OK;
 }
-
-template SilNikParowy_Kontekst *tls_get(const char *key, allocatorProc *allocator, void *parms);
-template SilNikParowy_Kontekst *tls_forget(const char *key);

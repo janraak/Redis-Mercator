@@ -317,7 +317,7 @@ static void *extractRowAsHash(SimpleQueue *, char *row_start, char *row_end, cha
         if (rcc != NULL)
             freeReplyObject(rcc);
 
-        auto tkey = rxStringFormat("`%s", vertex_type);
+        auto tkey = rxStringFormat("#%s", vertex_type);
         rcc = (redisReply *)redisCommand(client, "SADD %s %s", tkey, key);
         if (rcc != NULL)
             freeReplyObject(rcc);
@@ -408,7 +408,7 @@ static void *extractRowAsHash(SimpleQueue *, char *row_start, char *row_end, cha
                     freeReplyObject(rcc);
                 if (rxStringMatch(TYPE_COLUMN, f, MATCH_IGNORE_CASE))
                 {
-                    auto tkey = rxStringFormat("`%s", v);
+                    auto tkey = rxStringFormat("#%s", v);
                     rcc = (redisReply *)redisCommand(client, "SADD %s %s", tkey, key);
                     if (rcc != NULL)
                         freeReplyObject(rcc);

@@ -27,7 +27,9 @@ void *_allocateRax(void *){
 template <typename T>
 rax *RedisClientPool<T>::Get_ClientPool_Registry()
 {
-    rax *registry = tls_get<rax *>((const char*)"RedisClientPool", _allocateRax, NULL);
+    char poolname[256] = "RedisClientPool:";
+    snprintf((char *)&poolname, sizeof(poolname), "RedisClientPool:%d", 0 * (int)gettid());
+    rax *registry = tls_get<rax *>((const char *)&poolname, _allocateRax, NULL);
     return registry;
 }
 
@@ -89,20 +91,18 @@ T *RedisClientPool<T>::NewInstance()
 template <>
 redisContext *RedisClientPool<redisContext>::NewInstance()
 {
-    auto *c = redisConnect(this->host, this->port);
+    auto c = redisConnect(this->host, this->port);
     if (c == NULL || c->err)
     {
         if (c)
         {
-            rxString e = rxStringFormat("Connection error: %s\n", c->errstr);
+            rxServerLog(rxLL_NOTICE, "# RedisClientPool<redisContext>::NewInstance() # host:%s Connection error: %s", this->host_reference, c->errstr);
             redisFree(c);
-            rxStringFree(e);
             return NULL;
         }
         else
         {
-            rxString e = rxStringFormat("Connection error: can't allocate lzf context\n");
-            rxStringFree(e);
+            rxServerLog(rxLL_NOTICE, "# RedisClientPool<redisContext>::NewInstance() # host:%s Connection error", this->host_reference);
             return NULL;
         }
         return NULL;
@@ -118,15 +118,13 @@ redisAsyncContext *RedisClientPool<redisAsyncContext>::NewInstance()
     {
         if (c)
         {
-            rxString e = rxStringFormat("Connection error: %s\n", c->errstr);
+            rxServerLog(rxLL_NOTICE, "# RedisClientPool<redisAsyncContext>::NewInstance() # host:%s Connection error: %s", this->host_reference, c->errstr);
             redisAsyncFree(c);
-            rxStringFree(e);
             return NULL;
         }
         else
         {
-            rxString e = rxStringFormat("Connection error: can't allocate lzf context\n");
-            rxStringFree(e);
+            rxServerLog(rxLL_NOTICE, "# RedisClientPool<redisAsyncContext>::NewInstance() # host:%s Connection error", this->host_reference);
             return NULL;
         }
         return NULL;
@@ -146,7 +144,7 @@ int RedisClientPool<T>::Grow()
     int tally_acquired = 0;
     for (int n = 0; n < this->grow_by; ++n)
     {
-        auto *client = this->NewInstance();
+        auto *client = RedisClientPool<T>::NewInstance();
         if (client == NULL)
         {
             rxServerLog(rxLL_NOTICE, "::Grow %s free:%d inuse:%ld UNABLE TO GROW", this->host_reference, this->free.Size(), raxSize(Get_ClientPool_Registry()));
@@ -170,7 +168,7 @@ T *RedisClientPool<T>::Acquire(const char *address, const char *suffix, const ch
     auto *pool = (RedisClientPool *)raxFind(Get_ClientPool_Registry(), (UCHAR *)reference, strlen(reference));
     if (pool == raxNotFound)
     {
-        pool = RedisClientPool::New(reference, 4, 4);
+        pool = RedisClientPool<T>::New(reference, 4, 4);
         void *old;
         raxInsert(Get_ClientPool_Registry(), (UCHAR *)reference, strlen(reference), pool, &old);
     }
@@ -183,13 +181,38 @@ T *RedisClientPool<T>::Acquire(const char *address, const char *suffix, const ch
     auto *client = pool->free.Pop();
     // pool->in_use.Push(client);
     void *old;
+    // Maintain client to pool!!
     raxInsert(Get_ClientPool_Registry(), (UCHAR *)client, sizeof(client), pool, &old);
     //rxServerLog(rxLL_NOTICE, "::Acquire %s->%p free:%d inuse:%ld by:%s", reference, client, pool->free.Size(), raxSize(Get_ClientPool_Registry()), caller);
     return client;
 }
 
-template<> void RedisClientPool<redisContext>::Disconnect(redisContext *){
-    // redisFree(c);
+template <typename T>
+void RedisClientPool<T>::Purge(const char *address, const char *suffix)
+{
+    char reference[256];
+    strcpy(reference, address);
+    strcat(reference, suffix);
+    auto pool = (RedisClientPool *)raxFind(Get_ClientPool_Registry(), (UCHAR *)reference, strlen(reference));
+    if (pool == raxNotFound)
+        return;
+    pool->free.StartHead();
+    while (pool->free.HasEntries())
+    {
+        T *c = pool->free.Pop();
+        RedisClientPool<T>::Disconnect(c);
+    }
+    // pool->in_use.StartHead();
+    // while (pool->in_use.HasEntries())
+    // {
+    //     T *c = pool->in_use.Pop();
+    //     Disconnect(c);
+    // }
+}
+
+template<> void RedisClientPool<redisContext>::Disconnect(redisContext *c){
+    redisFree(c);
+
 }
 
 template<> void RedisClientPool<redisAsyncContext>::Disconnect(redisAsyncContext *c){
@@ -204,9 +227,11 @@ template<> void RedisClientPool<struct client>::Disconnect(struct client *){
 template <typename T>
 void RedisClientPool<T>::Release(T *client, const char *caller)
 {
-    auto *ppool = Get_ClientPool_Registry();
-    auto *pool = (RedisClientPool<T> *)raxFind(ppool, (UCHAR *)client, sizeof(client));
-    if (pool == raxNotFound)
+    // find pool for client
+    auto ppool = Get_ClientPool_Registry();
+    RedisClientPool<T> *pool = NULL;
+    raxRemove(ppool, (UCHAR *)client, sizeof(client), (void**)&pool);
+    if (pool == NULL || pool == raxNotFound)
     {
         rxServerLog(rxLL_NOTICE, "RedisClientPool unregisted redis client %p caller: %s\n", client, caller);
         RedisClientPool<T>::Disconnect(client);
@@ -214,11 +239,10 @@ void RedisClientPool<T>::Release(T *client, const char *caller)
     else
     {
         // rxServerLog(rxLL_NOTICE, "::Release %s<-%p free:%d inuse:%d B by:%s", pool->host_reference, client, pool->free.Size(), raxSize(Get_ClientPool_Registry()), caller);
+       RedisClientPool<T>::Disconnect(client);
 
-        // pool->in_use.Remove(client);
-        pool->free.Push(client);
+        // pool->free.Push(client);
     }
-    raxRemove(Get_ClientPool_Registry(), (UCHAR *)client, sizeof(client), NULL);
     // rxServerLog(rxLL_NOTICE, "::Release %s<-%p free:%d inuse:%ld A by:%s", pool->host_reference, client, pool->free.Size(), raxSize(Get_ClientPool_Registry()), caller);
 }
 
@@ -295,4 +319,23 @@ extern "C" void forwardTriggeredKey(void *key){
         rxClientExecute(c, command_definition);
     rxFreeStringObject(argv[0]);
     RedisClientPool<struct client>::Release(c, "Trigger Rules");
+}
+
+
+template<> void GraphStack<redisContext>::PopAndDeleteValue(){
+    redisContext *e = this->Pop();
+    // RedisClientPool<redisContext>::Disconnect(e);
+}
+
+
+template<> void GraphStack<redisAsyncContext>::PopAndDeleteValue(){
+    redisAsyncContext *e = this->Pop();
+    // RedisClientPool<redisAsyncContext>::Disconnect(e);
+}
+
+
+
+template<> void GraphStack<struct client>::PopAndDeleteValue(){
+    struct client *e = this->Pop();
+    // RedisClientPool<struct client>::Disconnect(e);
 }

@@ -202,7 +202,7 @@ ParsedExpression *Sjiboleth::Parse(const char *query)
                             }
                             else
                             {
-                                printf("Odd!\n");
+                                printf("Odd! %s\n", expression->ToString());
                             }
                         }
                         if (expression->sideTrackLength() == object_expression_treatment_level)
@@ -321,30 +321,35 @@ const char *tokenTypeLabels[] = {   "?", "_operand",
     "_immediate_operator",
     "_expression"
 };
-void ParsedExpression::show(const char *query)
+void ParsedExpression::show(const char *query, void *stack)
 {
     // return;
     // if (p->show_debug_info)
     // {
-    rxServerLog(rxLL_NOTICE, "expression: %d entries\n", this->expression->Size());
-    rxServerLog(rxLL_NOTICE, "side_track: %ld entries\n", this->side_track->len);
+    rxServerLog(rxLL_NOTICE, "%d %p expression: %d entries", (int) gettid(), stack, this->expression->Size());
+    rxServerLog(rxLL_NOTICE, "%d %p side_track: %ld entries", (int) gettid(), stack, this->side_track->len);
     // }
     // listRelease(side_track);
     // if (p->show_debug_info)
     // {
     if (query)
-        rxServerLog(rxLL_NOTICE, "parsed: %s %d tokens\n", query, this->expression->Size());
+        rxServerLog(rxLL_NOTICE, "%d parsed: %s %d tokens", (int) gettid(), query, this->expression->Size());
     else
-        rxServerLog(rxLL_NOTICE, "parsed:  %d tokens\n", this->expression->Size());
+        rxServerLog(rxLL_NOTICE, "%d parsed:  %d tokens", (int) gettid(), this->expression->Size());
     this->expression->StartHead();
     ParserToken *t;
     int j = 0;
     while ((t = this->expression->Next()) != NULL)
     {
-        rxServerLog(rxLL_NOTICE, "Parse: %d t:%d %s l:%d %s\n", j, t->TokenType(), tokenTypeLabels[t->TokenType()], strlen(t->Token()), t->Token());
+        rxServerLog(rxLL_NOTICE, "%d Parse: %d t:%d %s l:%d %s", (int) gettid(), j, t->TokenType(), tokenTypeLabels[t->TokenType()], strlen(t->Token()), t->Token());
         ++j;
     }
     // }
+}
+
+void ParsedExpression::show(const char *query)
+{
+    this->show(query, NULL);
 }
 
 void ParsedExpression::Show(const char *query)
@@ -820,6 +825,11 @@ ParsedExpression::~ParsedExpression()
     if (this->next != NULL)
     {
         delete this->next;
+    }
+
+    if(this->next){
+        delete this->next;
+        this->next = NULL;
     }
 
     while (this->expression->HasEntries())

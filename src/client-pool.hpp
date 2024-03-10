@@ -23,6 +23,7 @@ extern "C"
 template <typename T>
 class RedisClientPool
 {
+public:
     static void Disconnect(T *c);
 
 public:
@@ -49,6 +50,7 @@ public:
     static T *Acquire(const char *host_reference, const char *suffix, const char */*caller*/);
 
     static void Release(T *client, const char *caller);
+    static void Purge(const char *address, const char *suffix);
 };
 
     char *extractStringFromRedisReply(redisReply *r, const char *field);

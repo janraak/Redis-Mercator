@@ -1,6 +1,7 @@
 
 #ifndef __RXSUITE_H__
 #define __RXSUITE_H__
+#include <semaphore.h>
 #include <stddef.h>
 #include <threads.h>
 
@@ -22,6 +23,9 @@ extern "C"
 #include <sched.h>
 #include <signal.h>
 
+#include "thpool.h"
+#define THREADPOOL_SIZE 48
+
 #include "../../deps/hiredis/hiredis.h"
 #include "sdsWrapper.h"
 
@@ -29,6 +33,12 @@ extern "C"
 
 #define POINTER unsigned int
 #define UCHAR unsigned char
+
+    typedef int timeProc(void *eventLoop, long long id, void *clientData);
+    // typedef int (*timeProc)(void *, long long int, void*)
+    typedef void eventFinalizerProc(void *eventLoop, void *clientData);
+
+    typedef void *(*runner)(void *);
 
     typedef void CSimpleQueue;
 
@@ -40,7 +50,7 @@ extern "C"
         int port;
         int database_id;
         int is_local;
-        void *executor;
+        // void *executor;
     } redisNodeInfo;
 
     enum indexScoringMethod
@@ -48,6 +58,19 @@ extern "C"
         WeightedIndexScoring,
         UnweightedIndexScoring
     };
+
+    typedef struct rxCounter
+    {
+        const char *name;
+        unsigned long long n_in;   // enqueues
+        unsigned long long n_out;  // dequeues
+        unsigned long long us_in;  // us(dequeue) -/- us(enqueue)
+        unsigned long long us_out; // us(done) -/- us(enqueue)
+        unsigned long long n_min;
+        unsigned long long n_max;
+        unsigned long long us_min;
+        unsigned long long us_max;
+    } rxCounter;
 
     typedef struct
     {
@@ -67,6 +90,9 @@ extern "C"
         const char *ssh_identity;
         const char *wget_root;
         CSimpleQueue *cron_command_request_queue;
+        sem_t signpost_indexing;
+        sem_t signpost_triggering;
+
         rax *sjeboleth_master_registry;
         rax *triggeredKeys;
         rax *processingTriggeredKeys;
@@ -85,6 +111,7 @@ extern "C"
         long long us_processingTriggered;
         long long n_enq_touchedKeys;
         long long us_enq_touchedKeys;
+        long long n_renq_touchedKeys;
         long long n_deq_touchedKeys;
         long long n_done_touchedKeys;
         long long n_touchedKeys;
@@ -115,10 +142,10 @@ extern "C"
         long long us_lookupNotFound;
 
         /* Hash snapshot items */
-        rax *requestHashSnapshotKeys;
-        rax *responseHashSnapshotKeys;
-        rax *releaseHashSnapshotKeys;
-        mtx_t HashSnapshotLock;
+        rax *snapShotRequests;
+        rax *snapshotResponses;
+        rax *snapshotReleases;
+        mtx_t SnapshotLock;
         long long n_snapshots_cron;
         long long us_snapshots_cron;
         long long n_snapshots_cron_requests;
@@ -133,6 +160,22 @@ extern "C"
         long long us_hash_snapshot_response;
         long long n_hash_snapshot_release;
         long long us_hash_snapshot_release;
+        long long n__set_snapshots;
+        long long us_set_snapshots;
+        long long n_set_snapshot_request;
+        long long us_set_snapshot_request;
+        long long n_set_snapshot_response;
+        long long us_set_snapshot_response;
+        long long n_set_snapshot_release;
+        long long us_set_snapshot_release;
+        long long us_snapshots_cron_yield;
+
+        threadpool thpool;
+        runner IndexingHandler;
+        int nIndexingRequests;
+        runner TriggerHandler;
+        int nTriggerRequests;
+        int ThPoolSz;
 
     } rxSuiteShared;
 
@@ -153,19 +196,6 @@ extern "C"
     void rxRegisterCronCommandQueue(CSimpleQueue *queue);
     CSimpleQueue *rxGetCronCommandQueue();
 
-    // int KeyTriggered(const char *k);
-    const char *getTriggeredKey();
-    int KeyTouched(const char *k);
-    const char *getIndexableKey();
-    void freeIndexedKey(const char *k);
-    void freeTriggerProcessedKey(const char *k);
-
-    int PendingKeysTriggered();
-    int PendingObjectForIndexing();
-    int WaitForIndexAndTriggerCompletionKeyTouched(const char *k);
-    void tallyHset(long long start, long long stop1, long long stop2, long long stop3);
-    void logLookupStats(long long start, long long stop1, long long stop2, long long stop3, long long stop4);
-
     typedef struct rxFieldValuePair
     {
         const char *field;
@@ -181,18 +211,66 @@ extern "C"
         // The members are embedding in the allocated block;
     } rxHashFieldAndValues;
 
-    int RequestSnapshotKey(const char *k);
-    int ResponseSnapshotKey(const char *k, rxHashFieldAndValues *s);
-    int ReleaseSnapshotKey(const char *k, rxHashFieldAndValues *s);
-    const char *nextSnapshotKey(const char **kk);
-    rxHashFieldAndValues *getCompletedSnapshotKey(const char *k, rxHashFieldAndValues **d);
-    rxHashFieldAndValues *nextReleaseSnapshotKey(rxHashFieldAndValues **d);
+    typedef struct rxSetMembers
+    {
+        size_t member_count;   // Number of members in this block
+        size_t member_index;   // Number of members in this block
+        const char *members[]; // Pointer to the members
+        // The members are embedding in the allocated block;
+    } rxSetMembers;
+
+    typedef struct snapshot_request
+    {
+        size_t k_len;
+        const char *k;
+        short type;
+        long long enqueued;
+        long long dequeued;
+        long long completed;
+        long long released;
+        void *obj;
+    } snapshot_request;
+
+    // int KeyTriggered(const char *k);
+    snapshot_request *getTriggeredKey();
+    int KeyTouched(const char *k);
+    snapshot_request *getIndexableKey();
+    void freeIndexedKey(snapshot_request *k);
+    void freeTriggerProcessedKey(snapshot_request *req);
+
+    int PendingKeysTriggered();
+    int PendingObjectForIndexing();
+    int WaitForIndexAndTriggerCompletionKeyTouched(const char *k);
+    void tallyHset(long long start, long long stop1, long long stop2, long long stop3);
+    void logLookupStats(long long start, long long stop1, long long stop2, long long stop3, long long stop4);
+
+    int RequestHashSnapshot(const char *k);
+    int ResponseHashSnapshot(snapshot_request *k);
+    int ReleaseSnapshot(snapshot_request *k);
+    snapshot_request *nextHashSnapshot(snapshot_request **kk);
+    rxHashFieldAndValues *getCompletedHashSnapshot(const char *k, rxHashFieldAndValues **d);
+    snapshot_request *nextReleasedSnapshot(snapshot_request **d);
+
+    int RequestSetSnapshot(const char *k);
+    int ResponseSetSnapshot(snapshot_request *k);
+    int ReleaseSnapshot(snapshot_request *k);
+    snapshot_request *nextSetSnapshot(snapshot_request **kk);
+    rxSetMembers *getCompletedSetSnapshot(const char *k, rxSetMembers **d);
+
+    int WaitForIndexRequest();
+    int WaitForKeyTriggered();
     void logHashSnapshotStats(long long start, long long stop);
-    void logHashSnapshotCronStats(long long start, long long stopRequests, long long nRequests, long long stopReleases, long long nReleases);
+    long long logHashSnapshotCronStats(long long start, long long stopRequests, long long nRequests, long long stopReleases, long long nReleases, long long idle);
     char *rxGetExecutable();
     void finalizeRxSuite();
 
-    rax *Sjiboleth_Master_Registry();
+    void addTaskToPool(runner handler, void *payload);
+    void SetIndexingHandler(runner handler);
+    void CommencedIndexingHandler();
+    void SetTriggerHandler(runner handler);
+    void CommencedTriggerHandler();
+
+    rax *Sjiboleth_Master_Registry(timeProc cron);
 
 // #endif
 #if REDIS_VERSION_NUM < 0x00050000

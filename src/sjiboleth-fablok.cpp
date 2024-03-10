@@ -211,7 +211,7 @@ FaBlok::FaBlok()
 FaBlok *FaBlok::Init(void *r)
 {
     this->claims = 0;
-    this->pid = getpid();
+    this->pid = gettid();
     this->thread_id = pthread_self();
 
     this->setname = rxStringEmpty();
@@ -296,7 +296,8 @@ FaBlok::FaBlok(rxString sn, UCHAR value_type)
 FaBlok *FaBlok::New(const char *sn, UCHAR value_type)
 {
     int l = strlen(sn);
-    void *fabSpace = rxMemAlloc(sizeof(rax) + sizeof(FaBlok) + l + 1);
+    size_t sz = sizeof(rax) + sizeof(FaBlok) + l + 1;
+    void *fabSpace = rxMemAlloc(sz);
 
     char *s = (char *)fabSpace + sizeof(rax) + sizeof(FaBlok);
     strncpy(s, sn, l);
@@ -317,8 +318,18 @@ FaBlok *FaBlok::Delete(FaBlok *b)
         rxServerLogRaw(rxLL_NOTICE, "Rumble in the Jungle");
     }
     b->marked_for_deletion = 722765;
-
-    rxRaxFree(b->keyset);
+    if(b->parameter_list){
+        // b->parameter_list->StartHead();
+        // while(b->parameter_list->HasEntries()){
+        //     auto p = b->parameter_list->Pop();
+        //     Delete(p);
+        // }
+        delete b->parameter_list;
+        b->parameter_list = NULL;
+    }
+    b->ClearKeys();
+    if(raxSize(b->keyset))
+        rxRaxFreeWithCallback(b->keyset, NULL);
     return NULL;
 }
 
@@ -515,26 +526,48 @@ FaBlok *FaBlok::Copy(rxString set_name, int value_type, RaxCopyCallProc *fnCallb
         {
             rxString k = rxStringNewLen((const char*)ri.key, ri.key_len);
             void *v = rxFindKey(0, k);
-            if(v != ri.data){
-                rxServerLogRaw(rxLL_NOTICE, "Changed object");
-            }
+            // if(v != ri.data){
+            //     rxServerLogRaw(rxLL_NOTICE, "Changed object");
+            // }
             // rxServerLog(rxLL_NOTICE, "%s\ncallback on %x -> %x : %s",k , ri.data, rxGetContainedObject(ri.data), (char *)rxGetContainedObject(ri.data));
             // if(v)
             //     rxServerLog(rxLL_NOTICE, "standing on %x -> %x : %s", v, rxGetContainedObject(v), (char *)rxGetContainedObject(v));
             //     else
             //     rxServerLog(rxLL_NOTICE, "standing on %x -> ODD", v);
             rxStringFree(k);
-            auto result = (fnCallback == NULL) ? true : fnCallback(ri.key, ri.key_len, ri.data, privData);
+            auto result = (fnCallback == NULL) ? true : fnCallback(ri.key, ri.key_len, v, privData);
             if (result != 0)
             {
                 void *old_data = NULL;
-                raxTryInsert(out->keyset, ri.key, ri.key_len, ri.data, &old_data);
+                raxTryInsert(out->keyset, ri.key, ri.key_len, v, &old_data);
             }
         }
         raxStop(&ri);
     }
     out->Close();
     return out;
+}
+FaBlok *FaBlok::CopyAnd(FaBlok *that){
+    char set_name[512];
+    snprintf(set_name, sizeof(set_name), "AND %s :: %s", this->setname, that->setname);
+    FaBlok *out = FaBlok::New(set_name, VERTEX_SET);   
+
+    out->MergeFrom(this, that);
+    return out;
+}
+
+FaBlok *FaBlok::Copy(rax *r)
+{
+    // rxServerLog(rxLL_NOTICE, "FaBlok::Copy fab=%p ks=%p for %s", this, this->keyset, this->setname);
+    raxIterator ri;
+    raxStart(&ri, r);
+    raxSeek(&ri, "^", NULL, 0);
+    while (raxNext(&ri))
+    {
+        this->size += raxInsert(this->keyset, ri.key, ri.key_len, ri.data, NULL);
+    }
+    raxStop(&ri);
+    return this;
 }
 
 FaBlok *FaBlok::Copy(rxString set_name, int value_type)
@@ -624,20 +657,20 @@ FaBlok *FaBlok::Copy(rxString set_name, int value_type, RaxFilterCallProc *fnCal
         {
             rxString k = rxStringNewLen((const char*)ri.key, ri.key_len);
             void *v = rxFindKey(0, k);
-            if(v != ri.data){
-                rxServerLogRaw(rxLL_NOTICE, "Changed object");
-            }
+            // if(v != ri.data){
+            //     rxServerLogRaw(rxLL_NOTICE, "Changed object");
+            // }
             // rxServerLog(rxLL_NOTICE, "%s\ncallback on %x -> %x : %s",k , ri.data, rxGetContainedObject(ri.data), (char *)rxGetContainedObject(ri.data));
             // if(v)
             //     rxServerLog(rxLL_NOTICE, "standing on %x -> %x : %s", v, rxGetContainedObject(v), (char *)rxGetContainedObject(v));
             //     else
             //     rxServerLog(rxLL_NOTICE, "standing on %x -> ODD", v);
             rxStringFree(k);
-            auto result = (fnCallback == NULL) ? true : fnCallback(ri.key, ri.key_len, ri.data, privData);
+            auto result = (fnCallback == NULL) ? true : fnCallback(ri.key, ri.key_len, v, privData);
             if (result != 0)
             {
                 void *old_data = NULL;
-                raxTryInsert(out->keyset, ri.key, ri.key_len, ri.data, &old_data);
+                raxTryInsert(out->keyset, ri.key, ri.key_len, v, &old_data);
             }
         }
         raxStop(&ri);
@@ -727,6 +760,8 @@ int FaBlok::CopyTo(FaBlok *out)
 
 int FaBlok::MergeInto(FaBlok *out)
 {
+    if(!out)
+        return 0;
     raxIterator riIn;
     int c = 0;
     raxStart(&riIn, this->keyset);
@@ -888,14 +923,54 @@ int FaBlok::MergeDisjunct(FaBlok *left, FaBlok *right)
     return c;
 }
 
-int FaBlok::CopyNotIn(FaBlok *left, FaBlok *right)
+// int CopyNotInOnRax(FaBlok *out, rax *left, rax *right)
+// {
+//     raxIterator riLeft;
+//     int c = 0;
+//     raxStart(&riLeft, left);
+//     raxSeek(&riLeft, "^", NULL, 0);
+//     raxIterator riRight;
+//     raxStart(&riRight, right);
+//     raxSeek(&riRight, "^", NULL, 0);
+
+//     raxNext(&riLeft);
+//     raxNext(&riRight);
+//     while (!(raxEOF(&riLeft) || raxEOF(&riRight)))
+//     {
+//         if (raxCompare(&riRight, "==", riLeft.key, riLeft.key_len) == 1)
+//         {
+//             raxNext(&riLeft);
+//             raxNext(&riRight);
+//         }
+//         else if (raxCompare(&riRight, ">", riLeft.key, riLeft.key_len) == 1)
+//         {
+//             out->InsertKey(riLeft.key, riLeft.key_len, riLeft.data);
+//             ++c;
+//             raxNext(&riLeft);
+//         }
+//         else if (raxCompare(&riLeft, ">", riRight.key, riRight.key_len) == 1)
+//         {
+//             raxNext(&riRight);
+//         }
+//     }
+//     raxStop(&riLeft);
+//     return c;
+// }
+
+int FaBlok::CopyNotIn(rax *left, rax *right)
 {
+    bool deleteRight = false;
+    if (!right)
+    {
+        right = raxNew();
+        deleteRight = true;
+    }
     raxIterator riLeft;
     int c = 0;
-    raxStart(&riLeft, left->keyset);
+    raxStart(&riLeft, left);
     raxSeek(&riLeft, "^", NULL, 0);
     raxIterator riRight;
-    raxStart(&riRight, right->keyset);
+    raxStart(&riRight, right);
     raxSeek(&riRight, "^", NULL, 0);
 
     raxNext(&riLeft);
@@ -919,8 +994,16 @@ int FaBlok::CopyNotIn(FaBlok *left, FaBlok *right)
         }
     }
     raxStop(&riLeft);
-    this->size = raxSize(this->keyset);
+    if (deleteRight)
+    {
+        raxFree(right);
+    }
     return c;
+}
+
+int FaBlok::CopyNotIn(FaBlok *left, FaBlok *right)
+{
+    return this->CopyNotIn(left->keyset, right->keyset);
 }
 
 void FaBlok::AddKey(const char *key, void *obj)
@@ -947,6 +1030,7 @@ void FaBlok::InsertKey(const char *key, void *obj)
     }
     //rxServerLog(rxLL_NOTICE, "FaBlok::InsertKey fab=%p ks=%p for %s key:%s", this, this->keyset, this->setname, key);
     raxInsert(this->keyset, (UCHAR *)key, strlen(key), obj, &old);
+    this->size++;
 }
 
 void FaBlok::InsertKey(unsigned char *s, size_t len, void *obj)
@@ -979,17 +1063,32 @@ void *FaBlok::RemoveKey(unsigned char *s, size_t len)
     return old;
 }
 
+#include <semaphore.h> 
+
 void *FaBlok::ClearKeys()
 {
+    static bool lock_initialized = false;
+    static mtx_t lock;
+    if (!lock_initialized)
+    {
+        mtx_init(&lock, mtx_plain);
+        lock_initialized = true;
+    }
+
+    mtx_lock(&lock);
     raxIterator setIterator;
     raxStart(&setIterator, this->keyset);
     raxSeek(&setIterator, "^", NULL, 0);
-    while (raxSize(this->keyset) > 0)
+    while (raxNext(&setIterator))
     {
         raxRemove(this->keyset, setIterator.key, setIterator.key_len, NULL);
+        raxStop(&setIterator);
+        raxStart(&setIterator, this->keyset);
         raxSeek(&setIterator, "^", NULL, 0);
     }
     raxStop(&setIterator);
+    this->size = 0;
+    mtx_unlock(&lock);
     return this;
 }
 
@@ -1023,3 +1122,11 @@ rxString FaBlok::GetCacheReport()
 
 #include "sjiboleth-silnikparowy-ctx.cpp"
 #include "sjiboleth-silnikparowy.cpp"
+
+
+
+template<> void GraphStack<FaBlok>::PopAndDeleteValue(){
+    FaBlok *e = this->Pop();
+    // FaBlok::Delete(e);
+    // // delete e;
+}

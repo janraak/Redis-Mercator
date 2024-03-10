@@ -13,6 +13,7 @@ SJIBOLETH_HANDLER(Sjiboleth::executeEquals)
     CFaBlok *out = stack->GetOperationPair(t->TokenAsSds(), QE_LOAD_NONE);
     FetchKeySet(stackO, out, GetLeft(out), GetRight(out), t);
     PushResult(out, stack);
+    t->AggregateSizeSizes(0, ((FaBlok *)out)->size);
 END_SJIBOLETH_HANDLER(Sjiboleth::executeEquals)
 
 SJIBOLETH_HANDLER(Sjiboleth::executeOr)
@@ -23,6 +24,7 @@ SJIBOLETH_HANDLER(Sjiboleth::executeOr)
     CopyKeySet(GetRight(out), out);
     MergeInto(GetLeft(out), out);
     PushResult(out, stack);
+    t->AggregateSizeSizes(0, ((FaBlok *)out)->size);
 END_SJIBOLETH_HANDLER(Sjiboleth::executeOr)
 
 SJIBOLETH_HANDLER(Sjiboleth::executeAnd)
@@ -30,6 +32,7 @@ SJIBOLETH_HANDLER(Sjiboleth::executeAnd)
     CFaBlok *out = stack->GetOperationPair(t->TokenAsSds(), QE_LOAD_LEFT_AND_RIGHT | QE_CREATE_SET | QE_SWAP_LARGEST_FIRST);
     MergeFrom(out, GetLeft(out), GetRight(out));
     PushResult(out, stack);
+    t->AggregateSizeSizes(0, ((FaBlok *)out)->size);
 END_SJIBOLETH_HANDLER(Sjiboleth::executeAnd)
 
 SJIBOLETH_HANDLER(Sjiboleth::executeXor)    
@@ -37,6 +40,7 @@ SJIBOLETH_HANDLER(Sjiboleth::executeXor)
     CFaBlok *out = stack->GetOperationPair(t->TokenAsSds(), QE_LOAD_LEFT_AND_RIGHT | QE_CREATE_SET | QE_SWAP_LARGEST_FIRST);
     MergeDisjunct(out, GetLeft(out), GetRight(out));
     PushResult(out, stack);
+    t->AggregateSizeSizes(0, ((FaBlok *)out)->size);
 END_SJIBOLETH_HANDLER(Sjiboleth::executeXor)
 
 SJIBOLETH_HANDLER(Sjiboleth::executeNotIn)
@@ -44,6 +48,7 @@ SJIBOLETH_HANDLER(Sjiboleth::executeNotIn)
     CFaBlok *out = stack->GetOperationPair(t->TokenAsSds(), QE_LOAD_LEFT_AND_RIGHT | QE_CREATE_SET | QE_SWAP_LARGEST_FIRST);
     CopyNotIn(out, GetLeft(out), GetRight(out));
     PushResult(out, stack);
+    t->AggregateSizeSizes(0, ((FaBlok *)out)->size);
 END_SJIBOLETH_HANDLER(Sjiboleth::executeNotIn)
 
 SJIBOLETH_HANDLER(Sjiboleth::executeSelectFields)

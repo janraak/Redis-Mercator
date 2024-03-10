@@ -110,13 +110,17 @@ extern "C"
         return -1;
     }
 
+    /*
+        This cron monitor the completion of the task.
+        When the task is done, then the client is unblocked.
+    */
     int multiplexer_async_Cron(struct aeEventLoop *, long long, void *clientData)
     {
         auto *multiplexer = (Multiplexer *)clientData;
 
         long long now = ustime();
         if( (now - multiplexer->start_time) > 5 * 60 * 1000 * 1000){
-            pthread_cancel(multiplexer->multiplexer_thread);
+            // pthread_cancel(multiplexer->multiplexer_thread);
             multiplexer->Done();
             RedisModule_UnblockClient(multiplexer->bc, clientData);
             return -1;
@@ -131,11 +135,12 @@ extern "C"
             return multiplexer->delay_ms;
         case Multiplexer::done:
         default:
-            pthread_cancel(multiplexer->multiplexer_thread);
+            // pthread_cancel(multiplexer->multiplexer_thread);
             multiplexer->Done();
             RedisModule_UnblockClient(multiplexer->bc, clientData);
             return -1;
         }
+        delete multiplexer;
     }
 
     /* Reply callback command multiplexer */
@@ -217,23 +222,30 @@ int Multiplexer::Start(RedisModuleCtx *ctx)
 {
     this->bc = RedisModule_BlockClient(ctx, multiplexer_Continuation_Handler, multiplexer_Timeout, multiplexer_FreeData, this->Timeout());
     this->cron_id = rxCreateTimeEvent(1, (aeTimeProc *)multiplexer_Cron, this, NULL);
+    // return 0;
     return 1;
-};
+ };
 
-int Multiplexer::Async(RedisModuleCtx *ctx, runner handler)
-{
-    this->bc = RedisModule_BlockClient(ctx, multiplexer_Continuation_Handler, multiplexer_Timeout, multiplexer_FreeData, this->Timeout());
-    this->delay_ms = 25;
-    this->start_time = ustime();
-    this->cron_id = rxCreateTimeEvent(1, (aeTimeProc *)multiplexer_async_Cron, this, NULL);
+ int Multiplexer::Async(RedisModuleCtx *ctx, runner handler)
+ {
+     this->bc = RedisModule_BlockClient(ctx, multiplexer_Continuation_Handler, multiplexer_Timeout, multiplexer_FreeData, this->Timeout());
+     this->delay_ms = 25;
+     this->start_time = ustime();
+     this->cron_id = rxCreateTimeEvent(1, (aeTimeProc *)multiplexer_async_Cron, this, NULL);
 
-    this->state = not_started;
-    this->ctx = ctx;
-    pthread_create(&this->multiplexer_thread, NULL, handler, this);
-    this->start_time = ustime();
+     this->state = not_started;
+     this->ctx = ctx;
 
-    pthread_setname_np(this->multiplexer_thread, "ASYNC");
-    return 1;
+    addTaskToPool(handler, this);
+
+    //  int rc = pthread_create(&this->multiplexer_thread, NULL, handler, this);
+    //  if (rc == 0)
+    //      pthread_setname_np(this->multiplexer_thread, "ASYNC");
+    //  else
+    //      rxServerLog(rxLL_NOTICE, "Cannot create thread! %d", rc);
+     this->start_time = ustime();
+
+     return 1;
 };
 
 // int Multiplexer::Go(void *privData){

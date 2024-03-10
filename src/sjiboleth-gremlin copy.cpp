@@ -4248,7 +4248,7 @@ bool IsKeyApplicable(const char *key, MatchParameters *parms)
     return false;
 }
 
-int matchEdges(int db, Graph_Leg *leg, FaBlok *kd, GraphStack<Graph_Leg> *bsf_q, rax *touches, rax *terminators, MatchParameters *parms)
+int matchEdges(int db, Graph_Leg *leg, FaBlok *kd, GraphStack<Graph_Leg> *bsf_q, TouchesMapType *touches, rax *terminators, MatchParameters *parms)
 {
     if (terminators)
     {
@@ -4266,7 +4266,7 @@ int matchEdges(int db, Graph_Leg *leg, FaBlok *kd, GraphStack<Graph_Leg> *bsf_q,
     if (mob)
         while (auto elesds = (char *)rxGetSetMember(mob))
         {
-            // rxServerLog(rxLL_NOTICE, "matchEdges for %s : %ld: %s", key, mob->member_index, elesds);
+            rxServerLog(rxLL_NOTICE, "matchEdges for %s : %ld: %s", key, mob->member_index, elesds);
             int segments = 0;
             rxString *parts = rxStringSplitLen(elesds, strlen(elesds), "|", 1, &segments);
             double weight = segments > 3 ? atof(parts[3]) : 1.0;
@@ -4341,7 +4341,9 @@ int breadthFirstSearch(FaBlok *leaders, FaBlok *kd, rax *terminators, MatchParam
     {
         GraphStack<Graph_Leg> bsf_q;
         GraphStack<Graph_Leg> bsf_c;
-        rax *touches = raxNew();
+        // rax *touches = raxNew();
+        TouchesMapType touches;
+        // rxServerLog(rxLL_NOTICE, "#breadthFirstSearch# 1000 # tid:(%d) touched:%p", (int)gettid(), touches);
         // Seed the search
         raxIterator leadersIterator;
         raxStart(&leadersIterator, leaders->keyset);
@@ -4355,7 +4357,8 @@ int breadthFirstSearch(FaBlok *leaders, FaBlok *kd, rax *terminators, MatchParam
                 Graph_Leg *leg = Graph_Leg::Add(key, 0.0, &bsf_q, parms->optimization);
                 leg->start = leg;
                 leg->obj = leadersIterator.data;
-                raxInsert(touches, (UCHAR *)leg->key, strlen(leg->key), leg, NULL);
+                touches.insert(std::pair<const char *, Graph_Leg *>(leg->key, leg));
+                // raxInsert(touches, (UCHAR *)leg->key, strlen(leg->key), leg, NULL);
             }
         }
         raxStop(&leadersIterator);
@@ -4364,8 +4367,8 @@ int breadthFirstSearch(FaBlok *leaders, FaBlok *kd, rax *terminators, MatchParam
         while (bsf_q.HasEntries())
         {
             Graph_Leg *leg = bsf_q.Pop();
-            // rxServerLog(rxLL_NOTICE, "Evaluating %s %f\n", leg->key, leg->length);
-            numkeys += matchEdges(db, leg, kd, &bsf_q, touches, terminators, parms);
+            rxServerLog(rxLL_NOTICE, "Evaluating %s %f\n", leg->key, leg->length);
+            numkeys += matchEdges(db, leg, kd, &bsf_q, &touches, terminators, parms);
             bsf_c.Enqueue(leg);
         }
 
@@ -4374,19 +4377,12 @@ int breadthFirstSearch(FaBlok *leaders, FaBlok *kd, rax *terminators, MatchParam
             bsf_c.Dequeue();
         }
 
-        raxIterator releaseIterator;
-        raxStart(&releaseIterator, touches);
-        raxSeek(&releaseIterator, "^", NULL, 0);
-        while (raxNext(&releaseIterator))
-        {
-            auto *leg = (Graph_Leg *)releaseIterator.data;
-            Graph_Leg::Release(leg);
-            raxRemove(touches, releaseIterator.key, releaseIterator.key_len, NULL);
-            raxSeek(&releaseIterator, "^", NULL, 0);
-        }
-        raxStop(&releaseIterator);
-
-        raxFree(touches);
+        // rxServerLog(rxLL_NOTICE, "#breadthFirstSearch# 1999 # tid:(%d) touched:%p", (int)gettid(), touches);
+        // rxRaxFreeWithCallback(touches, [](void *leg){
+        //     if(leg)
+        //         Graph_Leg::Release((Graph_Leg *)leg);
+        // });
+        touches.clear();
     }
     return numkeys;
 }

@@ -81,6 +81,14 @@ rxString *rxStringFreeSplitRes(rxString *tokens, int count)
 //     return (const char*)memmapchars((char *)s, len, from, to, setlen);
 // }
 
+char *rxCopyString(char *t, size_t tl, const char*s, size_t sl)
+{
+    if(tl < sl)
+        sl = tl;
+    strncpy(t, s, sl);
+    t[sl] = 0x00;
+    return t;
+}
 rxString rxStringFormat(const char *fmt, ...)
 {
     sds s = sdsempty();
@@ -204,7 +212,7 @@ void rxServerLog(int level, const char *fmt, ...)
     if(level != rxLL_NOTICE && getRxSuite()->debugMessages != 16924)
         return;
     va_list ap;
-    char msg[2048];
+    char msg[8192];
 
     va_start(ap, fmt);
     vsnprintf(msg, sizeof(msg), fmt, ap);
@@ -215,7 +223,7 @@ void rxServerLog(int level, const char *fmt, ...)
 void rxServerLogHexDump(int level, void *value, size_t len, const char *fmt, ...)
 {
     va_list ap;
-    char msg[2048];
+    char msg[8192];
 
     va_start(ap, fmt);
     vsnprintf(msg, sizeof(msg), fmt, ap);
@@ -303,7 +311,7 @@ const char *rxStringBuildRedisCommand(int argc, rxRedisModuleString **argv){
     for (int n = 0; n < argc; ++n)
     {
         s = (char *)rxGetContainedObject(argv[n]);
-        commandline_length += 3 + arg_len;
+        commandline_length += 3 + strlen(s);
     }
 
     char *cmd = (char *)rxMemAlloc(commandline_length);

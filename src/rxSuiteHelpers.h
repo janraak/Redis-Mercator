@@ -19,6 +19,7 @@ extern "C"
 // 
 #include "../../src/rax.h"
 #include "../../src/dict.h"
+#include "../../src/adlist.h"
 #include "sdsWrapper.h"
 #include "rxSuite.h"
 
@@ -223,16 +224,9 @@ extern "C"
     double rxGetMemoryUsedPercentage();
 
     int rxIsRehashingDatabase(int db);
-    typedef struct rxSetMembers
-    {
-        size_t member_count;    // Number of members in this block
-        size_t member_index;    // Number of members in this block
-        const char *members[];   // Pointer to the members
-        // The members are embedding in the allocated block;
-    } rxSetMembers;
-
     rxSetMembers *rxHarvestSetmembers(void *obj);
-    rxSetMembers *rxHarvestSetmembersForKey(int dbNo, const char *key);
+    rax *rxHarvestSetmembersInRax(const char * key, void *obj, rax *rx);
+    rxSetMembers *rxHarvestSetmembersForKey(int dbNo, const char *key, rxSetMembers **mob);
     rxSetMembers *rxFreeSetmembers(rxSetMembers *mob);
     const char *rxGetSetMember(rxSetMembers *mob);
 

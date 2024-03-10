@@ -64,18 +64,58 @@ string readFileIntoString3(const string &path)
 
 #include "graphstackentry.hpp"
 
+void *LoadTextAsync_Go(void *privData)
+{
+    auto multiplexer = (RxWgetMultiplexer *)privData;
+    pthread_setname_np(multiplexer->multiplexer_thread, "TLOAD");
+    multiplexer->state = Multiplexer::running;
+    rxServerLog(rxLL_NOTICE, "text.load async redis commands started\n");
+
+
+    rxServerLog(rxLL_NOTICE, "text.load async redis commands stopped\n");
+    multiplexer->result_text = "OK";
+    multiplexer->StopThread();
+    //int rc = 0; //pthread_exit(&rc);
+    return NULL;
+}
+
 int text_load_async(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
-    auto *multiplexer = new RxTextLoadMultiplexer(argv, argc);
-    multiplexer->Start(ctx);
+    auto multiplexer = new RxTextLoadMultiplexer(argv, argc);
+    multiplexer->Start(ctx); //TODO: Change to Async
+    // multiplexer->Async(ctx, LoadTextAsync_Go);
+
     rxAlsoPropagate(0, (void **)argv, argc, -1);
+    // delete multiplexer;
     return REDISMODULE_OK;
 };
+
+void *WgetAsync_Go(void *privData)
+{
+    auto multiplexer = (RxWgetMultiplexer *)privData;
+    // pthread_setname_np(multiplexer->multiplexer_thread, "WGET");
+    multiplexer->state = Multiplexer::running;
+    rxServerLog(rxLL_NOTICE, "WGET async redis commands started\n");
+
+    auto *config = getRxSuite();
+    char cwd[FILENAME_MAX]; // create string buffer to hold path
+    GetCurrentDir(cwd, FILENAME_MAX);
+    rxString command = rxStringFormat("wget --no-check-certificate  --timestamping  -P %s %s", config->wget_root ? config->wget_root : cwd, multiplexer->url);
+    rxServerLogRaw(rxLL_NOTICE, command);
+    rxServerLog(rxLL_NOTICE,"WGET rc=%d", system(command));
+
+    rxServerLog(rxLL_NOTICE, "WGET async redis commands stopped\n");
+    multiplexer->result_text = "OK";
+    multiplexer->StopThread();
+    //int rc = 0; //pthread_exit(&rc);
+    return NULL;
+}
 
 int g_wget(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 {
     auto *multiplexer = new RxWgetMultiplexer(argv, argc);
-    multiplexer->Start(ctx);
+    // multiplexer->Start(ctx); //TODO: Change to Async
+    multiplexer->Async(ctx, WgetAsync_Go);
     rxAlsoPropagate(0, (void **)argv, argc, -1);
     return REDISMODULE_OK;
 };
@@ -83,7 +123,7 @@ int g_wget(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 void *LoadGraphLoadAsync_Go(void *privData)
 {
     auto multiplexer = (RxGraphLoadMultiplexer *)privData;
-    pthread_setname_np(multiplexer->multiplexer_thread, "GLOAD");
+    // pthread_setname_np(multiplexer->multiplexer_thread, "GLOAD");
     multiplexer->state = Multiplexer::running;
 
     SimpleQueue *command_reponse_queue =  new SimpleQueue("GraphParserexecLoadThreadRESP");
@@ -117,7 +157,9 @@ void *LoadGraphLoadAsync_Go(void *privData)
 
     rxServerLog(rxLL_NOTICE, "rxGraphDb async redis commands stopped\n");
     multiplexer->result_text = "OK";
-    return multiplexer->StopThread();
+    multiplexer->StopThread();
+    //int rc = 0; //pthread_exit(&rc);
+    return NULL;
 }
 
 int g_set_async(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
@@ -125,7 +167,8 @@ int g_set_async(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
     auto multiplexer = new RxGraphLoadMultiplexer(ctx, argv, argc);
     multiplexer->Async(ctx, LoadGraphLoadAsync_Go);
     rxAlsoPropagate(0, (void **)argv, argc, -1);
-    return REDISMODULE_OK;
+     //int rc = 0; //pthread_exit(&rc);
+   return REDISMODULE_OK;
 };
 
 /*
@@ -153,7 +196,7 @@ int g_set_async(RedisModuleCtx *ctx, RedisModuleString **argv, int argc)
 $5\r\n
 verse\r\n
 $155\r\n
-7 When Hiram heard Solomon's words, he rejoiced greatly and said: `May Jehovah be praised today, for he has given David a wise son over this great people!`\r\n
+7 When Hiram heard Solomon's words, he rejoiced greatly and said: #May Jehovah be praised today, for he has given David a wise son over this great people!#\r\n
 $4\r\n
 type\r\n
 $5\r\n
@@ -164,7 +207,7 @@ char *consume_element(char *start, char *boundary, char **end, size_t *len, char
 {
     *end = strstr(start, CRLF);
     if (!end)
-        rxServerLog(rxLL_NOTICE, "odd!\n");
+        rxServerLog(rxLL_NOTICE, "odd! (consume_element)\n");
     *len = *end - start;
     *next = *end + strlen(CRLF);
     if (*next >= boundary)

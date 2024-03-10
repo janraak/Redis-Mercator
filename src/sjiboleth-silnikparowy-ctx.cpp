@@ -39,9 +39,20 @@ rax *SilNikParowy_Kontekst::Execute(ParsedExpression *e, const char *key)
     if(engine == NULL)
         rxModulePanic((char *)"Engine expected");
     this->expression = e;
+    // e->show("", (void*)this);
     return engine->Execute(e, this, key);
 }
 
+
+rax *SilNikParowy_Kontekst::ExecuteWithSet(ParsedExpression *e, FaBlok *triggers)
+{
+    SilNikParowy *engine = e->GetEngine();
+    if(engine == NULL)
+        rxModulePanic((char *)"Engine expected");
+    this->expression = e;
+    // e->show("", (void*)this);
+    return engine->ExecuteWithSet(e, this, triggers);
+}
 
 void *SilNikParowy_Kontekst::Execute(ParsedExpression *e, void *data)
 {
@@ -141,7 +152,7 @@ void SilNikParowy_Kontekst::DumpStack()
     int n = 0;
     while ((kd = this->Next()) != NULL)
     {
-        rxServerLog(rxLL_DEBUG, "%2d\t%p temp=%d type=%d size=%d %s", n++, kd, kd->is_temp, kd->value_type, kd->size, kd->setname);
+        rxServerLog(rxLL_DEBUG, "%d stack:%p entry: %2d\t%p temp=%d type=%d size=%d %s", (int) gettid(), this, n++, kd, kd->is_temp, kd->value_type, kd->size, kd->setname);
         if (kd->IsParameterList())
         {
             GraphStack<FaBlok> *pl = kd->parameter_list;
@@ -150,7 +161,18 @@ void SilNikParowy_Kontekst::DumpStack()
             int pn = 0;
             while ((p = pl->Next()) != NULL)
             {
-                rxServerLog(rxLL_DEBUG, ".%2d\t%p temp=%d type=%d size=%d %s", pn++, p, p->is_temp, p->value_type, p->size, p->setname);
+                rxServerLog(rxLL_DEBUG, "%d .%2d\t%p temp=%d type=%d size=%d %s", (int) gettid(), pn++, p, p->is_temp, p->value_type, p->size, p->setname);
+                if (p->IsParameterList())
+                {
+                    GraphStack<FaBlok> *ppl = p->parameter_list;
+                    ppl->StartHead();
+                    FaBlok *pp;
+                    int ppn = 0;
+                    while ((pp = ppl->Next()) != NULL)
+                    {
+                        rxServerLog(rxLL_DEBUG, "%d ..%2d\t%p temp=%d type=%d size=%d %s", (int)gettid(), ppn++, pp, pp->is_temp, pp->value_type, pp->size, pp->setname);
+                    }
+                }
             }
         }
     }
@@ -168,24 +190,25 @@ FaBlok *SilNikParowy_Kontekst::GetOperationPair(char const  *operation, int load
     }
 
     FaBlok *r = this->Pop();
-    if (((load_left_and_or_right & QE_LOAD_RIGHT_ONLY)) && r->size == 0)
-    {
-        rxString rk = rxStringNew(r->setname);
-        r->FetchKeySet(this->serviceConfig, rk);
-        rxStringFree(rk);
-    }
+    if(r){
+        if (r && ((load_left_and_or_right & QE_LOAD_RIGHT_ONLY)) && r->size == 0)
+        {
+            rxString rk = rxStringNew(r->setname);
+            r->FetchKeySet(this->serviceConfig, rk);
+            rxStringFree(rk);
+        }
 
-    int do_swap = ((load_left_and_or_right && QE_SWAP_LARGEST_FIRST) && (raxSize(l->keyset) < raxSize(r->keyset))) || ((load_left_and_or_right && QE_SWAP_SMALLEST_FIRST) && (raxSize(l->keyset) > raxSize(r->keyset)));
-    if (do_swap)
-    {
-        FaBlok *swap = l;
-        l = r;
-        r = swap;
+        int do_swap = ((load_left_and_or_right && QE_SWAP_LARGEST_FIRST) && (raxSize(l->keyset) < raxSize(r->keyset))) || ((load_left_and_or_right && QE_SWAP_SMALLEST_FIRST) && (raxSize(l->keyset) > raxSize(r->keyset)));
+        if (do_swap)
+        {
+            FaBlok *swap = l;
+            l = r;
+            r = swap;
+        }
     }
-
-    rxString keyset_name = rxStringFormat("%s %s %s", l->setname, operation, r->setname);
+    char keyset_name[1024];
+    snprintf(keyset_name, sizeof(keyset_name), "%s %s %s", l->setname, operation, r->setname);
     FaBlok *kd = FaBlok::Get(keyset_name, KeysetDescriptor_TYPE_KEYSET);
-    rxStringFree(keyset_name);
     kd->left = l;
     kd->right = r;
     kd->start = ustime();
