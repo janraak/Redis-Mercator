@@ -75,6 +75,7 @@ ParsedExpression *Sjiboleth::Parse(const char *query)
     int object_expression_treatment_level = 0;
 
     auto *expression = new ParsedExpression(this);
+    expression->memoization_strategy = this->MemoizationStrategy();
     auto *root_expression = expression;
     if (!query)
         return root_expression;
@@ -862,6 +863,7 @@ GraphStack<ParserToken> *ParsedExpression::RPN()
 
 SilNikParowy *ParsedExpression::GetEngine()
 {
+    // this->memoization_strategy = this->dialect->MemoizationStrategy();
     return this->dialect->GetEngine();
 }
 
@@ -891,10 +893,14 @@ int ParsedExpression::writeErrors(RedisModuleCtx *ctx)
 
 void ParsedExpression::ClearErrors()
 {
-    while(listLength(this->errors) > 0){
+    while (listLength(this->errors) > 0)
+    {
         listNode *ln = listFirst(this->errors);
-        rxMemFree(ln->value);
-        listDelNode(this->errors, ln);
+        if (ln)
+        {
+            rxMemFree(ln->value);
+            listDelNode(this->errors, ln);
+        }
     }
 }
 

@@ -178,7 +178,8 @@ void *initRxSuite()
         mtx_init(&shared->SnapshotLock, mtx_plain);
 
         shared->sjeboleth_master_registry = NULL;
-
+        shared->FaBlok_registry = raxNew();
+        mtx_init(&shared->FaBlok_registryLock, mtx_plain);
         char default_address[48];
         snprintf(default_address, sizeof(default_address), "127.0.0.1:%d", server.port);
 
@@ -890,4 +891,44 @@ void addTaskToPool(runner handler, void *payload)
 {
     rxSuiteShared *config = initRxSuite();
     thpool_add_work(config->thpool, handler, payload);
+}
+
+rax *FaBlok_Get_Registry(){
+    rxSuiteShared *config = initRxSuite();
+    if (!config->FaBlok_registry)
+    {
+        config->FaBlok_registry = raxNew();
+    }
+    return config->FaBlok_registry;
+
+}
+
+void *FaBlok_Get(const char *n)
+{
+    void *b = NULL;
+    rxSuiteShared *config = initRxSuite();
+    mtx_lock(&config->FaBlok_registryLock);
+    b = raxFind(config->FaBlok_registry, (UCHAR *)n, strlen(n));
+    mtx_unlock(&config->FaBlok_registryLock);
+    if (b == raxNotFound)
+    {
+        return NULL;
+    }
+
+    return b;
+}
+void FaBlok_Set(const char *n, void *b)
+{
+    rxSuiteShared *config = initRxSuite();
+    mtx_lock(&config->FaBlok_registryLock);
+    raxInsert(config->FaBlok_registry, (UCHAR *)n, strlen(n), b, NULL);
+    mtx_unlock(&config->FaBlok_registryLock);
+}
+
+void FaBlok_Delete(const char *n)
+{
+    rxSuiteShared *config = initRxSuite();
+    mtx_lock(&config->FaBlok_registryLock);
+    raxRemove(config->FaBlok_registry, (UCHAR *)n, strlen(n), NULL);
+    mtx_unlock(&config->FaBlok_registryLock);
 }

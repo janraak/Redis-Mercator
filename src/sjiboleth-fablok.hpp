@@ -22,6 +22,8 @@ extern "C"
 #include "../../src/rax.h"
 #include "sdsWrapper.h"
 
+#include "sha1.h"
+
 #include "rxSuite.h"
 #include "rxSuiteHelpers.h"
 
@@ -58,6 +60,7 @@ typedef bool RaxFilterCallProc(unsigned char *s, size_t len, void *data, void *p
 
 
 class SilNikParowy;
+class SilNikParowy_Kontekst;
 class FaBlok
 {
 public:
@@ -65,8 +68,6 @@ public:
 
     UCHAR value_type;
 public:
-      static  rax *Get_FaBlok_Registry();
-      static void Free_Thread_Registry();
       static void Cache(FaBlok *b);
       static void Uncache(const char *sn);
       static void Uncache(FaBlok *b);
@@ -80,11 +81,12 @@ public:
       long long latency;
       const char *setname;
       size_t reuse_count;
+      size_t ref_count;
       size_t size;
       rax *keyset;
-      char rumble_strip1[16];
+    //   char rumble_strip1[16];
       GraphStack<FaBlok> *parameter_list;
-      char rumble_strip2[16];
+    //   char rumble_strip2[16];
       FaBlok *left;
       FaBlok *right;
       ParserToken *objectExpression;
@@ -123,6 +125,8 @@ public:
 
       static FaBlok *Get(const char *sn);
       static FaBlok *Get(const char *sn, UCHAR value_type);
+      static FaBlok *Get(const char *sha, const char *sn);
+      static FaBlok *Get(const char *sha, const char *sn, UCHAR value_type);
       FaBlok *Rename(const char *setname);
       static void DeleteAllTempDescriptors();
       static void ClearCache();
@@ -134,7 +138,7 @@ public:
       void *RemoveKey(unsigned char *s, size_t len);
       void *ClearKeys();      
       void *LookupKey(const char *key);
-      void PushResult(GraphStack<FaBlok> *stack);
+      void PushResult(SilNikParowy_Kontekst *stack);
 
       FaBlok *Right();
       FaBlok *Left();
@@ -183,6 +187,10 @@ public:
 
     rax *memoization;
 
+    SHA1_CTX fingerprint;
+    SHA1_CTX step_fingerprint;
+    char sha[41];
+    char step_sha[41];
 
 protected:
 

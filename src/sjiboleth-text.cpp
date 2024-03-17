@@ -48,17 +48,20 @@ bool TextDialect::FlushIndexables(rax *collector, rxString key, int key_type, CS
 		rxString avp = rxStringNewLen((const char *)indexablesIterator.key, indexablesIterator.key_len);
 		int segments = 0;
 		rxString *parts = rxStringSplitLen(avp, indexablesIterator.key_len, "/", 1, &segments);
-		auto indexable = (Indexable *)indexablesIterator.data;
-		char score[64];
-		snprintf(score, sizeof(score), "%f", rxGetIndexScoringMethod() == UnweightedIndexScoring
-								   ? indexable->sum_w
-								   : indexable->sum_w / (indexable->tally * indexable->tally));
+		Indexable *indexable = NULL;
+		raxRemove(collector, indexablesIterator.key, indexablesIterator.key_len, &indexable);
+		char score[64] = "1";
+		if (indexable)
+			snprintf(score, sizeof(score), "%f", rxGetIndexScoringMethod() == UnweightedIndexScoring ? indexable->sum_w : indexable->sum_w / (indexable->tally * indexable->tally));
 		rcc = (redisReply *)redisCommand(client, "RXADD %s %s %s %s %s %s", key, KEYTYPE_TAGS[key_type], parts[0], parts[1], score, "0");
 		if (rcc != NULL)
 			freeReplyObject(rcc);
 		rxStringFreeSplitRes(parts, segments);
 		rxStringFree(avp);
 		delete indexable;
+		raxStop(&indexablesIterator);
+		raxStart(&indexablesIterator, collector);
+		raxSeek(&indexablesIterator, "^", NULL, 0);
 	}
 	raxStop(&indexablesIterator);
 

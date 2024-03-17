@@ -317,6 +317,7 @@ public:
         {
             rxServerLogRaw(rxLL_DEBUG, rxStringFormat("Rule (1) IF: %s as: %s\n", this->setName, if_this));
             this->if_this = this->RuleParser->Parse(if_this);
+            this->if_this->memoization_strategy = NoMemoization;
             rxServerLogRaw(rxLL_DEBUG, rxStringFormat("Rule (2) IF: %s as: %s\n", this->setName, this->if_this->ToString()));
         }
         if (then_apply)
@@ -328,6 +329,7 @@ public:
         {
             rxServerLogRaw(rxLL_DEBUG, rxStringFormat("Rule (1): %s as: %s\n", this->setName, then_that));
             this->then_that = this->RuleParser->Parse(then_that);
+            this->then_that->memoization_strategy = NoMemoization;
             rxServerLogRaw(rxLL_DEBUG, rxStringFormat("Rule (2): %s as: %s\n", this->setName, this->then_that->ToString()));
         }
         if (else_apply)
@@ -339,6 +341,7 @@ public:
         {
             rxServerLogRaw(rxLL_DEBUG, rxStringFormat("Rule (1) ELSE: %s as: %s\n", this->setName, else_that));
             this->else_that = this->RuleParser->Parse(else_that);
+            this->else_that->memoization_strategy = NoMemoization;
             rxServerLogRaw(rxLL_DEBUG, rxStringFormat("Rule (2) ELSE: %s as: %s\n", this->setName, this->else_that->ToString()));
         }
     };
@@ -487,6 +490,7 @@ public:
         rax *if_set = NULL;
         rax *then_set = NULL;
         rax *else_set = NULL;
+        kontekst->Reset();
         if (this->if_this)
         {
             if_set = kontekst->ExecuteWithSet(this->if_this, triggers);

@@ -1106,7 +1106,9 @@ SJIBOLETH_HANDLER(GremlinDialect::executeAllVertices)
     if (stack->HasEntries())
     {
         kd = stack->Pop();
-        if (kd->IsValueType(KeysetDescriptor_TYPE_GREMLIN_EDGE_SET) || kd->IsValueType(KeysetDescriptor_TYPE_GREMLIN_VERTEX_SET) || kd->IsValueType(KeysetDescriptor_TYPE_GREMLINSET))
+        if (kd->IsValueType(KeysetDescriptor_TYPE_GREMLIN_EDGE_SET) 
+        || kd->IsValueType(KeysetDescriptor_TYPE_GREMLIN_VERTEX_SET) 
+        || kd->IsValueType(KeysetDescriptor_TYPE_GREMLINSET))
         {
             PushResult(kd, stack);
             // No tokens on Stack
@@ -1377,6 +1379,7 @@ END_SJIBOLETH_HANDLER(executeGremlinUse)
 #define MATCH_IS_TRUE 1
 static SJIBOLETH_HANDLER(executeGremlinHas)
 {
+    // stack->DumpStack();
     short must_match = t->Is("HAS") || t->Is("EQ") ? MATCH_IS_TRUE : MATCH_IS_FALSE;
     if (!must_match)
     {
@@ -1408,7 +1411,7 @@ static SJIBOLETH_HANDLER(executeGremlinHas)
     }
     else if (!ad->IsValueType(KeysetDescriptor_TYPE_SINGULAR))
     {
-        rxString msg = rxStringFormat("%s requires an attribute value pair to test", t->Token());
+        rxString msg = rxStringFormat("%s requires an attribute value pair to test (type:%d)", t->Token(), ad->ValueType());
         ERROR(msg);
         rxServerLogRaw(rxLL_WARNING, msg);
         // rxStringFree(msg);
@@ -3823,31 +3826,31 @@ bool GremlinDialect::RegisterDefaultSyntax()
     // this->RegisterSyntax("g", 500, 2, 1, Q_READONLY, &executeGremlin);
     this->RegisterSyntax("v", pri500, 1, 1, Q_READONLY, &executeAllVertices);
     this->RegisterSyntax("V", pri500, 1, 1, Q_READONLY, &executeAllVertices);
-    this->RegisterSyntax("e", 500, 2, 1, Q_READONLY, &executeAllEdges);
-    this->RegisterSyntax("E", 500, 2, 1, Q_READONLY, &executeAllEdges);
+    this->RegisterSyntax("e", 500, 1, 1, Q_READONLY, &executeAllEdges);
+    this->RegisterSyntax("E", 500, 1, 1, Q_READONLY, &executeAllEdges);
     this->RegisterSyntax(".", 0, 0, priIgnore, Q_READONLY, NULL);
-    this->RegisterSyntax(",", pri200, 2, 1, Q_READONLY, &executeGremlinParameters);
-    this->RegisterSyntax("parm", pri200, 2, 1, Q_READONLY, &executeGremlinParameters);
+    this->RegisterSyntax(",", pri200, 2, 1, Q_READONLY, &executeGremlinParameters, Q_KEEP_STACK_POSITION);
+    this->RegisterSyntax("parm", pri200, 2, 1, Q_READONLY, &executeGremlinParameters, Q_KEEP_STACK_POSITION);
     // Pattern matching
     this->RegisterSyntax("match", pri500, 1, 1, Q_READONLY, &executeMatch);
-    this->RegisterSyntax("nomatch", 500, 2, 1, Q_READONLY, &executeNomatch);
-    this->RegisterSyntax("incl", 500, 2, 1, Q_READONLY, &executeGremlinMatchInExclude);
-    this->RegisterSyntax("include", 500, 2, 1, Q_READONLY, &executeGremlinMatchInExclude);
-    this->RegisterSyntax("excl", 500, 2, 1, Q_READONLY, &executeGremlinMatchInExclude);
-    this->RegisterSyntax("exclude", 500, 2, 1, Q_READONLY, &executeGremlinMatchInExclude);
-    this->RegisterSyntax("minimize", 500, 2, 1, Q_READONLY, &executeGremlinMatchMinimize, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
-    this->RegisterSyntax("maximize", 500, 2, 1, Q_READONLY, &executeGremlinMatchMaximize, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
+    this->RegisterSyntax("nomatch", 500, 1, 1, Q_READONLY, &executeNomatch);
+    this->RegisterSyntax("incl", 500, 1, 0, Q_READONLY, &executeGremlinMatchInExclude);
+    this->RegisterSyntax("include", 500, 1, 0, Q_READONLY, &executeGremlinMatchInExclude);
+    this->RegisterSyntax("excl", 500, 1, 0, Q_READONLY, &executeGremlinMatchInExclude);
+    this->RegisterSyntax("exclude", 500, 1, 0, Q_READONLY, &executeGremlinMatchInExclude);
+    this->RegisterSyntax("minimize", 500, 1, 0, Q_READONLY, &executeGremlinMatchMinimize, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
+    this->RegisterSyntax("maximize", 500, 1, 0, Q_READONLY, &executeGremlinMatchMaximize, PARSER_OPTION_DELAY_OBJECT_EXPRESSION);
     //
     this->RegisterSyntax("as", 500, 2, 1, Q_READONLY, &executeGremlinAs);
-    this->RegisterSyntax("use", 500, 2, 1, Q_READONLY, &executeGremlinUse);
+    this->RegisterSyntax("use", 500, 1, 1, Q_READONLY, &executeGremlinUse);
     //
     this->RegisterSyntax("has", 500, 2, 1, Q_READONLY, &executeGremlinHas);
     this->RegisterSyntax("hasNot", 500, 2, 1, Q_READONLY, &executeGremlinHas);
-    this->RegisterSyntax("hasToken", 500, 2, 1, Q_READONLY, &executeGremlinHas);
-    this->RegisterSyntax("missingToken", 500, 2, 1, Q_READONLY, &executeGremlinHas);
+    this->RegisterSyntax("hasToken", 500, 1, 1, Q_READONLY, &executeGremlinHas);
+    this->RegisterSyntax("missingToken", 500, 1, 1, Q_READONLY, &executeGremlinHas);
     this->RegisterSyntax("missing", 500, 2, 1, Q_READONLY, &executeGremlinHas);
-    this->RegisterSyntax("hasLabel", 500, 2, 1, Q_READONLY, &executeGremlinHasLabel);
-    this->RegisterSyntax("missingLabel", 500, 2, 1, Q_READONLY, &executeGremlinHasLabel);
+    this->RegisterSyntax("hasLabel", 500, 1, 1, Q_READONLY, &executeGremlinHasLabel);
+    this->RegisterSyntax("missingLabel", 500, 1, 1, Q_READONLY, &executeGremlinHasLabel);
     //
     this->RegisterSyntax("by", 500, 2, 1, Q_READONLY, &executeGremlinGroupby);
     //
@@ -4233,12 +4236,12 @@ static double ExecuteExpressionParameter(MatchParameters *parms, void *data)
 
 bool IsKeyApplicable(const char *key, MatchParameters *parms)
 {
-    if (parms->includes)
+    if (parms->includes && parms->includes->numnodes)
     {
         if (raxFind(parms->includes, (UCHAR *)key, strlen(key)) != raxNotFound)
             return true;
     }
-    if (parms->excludes)
+    if (parms->excludes && parms->excludes->numnodes)
     {
         if (raxFind(parms->excludes, (UCHAR *)key, strlen(key)) == raxNotFound)
             return true;
@@ -4328,7 +4331,6 @@ int matchEdges(int db, Graph_Leg *leg, FaBlok *kd, GraphStack<Graph_Leg> *bsf_q,
     rxFreeSetmembers(mob);
     return numkeys;
 }
-#include <map>
 
 int breadthFirstSearch(FaBlok *leaders, FaBlok *kd, rax *terminators, MatchParameters *parms)
 {

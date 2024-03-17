@@ -24,6 +24,7 @@ class SilNikParowy;
 
 #define Q_READONLY 0
 #define Q_WRITE 1
+#define Q_KEEP_STACK_POSITION 4
 
 #define EXEC_NORMAL 0
 #define EXEC_INDEXING 1
@@ -58,6 +59,9 @@ public:
     long long us_errors;
     long long n_setsize_in;
     long long n_setsize_out;
+    long long stack_in;
+    long long stack_out;
+    long long stack_diff;
 
     // Is the token modifying data?
     short read_or_write;
@@ -65,29 +69,29 @@ public:
     ParserToken();
     static ParserToken *New(eTokenType token_type,
                             const char *op,
-                            int op_len, 
+                            int op_len,
                             int options);
     static ParserToken *New(const char *op,
                             eTokenType token_type,
                             short token_priority,
                             short no_of_stack_entries_consumed,
-                            short no_of_stack_entries_produced, 
-                            int options, 
+                            short no_of_stack_entries_produced,
+                            int options,
                             short read_or_write);
     static ParserToken *New(const char *op,
                             eTokenType token_type,
                             short token_priority,
                             short no_of_stack_entries_consumed,
                             short no_of_stack_entries_produced,
-                            operationProc *opf, 
-                            int options, 
+                            operationProc *opf,
+                            int options,
                             short read_or_write);
     void ObjectExpression(ParsedExpression *objectExpression);
     ParsedExpression *ObjectExpression();
-    static ParserToken *New(const char *op, short token_priority, operationProc *opf, int options, 
+    static ParserToken *New(const char *op, short token_priority, operationProc *opf, int options,
                             short read_or_write);
-    ParserToken *Init(eTokenType token_type, const char *op, int op_len, int options, 
-                            short read_or_write);
+    ParserToken *Init(eTokenType token_type, const char *op, int op_len, int options,
+                      short read_or_write);
     static ParserToken *Copy(ParserToken *base, long reference);
     ~ParserToken();
     static void Purge(ParserToken *token);
@@ -126,12 +130,28 @@ public:
     int Execute(CStack *stackO);
 
     void AggregateSizeSizes(long in, long out);
+    bool WillReturnResult(){
+        return this->no_of_stack_entries_produced > 0;
+    }
+    int No_of_stack_entries_consumed(){
+        return this->no_of_stack_entries_consumed;
+    }
+};
+enum eMemoizationStrategy
+{
+    NoMemoization,
+    PathMemoization,
+    TokenMemoization,
+    StepMemoization
+
 };
 
 class Sjiboleth
 {
+public:
 protected:
     rax *registry;
+
 private:
     // Parser *parser;
     bool is_volatile;
@@ -158,10 +178,13 @@ protected:
     ParserToken *ScanNumber(char *head, char **tail);
 
     virtual bool RegisterDefaultSyntax();
+    virtual enum eMemoizationStrategy MemoizationStrategy()
+    {
+        return eMemoizationStrategy::NoMemoization;
+    }
     bool ResetSyntax();
 
 public:
-
     DECLARE_SJIBOLETH_HANDLER(executePlusMinus);
     DECLARE_SJIBOLETH_HANDLER(executeStore);
     DECLARE_SJIBOLETH_HANDLER(executeEquals);
@@ -177,7 +200,7 @@ public:
     static void *Startup();
 
 public:
-    static Sjiboleth *Get(const char* dialect);
+    static Sjiboleth *Get(const char *dialect);
     Sjiboleth(const char *default_operator);
     Sjiboleth();
     virtual ~Sjiboleth();
@@ -207,12 +230,20 @@ protected:
 
 public:
     virtual SilNikParowy *GetEngine();
+    virtual enum eMemoizationStrategy MemoizationStrategy()
+    {
+        return StepMemoization;
+    }
 };
 
 class GremlinDialect : public Sjiboleth
 {
 public:
     virtual bool RegisterDefaultSyntax();
+    virtual enum eMemoizationStrategy MemoizationStrategy()
+    {
+        return PathMemoization;
+    }
 
 public:
     DECLARE_SJIBOLETH_HANDLER(executeMatch);
@@ -249,6 +280,9 @@ public:
 class SilNikParowy;
 class ParsedExpression
 {
+public:
+    eMemoizationStrategy memoization_strategy;
+
 protected:
     Sjiboleth *dialect;
     GraphStack<ParserToken> *expression;

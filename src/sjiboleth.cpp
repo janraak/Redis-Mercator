@@ -482,28 +482,34 @@ int sjiboleth_stats_cron(struct aeEventLoop *, long long, void *clientData)
         {
             raxStart(&tokenIterator, tokens);
             raxSeek(&tokenIterator, "^", NULL, 0);
-                    rxServerLog(rxLL_NOTICE, "... %16s %10s %12s %10s %12s %12s %12s", 
+                    rxServerLog(rxLL_NOTICE, "... %16s %10s %12s %10s %12s %12s %12s %12s %12s", 
                     "Function", 
                     "calls", 
                     "avg (us)", 
                     "errors", 
                     "avg (us)",
                     "avg in",
-                    "avg out");
+                    "avg out",
+                    "avg stack in",
+                    "avg stack out",
+                    "avg stack diff");
             while (raxNext(&tokenIterator))
             {
                 auto t = (ParserToken *)tokenIterator.data;
                 if ((t->n_calls + t->n_errors) > 0 )
                 {
                     rxString i = rxStringNewLen((const char *)tokenIterator.key, tokenIterator.key_len);
-                    rxServerLog(rxLL_NOTICE, "... %16s %10lld %12.2f %10lld %12.2f %12.2f %12.2f", 
+                    rxServerLog(rxLL_NOTICE, "... %16s %10lld %12.2f %10lld %12.2f %12.2f %12.2f %12.2f %12.2f %12.2f", 
                     i, 
                     t->n_calls, 
                     t->n_calls > 0 ? t->us_calls * 1.0 / t->n_calls : 0, 
                     t->n_errors, 
                     t->n_errors > 0 ? t->us_errors * 1.0 / t->n_errors : 0, 
                     t->n_calls > 0 ? t->n_setsize_in * 1.0 / t->n_calls : 0, 
-                    t->n_calls > 0 ? t->n_setsize_out * 1.0 / t->n_calls : 0);
+                    t->n_calls > 0 ? t->n_setsize_out * 1.0 / t->n_calls : 0, 
+                    t->n_calls > 0 ? t->stack_in * 1.0 / t->n_calls : 0, 
+                    t->n_calls > 0 ? t->stack_out * 1.0 / t->n_calls : 0, 
+                    t->n_calls > 0 ? t->stack_diff * 1.0 / t->n_calls : 0);
                     rxStringFree(i);
                 }
             }
@@ -511,6 +517,23 @@ int sjiboleth_stats_cron(struct aeEventLoop *, long long, void *clientData)
         }
     }
     raxStop(&dialectIterator);
+        rxServerLog(rxLL_NOTICE, "FaBlok Cache, %d entries", raxSize(FaBlok_Get_Registry()));
+        rxServerLog(rxLL_NOTICE, "%-41s %-5s %-64s %12s %12s %12s %s", "sha", "type", "setname", "ref_count", "reuse_count", "size", "isParm");
+    raxIterator fi;
+    raxStart(&fi, FaBlok_Get_Registry());
+    raxSeek(&fi, "^", NULL, 0);
+    while (raxNext(&fi))
+    {
+        char sha[41];
+        strncpy(sha, fi.key, sizeof(sha) - 1);
+        sha[40] = 0x00;
+        FaBlok *b = (FaBlok *)fi.data;
+        if (b)
+            rxServerLog(rxLL_NOTICE, "%s %5d %-64s %12lld %12lld %12lld %d %p", sha, b->value_type, b->setname, b->ref_count, b->reuse_count, raxSize(b->keyset), b->IsParameterList(), b);
+        else
+            rxServerLog(rxLL_NOTICE, "%s", sha);
+    }
+    raxStop(&fi);
     mtx_unlock(&Master_Registry_lock);
     sjiboleth_stats_last_stats = mstime();
 
@@ -631,12 +654,12 @@ void *startUp = Sjiboleth::Startup();
 
 
 template<> void GraphStack<const char>::PopAndDeleteValue(){
-    const char *e = this->Pop();
+    /*const char *e = */this->Pop();
     // rxMemFree(e);
 }
 
 template<> void GraphStack<GraphStack<const char>>::PopAndDeleteValue(){
-    GraphStack<const char> *e = this->Pop();
+    /*GraphStack<const char> *e = */this->Pop();
     // delete e;
 }
 
@@ -644,7 +667,7 @@ class renamert;
 template <>
 void GraphStack<renamert>::PopAndDeleteValue()
 {
-    renamert *e = this->Pop();
+    /*renamert *e = */this->Pop();
     // rxMemFree(e);
 }
 
@@ -652,7 +675,7 @@ class GraphStackEntry;
 template <>
 void GraphStack<GraphStackEntry>::PopAndDeleteValue()
 {
-    GraphStackEntry *e = this->Pop();
+    /*GraphStackEntry *e = */this->Pop();
     // delete e;
 }
 
@@ -660,7 +683,7 @@ class Triplet;
 template <>
 void GraphStack<Triplet>::PopAndDeleteValue()
 {
-    Triplet *e = this->Pop();
+    /*Triplet *e = */this->Pop();
     // delete e;
 }
 
@@ -668,7 +691,7 @@ class ReplicationGuard;
 template <>
 void GraphStack<ReplicationGuard>::PopAndDeleteValue()
 {
-    ReplicationGuard *e = this->Pop();
+    /*ReplicationGuard *e = */this->Pop();
     // delete e;
 }
 
@@ -676,7 +699,7 @@ class Graph_Leg;
 template <>
 void GraphStack<Graph_Leg>::PopAndDeleteValue()
 {
-    Graph_Leg *e = this->Pop();
+    /*Graph_Leg *e = */this->Pop();
     // delete e;
 }
 
@@ -684,6 +707,6 @@ class ParserToken;
 template <>
 void GraphStack<ParserToken>::PopAndDeleteValue()
 {
-    ParserToken *e = this->Pop();
+    /*ParserToken *e = */this->Pop();
     // delete e;
 }

@@ -323,19 +323,19 @@ extern "C" void forwardTriggeredKey(void *key){
 
 
 template<> void GraphStack<redisContext>::PopAndDeleteValue(){
-    redisContext *e = this->Pop();
+    /*redisContext *e = */this->Pop();
     // RedisClientPool<redisContext>::Disconnect(e);
 }
 
 
 template<> void GraphStack<redisAsyncContext>::PopAndDeleteValue(){
-    redisAsyncContext *e = this->Pop();
+    /*redisAsyncContext *e = */this->Pop();
     // RedisClientPool<redisAsyncContext>::Disconnect(e);
 }
 
 
 
 template<> void GraphStack<struct client>::PopAndDeleteValue(){
-    struct client *e = this->Pop();
+    /*struct client *e = */this->Pop();
     // RedisClientPool<struct client>::Disconnect(e);
 }

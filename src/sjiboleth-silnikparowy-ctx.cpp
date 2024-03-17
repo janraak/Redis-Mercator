@@ -12,6 +12,8 @@ extern "C"
 
 #include "../../deps/hiredis/hiredis.h"
 
+#include "sha1.h"
+
 #include "../../src/rax.h"
 #include "rxSuiteHelpers.h"
     extern raxNode *raxNewNode(size_t children, int datafield);
@@ -87,6 +89,7 @@ SilNikParowy_Kontekst::SilNikParowy_Kontekst()
     this->can_delete_result = 653974783;
     this->fieldSelector = NULL;
     this->sortSelector = NULL;
+    SHA1Init(&this->fingerprint);
 }
 
 void SilNikParowy_Kontekst::RetainResult()
@@ -145,8 +148,8 @@ void SilNikParowy_Kontekst::ClearStack()
 
 void SilNikParowy_Kontekst::DumpStack()
 {
-    if(getRxSuite()->debugMessages != 16924)
-        return;
+    // if(getRxSuite()->debugMessages != 16924)
+    //     return;
     this->StartHead();
     FaBlok *kd;
     int n = 0;

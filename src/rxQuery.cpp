@@ -163,8 +163,8 @@ public:
         if (this->r)
         {
             WriteResults(this->r, ctx, this->fetch_rows, NULL, this->ranked, this->ranked_lower_bound, this->ranked_upper_bound, this->kontekst->fieldSelector, this->kontekst->sortSelector);
-            if (kontekst->CanDeleteResult())
-                FreeResults(this->r);
+            // if (kontekst->CanDeleteResult())
+            //     FreeResults(this->r);
         }
         else
             RedisModule_ReplyWithSimpleString(ctx, "No results!");

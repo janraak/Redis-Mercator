@@ -94,6 +94,9 @@ extern "C"
         sem_t signpost_triggering;
 
         rax *sjeboleth_master_registry;
+        rax *FaBlok_registry;
+        mtx_t FaBlok_registryLock;
+
         rax *triggeredKeys;
         rax *processingTriggeredKeys;
         mtx_t triggeredKeysLock;
@@ -271,6 +274,11 @@ extern "C"
     void CommencedTriggerHandler();
 
     rax *Sjiboleth_Master_Registry(timeProc cron);
+    rax *FaBlok_Get_Registry();
+
+    void *FaBlok_Get(const char *n);
+    void FaBlok_Set(const char *n, void *b);
+    void FaBlok_Delete(const char *n);
 
 // #endif
 #if REDIS_VERSION_NUM < 0x00050000

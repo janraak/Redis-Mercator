@@ -432,8 +432,9 @@ done:
     TextDialect::FlushIndexables(collector, key, key_type, index_info.index_update_request_queue, true);
     // if(mob)
     //     rxFreeHashFields(mob);
+    raxFreeWithCallback(collector, [](void *o)
+                        { rxMemFree(o); });
     engine->Forget("@@collector@@");
-    raxFree(collector);
 }
 
 /* This is the timer handler that is called by the main event loop. We schedule

@@ -25,9 +25,26 @@ extern std::string generate_uuid();
 #include "sjiboleth-fablok.hpp"
 #include "sjiboleth-graph.hpp"
 
+static void getRunningSha(SHA1_CTX *context, char *sha1)
+{
+    SHA1_CTX copy;
+    memcpy(&copy, context, sizeof(SHA1_CTX));
+    unsigned char digest[20];
+    SHA1Final(digest, &copy);
+    char *filler = sha1;
+    for (int i = 0; i < 20; i++, filler += 2)
+    {
+        sprintf(filler, "%02x", digest[i]);
+    }
+    *filler = 0x00;
+}
 rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, const char *key)
 {
     stack->Reset();
+    SHA1Init(&stack->fingerprint);
+    SHA1Init(&stack->step_fingerprint);
+    SHA1Update(&stack->fingerprint, (const unsigned char *)key, strlen(key));
+
     FaBlok *v = FaBlok::Get((char *)key, KeysetDescriptor_TYPE_KEYSET);
     v->AsTemp();
     // if(v->size <= 0 )
@@ -40,13 +57,15 @@ rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, co
     return result;
 }
 
-
 rax *SilNikParowy::ExecuteWithSet(ParsedExpression *e, SilNikParowy_Kontekst *stack, FaBlok *triggers)
 {
     stack->Reset();
-    stack->Push(triggers);
+    SHA1Init(&stack->fingerprint);
+    SHA1Init(&stack->step_fingerprint);
+    SHA1Update(&stack->fingerprint, (const unsigned char *)triggers->setname, strlen(triggers->setname));
     e->ClearErrors();
     SilNikParowy::Preload(e, stack);
+    stack->Push(triggers);
     rax *result = SilNikParowy::Execute(e, stack);
     return result;
 }
@@ -133,6 +152,12 @@ void SilNikParowy::Preload(ParsedExpression *e, SilNikParowy_Kontekst *)
 
 rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, void *data)
 {
+    auto memoization_strategy = e->memoization_strategy;
+    if (!stack->HasEntries())
+    {
+        SHA1Init(&stack->fingerprint);
+        SHA1Init(&stack->step_fingerprint);
+    }
     // SilNikParowy::ExceptionHandler_Activate();
     e->expression->StartHead();
     ParserToken *t;
@@ -140,12 +165,18 @@ rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, vo
     // setjmp( SilNikParowy::env_buffer );
     // if(SilNikParowy::GetException() == NULL){
     int index_only_execution = 0;
-
+    int stack_checkpoint = 0;
     while ((t = e->expression->Next()) != NULL)
     {
+        kd == NULL;
+        SHA1Update(&stack->fingerprint, (const unsigned char *)t->Operation(), strlen(t->Token()));
+        SHA1Update(&stack->step_fingerprint, (const unsigned char *)t->Operation(), strlen(t->Token()));
+        getRunningSha(&stack->fingerprint, stack->sha);
+        getRunningSha(&stack->step_fingerprint, stack->step_sha);
+        // rxServerLog(rxLL_NOTICE, "%d %p fingerprint: P=%s S=%s %s", (int)gettid(), stack, stack->sha, stack->step_sha, t->Operation());
         if (index_only_execution == _index_only_execution)
         {
-            if (strcmp("~~~=~~~", (const char*)t->Operation()) != 0)
+            if (strcmp("~~~=~~~", (const char *)t->Operation()) != 0)
                 t->TokenType(_literal);
         }
         if (t->IsObjectExpression())
@@ -166,13 +197,56 @@ rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, vo
                 /*&& rxHashTypeExists(data, t->Token())*/)
             {
                 rxString propertyValue = rxGetHashField(data, t->Token());
-                if (propertyValue)
-                    kd = FaBlok::Get(propertyValue, KeysetDescriptor_TYPE_SINGULAR);
-                else
-                    kd = FaBlok::Get((isdigit(t->Operation()[0] || t->TokenType() == _operand) ? "0" : t->Token()), KeysetDescriptor_TYPE_UNKNOWN);
+                switch (memoization_strategy)
+                {
+                case eMemoizationStrategy::PathMemoization:
+                    if (propertyValue)
+                        kd = FaBlok::Get(stack->sha, propertyValue, KeysetDescriptor_TYPE_SINGULAR);
+                    else
+                        kd = FaBlok::Get(stack->sha, (isdigit(t->Operation()[0] || t->TokenType() == _operand) ? "0" : t->Token()), KeysetDescriptor_TYPE_UNKNOWN);
+                    break;
+                case eMemoizationStrategy::TokenMemoization:
+                    if (propertyValue)
+                        kd = FaBlok::Get(propertyValue, KeysetDescriptor_TYPE_SINGULAR);
+                    else
+                        kd = FaBlok::Get((isdigit(t->Operation()[0] || t->TokenType() == _operand) ? "0" : t->Token()), KeysetDescriptor_TYPE_UNKNOWN);
+                    break;
+                case eMemoizationStrategy::StepMemoization:
+                    if (propertyValue)
+                        kd = FaBlok::Get(stack->sha, propertyValue, KeysetDescriptor_TYPE_SINGULAR);
+                    else
+                        kd = FaBlok::Get(stack->sha, (isdigit(t->Operation()[0] || t->TokenType() == _operand) ? "0" : t->Token()), KeysetDescriptor_TYPE_UNKNOWN);
+                    break;
+                case eMemoizationStrategy::NoMemoization:
+                default:
+                    if (propertyValue)
+                        kd = FaBlok::Get(propertyValue, KeysetDescriptor_TYPE_SINGULAR);
+                    else
+                        kd = FaBlok::Get((isdigit(t->Operation()[0] || t->TokenType() == _operand) ? "0" : t->Token()), KeysetDescriptor_TYPE_UNKNOWN);
+                    break;
+                }
             }
             else
-                kd = FaBlok::Get(t->Token(), KeysetDescriptor_TYPE_SINGULAR);
+            {
+                switch (memoization_strategy)
+                {
+                case eMemoizationStrategy::PathMemoization:
+                    kd = FaBlok::Get(stack->sha, t->Token(), KeysetDescriptor_TYPE_SINGULAR);
+                    break;
+                case eMemoizationStrategy::TokenMemoization:
+                    kd = FaBlok::Get(t->Token(), KeysetDescriptor_TYPE_SINGULAR);
+                    break;
+                case eMemoizationStrategy::StepMemoization:
+                    kd = FaBlok::Get(stack->step_sha, t->Token(), KeysetDescriptor_TYPE_SINGULAR);
+                    break;
+                case eMemoizationStrategy::NoMemoization:
+                default:
+                    kd = FaBlok::Get(t->Token(), KeysetDescriptor_TYPE_SINGULAR);
+                    break;
+                }
+            }
+            kd->ref_count++;
+            kd->reuse_count++;
             kd->IsValid();
             stack->Push(kd);
             break;
@@ -181,17 +255,76 @@ rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, vo
             if (t->IsObjectExpression() && ((t->Options() && PARSER_OPTION_DELAY_OBJECT_EXPRESSION) == PARSER_OPTION_DELAY_OBJECT_EXPRESSION))
             {
                 auto tmp = generate_uuid();
-                kd = FaBlok::Get(tmp.c_str(), KeysetDescriptor_TYPE_OBJECT_EXPRESSION);
+                kd = FaBlok::Get(stack->sha, stack->sha, KeysetDescriptor_TYPE_OBJECT_EXPRESSION);
                 kd->ObjectExpression(t);
+                kd->ref_count++;
+                kd->reuse_count++;
                 stack->Push(kd);
             }
             else
             {
                 if (t->HasExecutor())
                 {
+                    if (t->WillReturnResult())
+                        switch (memoization_strategy)
+                        {
+                        case eMemoizationStrategy::PathMemoization:
+                            kd = FaBlok_Get(stack->sha);
+                            if (kd && stack->HasEntries())
+                            {
+                                kd->reuse_count++;
+                                // rxServerLog(rxLL_NOTICE, "%d %p PathMemoization: P=%s S=%s %s %s", (int)gettid(), stack, stack->sha, stack->step_sha, t->Operation(), kd->setname);
+                                while(stack->HasEntries()){
+                                    auto e = stack->Pop();
+                                    FaBlok::Delete(e);            
+                                }
+                                stack->Push(kd);
+                                continue;
+                            }
+                            break;
+                        case eMemoizationStrategy::StepMemoization:
+                            kd = FaBlok_Get(stack->step_sha);
+                            if (kd)
+                            {
+                                kd->reuse_count++;
+                                // rxServerLog(rxLL_NOTICE, "%d %p Potential memoization to apply: chk:%d-%d  P=%s S=%s %s %s", (int)gettid(), stack, stack_checkpoint, stack->Size() - 1, stack->sha, stack->step_sha, t->Operation(), kd->setname);
+                                // rxServerLog(rxLL_NOTICE, "%d %p StepMemoization: %s %s %s", (int)gettid(), stack, stack->step_sha, t->Operation(), kd->setname);
+                                // int n = t->No_of_stack_entries_consumed();
+                                // while (stack->HasEntries() && n > 0)
+                                // {
+                                //     auto e = stack->Pop();
+                                //     FaBlok::Delete(e);
+                                //     n--;
+                                // }
+                                // stack->Push(kd);
+                                // continue;
+                            }
+                            break;
+                        case eMemoizationStrategy::TokenMemoization:
+                        case eMemoizationStrategy::NoMemoization:
+                        default:
+                            break;
+                        }
+
+                    int stack_sz = stack->Size();
                     long long start = ustime();
-                    int rc = t->Execute(stack);
+                    int rc = C_OK;
+                    // if (kd)
+                    // {
+                    //     for (int n = 0; n < t->No_of_stack_entries_consumed(); ++n)
+                    //     {
+                    //         FaBlok *i = stack->Pop();
+                    //         rxServerLog(rxLL_NOTICE, "discarded: %s", i->setname);
+                    //     }
+                    //     stack->Push(kd);
+                    //     rxServerLog(rxLL_NOTICE, "memoized result: %s", kd->setname);
+                    // }
+                    // else
+                    {
+                        rc = t->Execute(stack);
+                    }
                     long long laps = ustime() - start;
+
                     if (rc == C_ERR)
                     {
                         if (t->copy_of != NULL)
@@ -207,9 +340,32 @@ rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, vo
                     {
                         t->copy_of->us_calls += laps;
                         t->copy_of->n_calls++;
+                        t->copy_of->stack_in += stack_sz;
+                        t->copy_of->stack_out += stack->Size();
+                        t->copy_of->stack_diff += (stack->Size() - stack_sz);
                     }
                     t->us_calls += laps;
                     t->n_calls++;
+                    t->stack_in += stack_sz;
+                    t->stack_out += stack->Size();
+                    t->stack_diff += (stack->Size() - stack_sz);
+
+                    if (t->WillReturnResult())
+                    {
+                        auto r = stack->Peek();
+                        if (r && !r->IsValueType(KeysetDescriptor_TYPE_SINGULAR + KeysetDescriptor_TYPE_PARAMETER_LIST) && raxSize(r->keyset) > 0)
+                            switch (memoization_strategy)
+                            {
+                            case eMemoizationStrategy::PathMemoization:
+                            case eMemoizationStrategy::StepMemoization:
+                                FaBlok_Set(stack->sha, r);
+                                FaBlok_Set(stack->step_sha, r);
+                            case eMemoizationStrategy::TokenMemoization:
+                            case eMemoizationStrategy::NoMemoization:
+                            default:
+                                break;
+                            }
+                    }
                 }
                 else if (t->Priority() > priImmediate)
                 {
@@ -217,6 +373,9 @@ rax *SilNikParowy::Execute(ParsedExpression *e, SilNikParowy_Kontekst *stack, vo
                     snprintf(msg, sizeof(msg), "%d Invalid operation %s\n", t->Priority(), t->Token());
                     e->AddError(msg);
                 }
+                SHA1Init(&stack->step_fingerprint);
+                if (((t->Options() & Q_KEEP_STACK_POSITION)) != Q_KEEP_STACK_POSITION)
+                    stack_checkpoint = stack->Size() - 1;
                 break;
             default:
                 break;
@@ -239,9 +398,8 @@ end_of_loop:
         {
             if (strlen((char *)ln->value) > 0)
             {
-                rxServerLog(rxLL_NOTICE, "ERROR: %s\n", e->ToString());
-                rxServerLog(rxLL_NOTICE, "ERROR: %s\n", (char *)ln->value);
-                error = rxStringFormat("%s%s\n", error, (char *)ln->value);
+                error = rxStringFormat("ERROR: %s%s\n", e->ToString(), (char *)ln->value);
+                rxServerLog(rxLL_NOTICE, error);
             }
         }
         if (strlen(error) > 0)
